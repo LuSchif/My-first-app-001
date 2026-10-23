@@ -11,6 +11,7 @@ import {
   LoaderCircle,
   Lock,
   PenLine,
+  PenTool,
   Redo2,
   Trash2,
   SquareDashed,
@@ -19,6 +20,8 @@ import {
 } from 'lucide-react'
 import { useState, useSyncExternalStore, type ReactNode } from 'react'
 import type { Editor, EditorState, ToolId } from '../../engine/editor/Editor.ts'
+import type { StrokeDash } from '../../engine/model/types.ts'
+import { dashPattern } from '../../engine/render/strokes.ts'
 import { cn } from '../../lib/cn.ts'
 import {
   BroomIcon,
@@ -37,6 +40,7 @@ import { useVisualViewportBottom } from '../../lib/useVisualViewport.ts'
 import type { Autosave } from '../../storage/Autosave.ts'
 import { LayersPanel } from './LayersPanel.tsx'
 import { RecentColors } from './RecentColors.tsx'
+import { PathMenu } from './PathMenu.tsx'
 import { PasteButton, SelectionMenu } from './SelectionMenu.tsx'
 import { SuggestionChip } from './SuggestionChip.tsx'
 import { TextFormatControls } from './TextFormatControls.tsx'
@@ -147,6 +151,7 @@ export function Toolbar({
               <TextSettings editor={editor} state={state} />
             </>,
           )}
+          {toolButton('path', 'Edit paths', <PenTool {...ICON} />)}
           <span className="mx-1 h-7 w-px bg-line" />
           <IconButton
             label="Undo"
@@ -209,6 +214,7 @@ export function Toolbar({
       </div>
       {state.editingText ? <FormatBar editor={editor} state={state} /> : null}
       <SelectionMenu editor={editor} state={state} />
+      <PathMenu editor={editor} state={state} />
       <RecentColors editor={editor} state={state} />
       <SuggestionChip editor={editor} state={state} />
       <PasteButton editor={editor} state={state} />
@@ -293,20 +299,66 @@ function LassoSettings({ editor, state }: { editor: Editor; state: EditorState }
   )
 }
 
+const LINE_STYLES = [
+  [null, 'Solid'],
+  ['dashed', 'Dashed'],
+  ['dotted', 'Dotted'],
+] as const
+
+/** The same dash lengths the canvas uses (render/strokes.ts), for previews. */
+function dashArray(dash: StrokeDash | null, width: number): string | undefined {
+  const pattern = dashPattern({ width, dash: dash ?? undefined })
+  return pattern.length ? pattern.join(' ') : undefined
+}
+
 function PenSettings({ editor, state }: { editor: Editor; state: EditorState }) {
   const { pen } = state
   const close = useClosePopover()
   return (
     <>
-      <div className="grid h-10 place-items-center rounded-control bg-paper ring-1 ring-line">
-        <span
-          className="block w-3/4 rounded-full"
-          style={{
-            background: pen.color,
-            opacity: pen.opacity,
-            height: Math.max(1, pen.width * 1.4),
-          }}
+      <svg
+        aria-hidden="true"
+        className="h-10 w-full rounded-control bg-paper ring-1 ring-line"
+        viewBox="0 0 280 40"
+        preserveAspectRatio="none"
+      >
+        <path
+          d="M24 26 C 80 6, 130 34, 180 18 S 240 12, 256 16"
+          fill="none"
+          stroke={pen.color}
+          strokeOpacity={pen.opacity}
+          strokeWidth={Math.max(1, pen.width * 1.4)}
+          strokeLinecap="round"
+          strokeDasharray={dashArray(pen.dash, Math.max(1, pen.width * 1.4))}
         />
+      </svg>
+      <div role="group" aria-label="Line style" className="grid grid-cols-3 gap-1.5">
+        {LINE_STYLES.map(([dash, label]) => (
+          <button
+            key={label}
+            type="button"
+            aria-pressed={pen.dash === dash}
+            onClick={() => {
+              editor.setPen({ dash })
+              close()
+            }}
+            className="flex min-h-11 flex-col items-center justify-center gap-1 rounded-control px-2 text-xs font-semibold ring-1 ring-line aria-pressed:bg-ink aria-pressed:text-ink-inverse aria-pressed:ring-ink"
+          >
+            <svg aria-hidden="true" width="44" height="6" viewBox="0 0 44 6">
+              <line
+                x1="3"
+                y1="3"
+                x2="41"
+                y2="3"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeDasharray={dashArray(dash, 2.5)}
+              />
+            </svg>
+            {label}
+          </button>
+        ))}
       </div>
       <Slider
         label="Size"

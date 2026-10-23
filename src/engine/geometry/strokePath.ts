@@ -69,6 +69,31 @@ export function traceStroke(
   if (options.closed) sink.closePath?.()
 }
 
+/** Draws a vector path: a start point, then six numbers per cubic segment. */
+export function tracePath(
+  sink: PathSink & { closePath?: () => void },
+  path: readonly number[],
+  closed = false,
+): void {
+  if (path.length < 2) return
+  sink.moveTo(path[0]!, path[1]!)
+  if (path.length < 8) {
+    sink.lineTo(path[0]! + 0.001, path[1]!)
+    return
+  }
+  for (let i = 2; i + 5 < path.length; i += 6) {
+    sink.bezierCurveTo(
+      path[i]!,
+      path[i + 1]!,
+      path[i + 2]!,
+      path[i + 3]!,
+      path[i + 4]!,
+      path[i + 5]!,
+    )
+  }
+  if (closed) sink.closePath?.()
+}
+
 /** A smooth loop: every segment, including last-to-first, uses its wrapped-around neighbours. */
 function traceClosedSegments(sink: PathSink, points: readonly number[]): void {
   const n = points.length / 2
@@ -119,7 +144,7 @@ export function traceSegments(
  * Bézier control points for the centripetal (alpha = 0.5) Catmull-Rom segment from p1 to p2.
  * Centripetal parametrization never forms cusps or loops when samples are unevenly spaced.
  */
-function catmullRomControls(
+export function catmullRomControls(
   x0: number,
   y0: number,
   x1: number,

@@ -139,7 +139,9 @@ export function transformObject(object: CanvasObject, t: Transform): CanvasObjec
       points.push(p.x, p.y)
     }
     if (object.type === 'fill') return { ...object, points }
-    return { ...object, points, width: object.width * t.scale }
+    const moved = { ...object, points, width: object.width * t.scale }
+    if (object.path) moved.path = mapPairs(object.path, (x, y) => transformPoint(t, x, y))
+    return moved
   }
   const center = textCenter(object)
   const c = transformPoint(t, center.x, center.y)
@@ -170,7 +172,8 @@ export function flipObject(
     for (let i = 0; i < object.points.length; i += 2) {
       points.push(fx(object.points[i]!), fy(object.points[i + 1]!))
     }
-    return { ...object, points }
+    if (object.type === 'fill' || !object.path) return { ...object, points }
+    return { ...object, points, path: mapPairs(object.path, (x, y) => ({ x: fx(x), y: fy(y) })) }
   }
   const c = textCenter(object)
   const { height } = layoutText(object)
@@ -180,6 +183,18 @@ export function flipObject(
     y: fy(c.y) - height / 2,
     rotation: normalizeAngle(-object.rotation),
   }
+}
+
+function mapPairs(
+  flat: readonly number[],
+  fn: (x: number, y: number) => { x: number; y: number },
+): number[] {
+  const out: number[] = []
+  for (let i = 0; i + 1 < flat.length; i += 2) {
+    const p = fn(flat[i]!, flat[i + 1]!)
+    out.push(p.x, p.y)
+  }
+  return out
 }
 
 /** The selection frame corners after a transform, for drawing the rotated outline. */

@@ -10,6 +10,7 @@ import {
   type Region,
   type Shape,
 } from '../geometry/shapes.ts'
+import { withPoints } from '../model/factory.ts'
 import type { CanvasObject, FillObject, Id, StrokeObject } from '../model/types.ts'
 
 /** Strokes smaller than this (in points) are handwriting, not shapes. */
@@ -158,7 +159,7 @@ export function applySuggestion(
     return objects.flatMap((o) => {
       if (drop.includes(o.id)) return []
       if (o.id === keep && o.type === 'stroke') {
-        return [{ ...o, points: shape.points, closed: shape.closed, straight: shape.straight }]
+        return [{ ...withPoints(o, shape.points), closed: shape.closed, straight: shape.straight }]
       }
       return [o]
     })

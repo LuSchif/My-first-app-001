@@ -9,16 +9,18 @@ import {
 import type { History } from '../commands/History.ts'
 import type { NotebookDocument } from '../document/NotebookDocument.ts'
 import { eraseFromPoints, strokeTouchesCircle } from '../geometry/erase.ts'
+import { fitPath } from '../geometry/fitCurve.ts'
 import { intersects } from '../geometry/rect.ts'
 import type { Camera, Point } from '../geometry/camera.ts'
 import { StrokeSampler } from '../input/StrokeSampler.ts'
-import { createPage } from '../model/factory.ts'
+import { createPage, withPoints } from '../model/factory.ts'
 import { newId } from '../model/ids.ts'
 import {
   PAGE_SIZE,
   type CanvasObject,
   type Id,
   type LayerDef,
+  type StrokeDash,
   type StrokeObject,
   type TextStyle,
 } from '../model/types.ts'
@@ -58,13 +60,14 @@ import {
 } from './layers.ts'
 import { SelectionController, type LassoMode, type SelectionInfo } from './SelectionController.ts'
 import { DEFAULT_TEXT_STYLE, TextController } from './TextController.ts'
+import { PathController, type PathEditInfo } from './PathController.ts'
 
-export type ToolId = 'pen' | 'highlighter' | 'broom' | 'lasso' | 'text'
+export type ToolId = 'pen' | 'highlighter' | 'broom' | 'lasso' | 'text' | 'path'
 export type BroomMode = 'precise' | 'stroke'
 
 export interface EditorState {
   tool: ToolId
-  pen: { color: string; width: number; opacity: number }
+  pen: { color: string; width: number; opacity: number; dash: StrokeDash | null }
   highlighter: { color: string; width: number }
   broom: { size: number; mode: BroomMode }
   canUndo: boolean
@@ -83,6 +86,8 @@ export interface EditorState {
   /** The offer currently shown, placed near what it would change. */
   suggestion: { kind: 'shape' | 'fill'; label: string; rect: ScreenRect } | null
   selection: SelectionInfo | null
+  /** The stroke being edited with the path tool. */
+  pathEdit: PathEditInfo | null
   hasClipboard: boolean
   /** The notebook's layers, bottom to top. */
   layers: LayerDef[]
@@ -99,6 +104,8 @@ const SIDE_MARGIN = 24
 /** Resting the pen this long after drawing a shape turns it into the perfect shape. */
 const HOLD_MS = 550
 const HOLD_SLOP_PX = 4
+/** How closely a finished stroke's vector path follows the pen, in screen pixels. */
+const FIT_TOLERANCE_PX = 1.2
 const MIN_HOLD_SHAPE = 30
 
 /** Pause after a stroke before looking for shapes to offer. */
@@ -179,6 +186,7 @@ export class Editor {
   private readonly tip: CanvasRenderingContext2D
   private readonly selection: SelectionController
   private readonly text: TextController
+  private readonly paths: PathController
   private hidden: ReadonlySet<Id> = new Set()
   private textTap: { pointerId: number; x: number; y: number } | null = null
   /** Screen pixels at the bottom hidden by the keyboard and format bar while typing. */
@@ -218,7 +226,7 @@ export class Editor {
     this.history = history
     this._state = {
       tool: 'pen',
-      pen: { color: '#3e2d25', width: 2, opacity: 1 },
+      pen: { color: '#3e2d25', width: 2, opacity: 1, dash: null },
       highlighter: { color: '#f2cf4a', width: 14 },
       broom: { size: 16, mode: 'precise' },
       canUndo: history.canUndo,
@@ -233,6 +241,7 @@ export class Editor {
       suggest: true,
       suggestion: null,
       selection: null,
+      pathEdit: null,
       hasClipboard: false,
       layers: doc.notebook.layers,
       activeLayerId: doc.notebook.layers[doc.notebook.layers.length - 1]?.id ?? '',
@@ -266,6 +275,7 @@ export class Editor {
     const context = this.createContext(this.overlayCanvas.getContext('2d')!)
     this.selection = new SelectionController(context)
     this.text = new TextController(context)
+    this.paths = new PathController(context)
 
     this.listen(host, 'pointerdown', (e) => this.onPointerDown(e))
     this.listen(host, 'pointermove', (e) => this.onPointerMove(e))
@@ -338,6 +348,7 @@ export class Editor {
     this.dismissSuggestion()
     if (tool !== 'text') this.text.finish()
     if (tool !== 'lasso') this.selection.clear()
+    if (tool !== 'path') this.paths.clear()
     this.update({ tool })
   }
 
@@ -433,6 +444,20 @@ export class Editor {
   setSnapRotation(on: boolean): void {
     this.selection.snapRotation = on
     this.update({ snapRotation: on })
+  }
+
+  /** Path tool: removes the selected anchor point. */
+  deletePathPoint(): void {
+    this.paths.deleteSelectedAnchor()
+  }
+
+  /** Path tool: switches the selected anchor between a smooth point and a corner. */
+  togglePathPointSmooth(): void {
+    this.paths.toggleSmooth()
+  }
+
+  finishPathEdit(): void {
+    this.paths.clear()
   }
 
   deleteSelection(): void {
@@ -774,6 +799,7 @@ export class Editor {
     // The editor already painted its own new stroke; everything else needs a redraw.
     if (!this.paintedByEditor) this.requestRender()
     this.selection.onDocumentChange()
+    this.paths.onDocumentChange()
     this.checkSuggestion()
   }
 
@@ -850,6 +876,7 @@ export class Editor {
     }
     this.update({
       selection: this.selection.info(),
+      pathEdit: this.paths.info(),
       hasClipboard: this.selection.hasClipboard,
       editingText: this.text.isEditing,
       textStyle: this.text.style ?? this._state.textStyle,
@@ -905,6 +932,10 @@ export class Editor {
     if (this.pending) this.placeSuggestion()
     if (this.selection.active) {
       this.selection.draw()
+      this.syncControllers()
+    }
+    if (this.paths.active) {
+      this.paths.draw()
       this.syncControllers()
     }
     this.text.position()
@@ -989,6 +1020,17 @@ export class Editor {
       this.selection.pointerDown(e)
       return
     }
+    // A finger on an anchor point of the path being edited drags it.
+    if (
+      e.pointerType === 'touch' &&
+      this.touches.size === 0 &&
+      this._state.tool === 'path' &&
+      this.paths.grabs(this.screenPos(e))
+    ) {
+      this.host.setPointerCapture(e.pointerId)
+      this.paths.pointerDown(e)
+      return
+    }
     if (e.pointerType === 'touch') {
       this.touches.set(e.pointerId, this.screenPos(e))
       this.host.setPointerCapture(e.pointerId)
@@ -1032,6 +1074,11 @@ export class Editor {
       this.selection.pointerDown(e)
       return
     }
+    if (tool === 'path') {
+      this.host.setPointerCapture(e.pointerId)
+      this.paths.pointerDown(e)
+      return
+    }
     if (tool === 'text') {
       this.host.setPointerCapture(e.pointerId)
       this.textTap = { pointerId: e.pointerId, ...this.screenPos(e) }
@@ -1067,6 +1114,7 @@ export class Editor {
 
   private onPointerMove(e: PointerEvent): void {
     if (this.selection.pointerMove(e)) return
+    if (this.paths.pointerMove(e)) return
     if (this.textTap?.pointerId === e.pointerId) {
       const p = this.screenPos(e)
       if (Math.hypot(p.x - this.textTap.x, p.y - this.textTap.y) > TAP_SLOP_PX) this.textTap = null
@@ -1109,6 +1157,7 @@ export class Editor {
 
   private onPointerEnd(e: PointerEvent): void {
     this.selection.pointerUp(e)
+    this.paths.pointerUp(e)
     if (this.textTap?.pointerId === e.pointerId) {
       const tap = this.textTap
       this.textTap = null
@@ -1292,6 +1341,7 @@ export class Editor {
         color: settings.color,
         width: settings.width,
         opacity: highlighter ? HIGHLIGHTER_OPACITY : this._state.pen.opacity,
+        ...(!highlighter && this._state.pen.dash ? { dash: this._state.pen.dash } : {}),
       },
       sampler: new StrokeSampler(),
       local: [],
@@ -1356,7 +1406,10 @@ export class Editor {
     }
     // A curve segment is final once the two smoothed points after its start are final.
     const settled = s.smooth.length / 2 - 2
-    if (settled > s.drawnSegments) {
+    // A dash pattern restarts with every path, so dashed ink is drawn whole on the tip layer.
+    const dashed = Boolean(s.stroke.dash)
+    if (dashed && settled > s.drawnSegments) s.drawnSegments = settled
+    if (!dashed && settled > s.drawnSegments) {
       const from = s.drawnSegments
       const path = new Path2D()
       path.moveTo(s.smooth[from * 2]!, s.smooth[from * 2 + 1]!)
@@ -1391,12 +1444,19 @@ export class Editor {
     setInkStyle(this.tip, s.stroke)
     const path = new Path2D()
     const first = s.drawnSegments - start
-    path.moveTo(end[first * 2]!, end[first * 2 + 1]!)
+    if (dashed && s.drawnSegments > 0) {
+      path.moveTo(s.smooth[0]!, s.smooth[1]!)
+      traceSegments(path, s.smooth, 0, s.drawnSegments)
+    } else {
+      path.moveTo(end[first * 2]!, end[first * 2 + 1]!)
+    }
     if (end.length / 2 - 1 > first) traceSegments(path, end, first, end.length / 2 - 1)
     else path.lineTo(end[first * 2]! + 0.001, end[first * 2 + 1]!)
     this.tip.stroke(path)
     this.tip.restore()
-    this.tipDirty = this.deviceRect(end, s.pageIndex, s.stroke.width)
+    this.tipDirty = dashed
+      ? { x: 0, y: 0, w: this.view.width * dpr, h: this.view.height * dpr }
+      : this.deviceRect(end, s.pageIndex, s.stroke.width)
   }
 
   private predictLocal(s: InkSession): Point | null {
@@ -1469,7 +1529,11 @@ export class Editor {
     if (page && points.length >= 2) {
       const stroke: StrokeObject = snapped
         ? { ...s.stroke, points, closed: snapped.closed, straight: snapped.straight }
-        : { ...s.stroke, points }
+        : {
+            ...s.stroke,
+            points,
+            path: fitPath(points, { tolerance: FIT_TOLERANCE_PX / this.camera.zoom }),
+          }
       const layers = this.doc.notebook.layers.filter((l) => l.visible)
       const top = layers[layers.length - 1]
       const onTop = top?.id === stroke.layerId && top.opacity >= 1
@@ -1576,7 +1640,7 @@ export class Editor {
           continue
         }
         changed = true
-        for (const points of pieces) next.push({ ...object, id: newId(), points })
+        for (const points of pieces) next.push({ ...withPoints(object, points), id: newId() })
       }
       if (!changed) continue
       if (!s.before.has(page.id)) s.before.set(page.id, page.objects)

@@ -1,6 +1,13 @@
 import type { Fill } from './fill.ts'
 import { newId } from './ids.ts'
-import { SCHEMA_VERSION, type LayerDef, type Notebook, type Page, type PaperKind } from './types.ts'
+import {
+  SCHEMA_VERSION,
+  type LayerDef,
+  type Notebook,
+  type Page,
+  type PaperKind,
+  type StrokeObject,
+} from './types.ts'
 
 export function createLayer(name: string): LayerDef {
   return { id: newId(), name, visible: true, locked: false, opacity: 1 }
@@ -40,4 +47,10 @@ export function createNotebook(options: {
     updatedAt: now,
   }
   return { notebook, pages: [page] }
+}
+
+/** The same stroke along new points; a vector path no longer matches them and is dropped. */
+export function withPoints(stroke: StrokeObject, points: number[]): StrokeObject {
+  const { path: _path, ...rest } = stroke
+  return { ...rest, points }
 }

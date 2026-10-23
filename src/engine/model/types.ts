@@ -78,7 +78,17 @@ export interface StrokeObject {
   closed?: boolean
   /** Straight lines between the points instead of a smooth curve (polygons). */
   straight?: boolean
+  /**
+   * The stroke as a vector path of cubic Bézier segments (see geometry/fitCurve.ts), drawn
+   * instead of a curve through `points`. `points` then follows the path, for hit tests and the
+   * broom.
+   */
+  path?: number[]
+  /** A dashed or dotted line instead of a solid one. */
+  dash?: StrokeDash
 }
+
+export type StrokeDash = 'dashed' | 'dotted'
 
 /** A filled area, e.g. the inside of a drawn circle. Drawn below its outline. */
 export interface FillObject {
