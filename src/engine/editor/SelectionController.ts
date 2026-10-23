@@ -2,7 +2,7 @@ import { setPageObjects } from '../commands/commands.ts'
 import type { Point } from '../geometry/camera.ts'
 import type { Rect } from '../geometry/rect.ts'
 import { newId } from '../model/ids.ts'
-import type { CanvasObject, Id } from '../model/types.ts'
+import type { CanvasObject, Id, Outline } from '../model/types.ts'
 import { pageOrigin } from '../render/layout.ts'
 import { paintObject } from '../render/objects.ts'
 import { applyCamera } from '../render/SceneRenderer.ts'
@@ -16,6 +16,7 @@ import {
   recolor,
   transformObject,
   transformRect,
+  withOutline,
   type Transform,
 } from './selection.ts'
 
@@ -45,6 +46,8 @@ export interface SelectionInfo {
   color: string | null
   /** The rotate handle sits below the frame (near the top of the screen). */
   handleBelow: boolean
+  /** Contour of the first selected object. */
+  outline: Outline | null
 }
 
 type Handle = 'nw' | 'ne' | 'se' | 'sw' | 'rotate'
@@ -150,6 +153,7 @@ export class SelectionController {
       scaling: this.scaling,
       color: objects[0] ? colorOf(objects[0]) : null,
       handleBelow: this.handleSide() === 'bottom',
+      outline: objects[0]?.outline ?? null,
     }
   }
 
@@ -282,6 +286,18 @@ export class SelectionController {
     const ids = new Set(sel.ids)
     const after = page.objects.map((o) => (ids.has(o.id) ? recolor(o, color) : o))
     this.ctx.history.execute(setPageObjects('Color', page.id, page.objects, after))
+  }
+
+  /** Adds, changes or removes the contour around every selected object. */
+  setOutline(outline: Outline | null): void {
+    const sel = this.selection
+    const page = sel && this.ctx.doc.page(sel.pageId)
+    if (!sel || !page) return
+    const ids = new Set(sel.ids)
+    const after = page.objects.map((o) => (ids.has(o.id) ? withOutline(o, outline) : o))
+    this.ctx.history.execute(setPageObjects('Outline', page.id, page.objects, after))
+    // The frame grows or shrinks with the contour.
+    this.select(sel.pageId, sel.ids)
   }
 
   /** Moves the selected objects onto another layer, on top of what is already there. */

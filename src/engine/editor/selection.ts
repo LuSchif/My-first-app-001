@@ -1,6 +1,6 @@
 import { strokeTouchesCircle } from '../geometry/erase.ts'
 import { union, type Rect } from '../geometry/rect.ts'
-import type { CanvasObject, TextObject } from '../model/types.ts'
+import type { CanvasObject, Outline, TextObject } from '../model/types.ts'
 import { objectBounds } from '../render/objects.ts'
 import { layoutText, textCenter, textContains, textCorners } from '../render/text.ts'
 
@@ -91,6 +91,12 @@ function segmentsIntersect(
   return d1 * d2 < 0 && d3 * d4 < 0
 }
 
+/** The same object with a contour around it, or without one. */
+export function withOutline(object: CanvasObject, outline: Outline | null): CanvasObject {
+  const { outline: _old, ...rest } = object
+  return outline ? { ...rest, outline } : rest
+}
+
 /** The same object in another color: the ink of a stroke or fill, the text of a text box. */
 export function recolor(object: CanvasObject, color: string): CanvasObject {
   if (object.type === 'text') return { ...object, style: { ...object.style, color } }
@@ -132,6 +138,12 @@ export function transformPoint(t: Transform, x: number, y: number): { x: number;
 
 /** Applies a transform permanently: strokes get new points, text boxes a new frame and size. */
 export function transformObject(object: CanvasObject, t: Transform): CanvasObject {
+  const moved = transformShape(object, t)
+  if (!object.outline || t.scale === 1) return moved
+  return { ...moved, outline: { ...object.outline, width: object.outline.width * t.scale } }
+}
+
+function transformShape(object: CanvasObject, t: Transform): CanvasObject {
   if (object.type !== 'text') {
     const points: number[] = []
     for (let i = 0; i < object.points.length; i += 2) {

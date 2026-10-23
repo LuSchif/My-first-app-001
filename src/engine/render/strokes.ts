@@ -21,7 +21,7 @@ export function strokePath(stroke: StrokeObject): Path2D {
 export function strokeBounds(stroke: StrokeObject): Rect {
   let rect = bounds.get(stroke)
   if (!rect) {
-    rect = boundsOfPoints(stroke.points, stroke.width / 2)
+    rect = boundsOfPoints(stroke.points, stroke.width / 2 + (stroke.outline?.width ?? 0))
     bounds.set(stroke, rect)
   }
   return rect
@@ -51,6 +51,14 @@ export function paintStroke(ctx: CanvasRenderingContext2D, stroke: StrokeObject)
   ctx.globalAlpha = stroke.opacity
   // Highlighter tints what is below instead of covering it, like a real marker.
   ctx.globalCompositeOperation = stroke.tool === 'highlighter' ? 'multiply' : 'source-over'
+  if (stroke.outline) {
+    // The contour is a wider line of its own color underneath.
+    ctx.lineWidth = stroke.width + stroke.outline.width * 2
+    ctx.strokeStyle = stroke.outline.color
+    ctx.stroke(strokePath(stroke))
+    ctx.lineWidth = stroke.width
+    ctx.strokeStyle = stroke.color
+  }
   ctx.stroke(strokePath(stroke))
   ctx.globalAlpha = 1
   ctx.globalCompositeOperation = 'source-over'

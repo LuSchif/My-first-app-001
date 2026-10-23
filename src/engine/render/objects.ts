@@ -22,7 +22,7 @@ export function objectBounds(object: CanvasObject): Rect {
   if (object.type === 'text') return textBounds(object)
   let rect = fillBounds.get(object)
   if (!rect) {
-    rect = boundsOfPoints(object.points)
+    rect = boundsOfPoints(object.points, (object.outline?.width ?? 0) / 2)
     fillBounds.set(object, rect)
   }
   return rect
@@ -35,6 +35,12 @@ export function paintObject(ctx: CanvasRenderingContext2D, object: CanvasObject)
     ctx.globalAlpha = object.opacity
     ctx.fillStyle = object.color
     ctx.fill(fillPath(object))
+    if (object.outline) {
+      ctx.lineWidth = object.outline.width
+      ctx.lineJoin = 'round'
+      ctx.strokeStyle = object.outline.color
+      ctx.stroke(fillPath(object))
+    }
     ctx.globalAlpha = 1
   }
 }

@@ -61,6 +61,13 @@ export interface Page {
 
 export type CanvasObject = StrokeObject | TextObject | FillObject
 
+/** A contour drawn around an object: around a line, the edge of an area, or each letter. */
+export interface Outline {
+  color: string
+  /** Thickness in points, outside the object. */
+  width: number
+}
+
 export type InkTool = 'pen' | 'highlighter'
 
 export interface StrokeObject {
@@ -86,6 +93,7 @@ export interface StrokeObject {
   path?: number[]
   /** A dashed or dotted line instead of a solid one. */
   dash?: StrokeDash
+  outline?: Outline
 }
 
 export type StrokeDash = 'dashed' | 'dotted'
@@ -101,6 +109,7 @@ export interface FillObject {
   points: number[]
   /** Whether the outline is a smooth curve through the points or straight edges. */
   smooth: boolean
+  outline?: Outline
 }
 
 export type FontFamily = 'sans' | 'serif' | 'hand' | 'mono'
@@ -133,6 +142,7 @@ export interface TextObject {
   rotation: number
   text: string
   style: TextStyle
+  outline?: Outline
 }
 
 /** A4 in PostScript points. */

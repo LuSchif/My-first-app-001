@@ -105,11 +105,12 @@ export function textCorners(object: TextObject): { x: number; y: number }[] {
 
 export function textBounds(object: TextObject): Rect {
   const corners = textCorners(object)
+  const pad = object.outline?.width ?? 0
   return {
-    minX: Math.min(...corners.map((p) => p.x)),
-    minY: Math.min(...corners.map((p) => p.y)),
-    maxX: Math.max(...corners.map((p) => p.x)),
-    maxY: Math.max(...corners.map((p) => p.y)),
+    minX: Math.min(...corners.map((p) => p.x)) - pad,
+    minY: Math.min(...corners.map((p) => p.y)) - pad,
+    maxX: Math.max(...corners.map((p) => p.x)) + pad,
+    maxY: Math.max(...corners.map((p) => p.y)) + pad,
   }
 }
 
@@ -148,6 +149,15 @@ export function paintText(ctx: CanvasRenderingContext2D, object: TextObject): vo
           ? object.width - line.width
           : 0
     const y = i * lineHeight + lineHeight / 2
+    if (object.outline) {
+      // Stroked behind the letters, so only the outer half of the contour shows.
+      ctx.save()
+      ctx.lineWidth = object.outline.width * 2
+      ctx.lineJoin = 'round'
+      ctx.strokeStyle = object.outline.color
+      ctx.strokeText(line.text, x, y)
+      ctx.restore()
+    }
     ctx.fillText(line.text, x, y)
     if (style.underline && line.width > 0) {
       ctx.lineWidth = Math.max(0.5, style.size / 16)

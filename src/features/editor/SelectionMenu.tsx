@@ -7,6 +7,7 @@ import {
   Layers,
   Scaling,
   Scissors,
+  SquareRoundCorner,
   TextCursorInput,
   Trash2,
 } from 'lucide-react'
@@ -18,8 +19,12 @@ import {
   PopoverClose,
   PopoverContent,
   PopoverTrigger,
+  Slider,
+  Switch,
   useClosePopover,
 } from '../../design/index.ts'
+import type { Outline } from '../../engine/model/types.ts'
+import { useState } from 'react'
 
 const MENU_HEIGHT = 56
 const GAP = 14
@@ -71,6 +76,20 @@ export function SelectionMenu({ editor, state }: { editor: Editor; state: Editor
         </PopoverTrigger>
         <PopoverContent className="w-80">
           <SelectionColor editor={editor} color={sel.color ?? '#3e2d25'} />
+        </PopoverContent>
+      </Popover>
+      <Popover>
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            className="flex h-11 items-center gap-1.5 rounded-control px-3 text-sm font-semibold hover:bg-white/10 active:bg-white/15"
+          >
+            <SquareRoundCorner size={18} />
+            Outline
+          </button>
+        </PopoverTrigger>
+        <PopoverContent className="grid w-80 gap-4">
+          <OutlineControls editor={editor} outline={sel.outline} />
         </PopoverContent>
       </Popover>
       {state.layers.length > 1 ? (
@@ -127,6 +146,48 @@ export function SelectionMenu({ editor, state }: { editor: Editor; state: Editor
         <Trash2 size={18} />
       </MenuButton>
     </div>
+  )
+}
+
+const DEFAULT_OUTLINE: Outline = { color: '#3e2d25', width: 2 }
+
+/** Turns the contour around the selection on or off, and sets its thickness and color. */
+function OutlineControls({ editor, outline }: { editor: Editor; outline: Outline | null }) {
+  const close = useClosePopover()
+  const [width, setWidth] = useState<number | null>(null)
+  const current = outline ?? DEFAULT_OUTLINE
+  return (
+    <>
+      <Switch
+        label="Outline"
+        hint="A contour around the selected shapes, lines or text"
+        checked={outline !== null}
+        onChange={(on) => editor.setSelectionOutline(on ? current : null)}
+      />
+      {outline ? (
+        <>
+          <Slider
+            label="Thickness"
+            value={width ?? outline.width}
+            min={0.5}
+            max={12}
+            step={0.5}
+            onChange={setWidth}
+            onCommit={(w) => {
+              setWidth(null)
+              editor.setSelectionOutline({ ...outline, width: w })
+              close()
+            }}
+            format={(v) => `${v} pt`}
+          />
+          <ColorPicker
+            value={outline.color}
+            onChange={(color) => editor.setSelectionOutline({ ...outline, color })}
+            onCommit={close}
+          />
+        </>
+      ) : null}
+    </>
   )
 }
 

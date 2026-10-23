@@ -20,6 +20,7 @@ import {
   type CanvasObject,
   type Id,
   type LayerDef,
+  type Outline,
   type StrokeDash,
   type StrokeObject,
   type TextStyle,
@@ -60,9 +61,10 @@ import {
 } from './layers.ts'
 import { SelectionController, type LassoMode, type SelectionInfo } from './SelectionController.ts'
 import { DEFAULT_TEXT_STYLE, TextController } from './TextController.ts'
+import { LaserPointer } from './LaserPointer.ts'
 import { PathController, type PathEditInfo } from './PathController.ts'
 
-export type ToolId = 'pen' | 'highlighter' | 'broom' | 'lasso' | 'text' | 'path'
+export type ToolId = 'pen' | 'highlighter' | 'broom' | 'lasso' | 'text' | 'path' | 'laser'
 export type BroomMode = 'precise' | 'stroke'
 
 export interface EditorState {
@@ -70,6 +72,7 @@ export interface EditorState {
   pen: { color: string; width: number; opacity: number; dash: StrokeDash | null }
   highlighter: { color: string; width: number }
   broom: { size: number; mode: BroomMode }
+  laserColor: string
   canUndo: boolean
   canRedo: boolean
   pageIndex: number
@@ -187,6 +190,7 @@ export class Editor {
   private readonly selection: SelectionController
   private readonly text: TextController
   private readonly paths: PathController
+  private readonly laser: LaserPointer
   private hidden: ReadonlySet<Id> = new Set()
   private textTap: { pointerId: number; x: number; y: number } | null = null
   /** Screen pixels at the bottom hidden by the keyboard and format bar while typing. */
@@ -229,6 +233,7 @@ export class Editor {
       pen: { color: '#3e2d25', width: 2, opacity: 1, dash: null },
       highlighter: { color: '#f2cf4a', width: 14 },
       broom: { size: 16, mode: 'precise' },
+      laserColor: '#e0533f',
       canUndo: history.canUndo,
       canRedo: history.canRedo,
       pageIndex: 0,
@@ -276,6 +281,7 @@ export class Editor {
     this.selection = new SelectionController(context)
     this.text = new TextController(context)
     this.paths = new PathController(context)
+    this.laser = new LaserPointer(context)
 
     this.listen(host, 'pointerdown', (e) => this.onPointerDown(e))
     this.listen(host, 'pointermove', (e) => this.onPointerMove(e))
@@ -349,6 +355,7 @@ export class Editor {
     if (tool !== 'text') this.text.finish()
     if (tool !== 'lasso') this.selection.clear()
     if (tool !== 'path') this.paths.clear()
+    if (tool !== 'laser') this.laser.clear()
     this.update({ tool })
   }
 
@@ -444,6 +451,12 @@ export class Editor {
   setSnapRotation(on: boolean): void {
     this.selection.snapRotation = on
     this.update({ snapRotation: on })
+  }
+
+  /** Adds, changes or removes the contour around the selection. */
+  setSelectionOutline(outline: Outline | null): void {
+    if (outline) this.rememberColor(outline.color)
+    this.selection.setOutline(outline)
   }
 
   /** Path tool: removes the selected anchor point. */
@@ -706,6 +719,11 @@ export class Editor {
   setPen(patch: Partial<EditorState['pen']>): void {
     if (patch.color) this.rememberColor(patch.color)
     this.update({ pen: { ...this._state.pen, ...patch } })
+  }
+
+  setLaserColor(laserColor: string): void {
+    this.laser.color = laserColor
+    this.update({ laserColor })
   }
 
   setHighlighter(patch: Partial<EditorState['highlighter']>): void {
@@ -1067,6 +1085,12 @@ export class Editor {
 
     // An offer is meant for the stroke just drawn; the next action moves on.
     this.dismissSuggestion()
+    // The laser only points; it works on any layer.
+    if (this._state.tool === 'laser') {
+      this.host.setPointerCapture(e.pointerId)
+      this.laser.down(e)
+      return
+    }
     if (this.blockedByLayer()) return
     const tool = this._state.tool
     if (tool === 'lasso') {
@@ -1115,6 +1139,7 @@ export class Editor {
   private onPointerMove(e: PointerEvent): void {
     if (this.selection.pointerMove(e)) return
     if (this.paths.pointerMove(e)) return
+    if (this.laser.move(e)) return
     if (this.textTap?.pointerId === e.pointerId) {
       const p = this.screenPos(e)
       if (Math.hypot(p.x - this.textTap.x, p.y - this.textTap.y) > TAP_SLOP_PX) this.textTap = null
@@ -1158,6 +1183,7 @@ export class Editor {
   private onPointerEnd(e: PointerEvent): void {
     this.selection.pointerUp(e)
     this.paths.pointerUp(e)
+    this.laser.up(e)
     if (this.textTap?.pointerId === e.pointerId) {
       const tap = this.textTap
       this.textTap = null

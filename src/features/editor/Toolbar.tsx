@@ -26,6 +26,7 @@ import { cn } from '../../lib/cn.ts'
 import {
   BroomIcon,
   Button,
+  LaserBroomIcon,
   ColorPicker,
   ColorSwatch,
   IconButton,
@@ -152,6 +153,12 @@ export function Toolbar({
             </>,
           )}
           {toolButton('path', 'Edit paths', <PenTool {...ICON} />)}
+          {toolButton(
+            'laser',
+            'Laser pointer',
+            <LaserBroomIcon size={22} />,
+            <LaserSettings editor={editor} state={state} />,
+          )}
           <span className="mx-1 h-7 w-px bg-line" />
           <IconButton
             label="Undo"
@@ -244,6 +251,39 @@ function FormatBar({ editor, state }: { editor: Editor; state: EditorState }) {
         onDone={() => editor.finishText()}
       />
     </div>
+  )
+}
+
+const LASER_COLORS = [
+  ['Red', '#e0533f'],
+  ['Caramel', '#d08a4a'],
+  ['Green', '#3fae5a'],
+  ['Blue', '#3f7fe0'],
+  ['Purple', '#9b5de5'],
+] as const
+
+function LaserSettings({ editor, state }: { editor: Editor; state: EditorState }) {
+  const close = useClosePopover()
+  return (
+    <>
+      <p className="text-sm text-ink-muted">
+        Point at things while you present. The trail fades on its own and never changes the page.
+      </p>
+      <div role="group" aria-label="Laser colors" className="flex flex-wrap">
+        {LASER_COLORS.map(([name, color]) => (
+          <ColorSwatch
+            key={color}
+            label={name}
+            fill={{ type: 'solid', color }}
+            selected={state.laserColor === color}
+            onSelect={() => {
+              editor.setLaserColor(color)
+              close()
+            }}
+          />
+        ))}
+      </div>
+    </>
   )
 }
 
