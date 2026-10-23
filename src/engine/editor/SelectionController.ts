@@ -249,7 +249,11 @@ export class SelectionController {
   }
 
   clear(): void {
-    if (!this.selection && !this.lasso) return
+    if (!this.selection && !this.lasso) {
+      // A finished lasso that caught nothing may still be on the overlay.
+      this.draw()
+      return
+    }
     this.selection = null
     this.lasso = null
     this.drag = null
@@ -385,8 +389,9 @@ export class SelectionController {
     ctx.setTransform(1, 0, 0, 1, 0, 0)
     ctx.clearRect(0, 0, width * dpr, height * dpr)
 
+    // A tap selects what is under it; the lasso only shows once it is really being drawn.
     const lasso = this.lasso
-    if (lasso) {
+    if (lasso && lasso.screenLength >= TAP_PX) {
       this.enterPageSpace(lasso.pageIndex)
       const zoom = this.ctx.camera().zoom
       ctx.beginPath()

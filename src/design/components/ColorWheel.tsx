@@ -12,9 +12,12 @@ const SIZE = 152
 export function ColorWheel({
   value,
   onChange,
+  onCommit,
 }: {
   value: string
   onChange: (hex: string) => void
+  /** Called when a choice is finished: the pen lifts from the wheel or the slider. */
+  onCommit?: () => void
 }) {
   // The wheel keeps its own HSV so hue survives at zero saturation; a new value from outside
   // (e.g. a recent color was chosen) replaces it.
@@ -71,6 +74,7 @@ export function ColorWheel({
         onPointerMove={(e) => {
           if (e.currentTarget.hasPointerCapture(e.pointerId)) pick(e)
         }}
+        onPointerUp={() => onCommit?.()}
       >
         <span className="absolute inset-0 rounded-full bg-black" style={{ opacity: 1 - hsv.v }} />
         <span
@@ -89,6 +93,7 @@ export function ColorWheel({
           min={0}
           max={100}
           onChange={(v) => commit({ ...hsv, v: v / 100 })}
+          onCommit={() => onCommit?.()}
           format={(v) => `${v}%`}
         />
       </div>
@@ -99,8 +104,11 @@ export function ColorWheel({
           onChange={(e) => setDraft(e.target.value)}
           onBlur={() => {
             const parsed = draft === null ? null : parseHex(draft)
-            if (parsed) commit(hexToHsv(parsed))
             setDraft(null)
+            if (parsed) {
+              commit(hexToHsv(parsed))
+              onCommit?.()
+            }
           }}
           onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
           spellCheck={false}

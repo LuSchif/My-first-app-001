@@ -18,9 +18,12 @@ const WHEEL_FILL = {
 export function ColorPicker({
   value,
   onChange,
+  onCommit,
 }: {
   value: string
   onChange: (hex: string) => void
+  /** Called once a color is chosen, e.g. to close the menu it sits in. */
+  onCommit?: () => void
 }) {
   const isPrimary = PRIMARY_COLORS.some(([, c]) => c === value)
   const [wheel, setWheel] = useState(!isPrimary)
@@ -34,7 +37,10 @@ export function ColorPicker({
             label={name}
             fill={{ type: 'solid', color }}
             selected={value === color}
-            onSelect={() => onChange(color)}
+            onSelect={() => {
+              onChange(color)
+              onCommit?.()
+            }}
           />
         ))}
         <ColorSwatch
@@ -45,7 +51,7 @@ export function ColorPicker({
           onSelect={() => setWheel(!wheel)}
         />
       </div>
-      {wheel ? <ColorWheel value={value} onChange={onChange} /> : null}
+      {wheel ? <ColorWheel value={value} onChange={onChange} onCommit={onCommit} /> : null}
     </div>
   )
 }

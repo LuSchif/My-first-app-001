@@ -4,6 +4,7 @@ import { History } from '../../engine/commands/History.ts'
 import { NotebookDocument } from '../../engine/document/NotebookDocument.ts'
 import { Editor } from '../../engine/editor/Editor.ts'
 import { Button } from '../../design/index.ts'
+import { useFixedViewport } from '../../lib/useFixedViewport.ts'
 import { Autosave } from '../../storage/Autosave.ts'
 import { loadNotebook, saveChanges } from '../../storage/notebooks.ts'
 import { Toolbar } from './Toolbar.tsx'
@@ -58,6 +59,7 @@ export function EditorView({ id }: { id: string }) {
 function EditorSession({ doc, history, autosave }: Loaded) {
   const hostRef = useRef<HTMLDivElement>(null)
   const [editor, setEditor] = useState<Editor | null>(null)
+  useFixedViewport()
 
   useEffect(() => {
     const instance = new Editor(hostRef.current!, doc, history)

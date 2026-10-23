@@ -9,7 +9,7 @@ import {
   Plus,
   Underline,
 } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import type { Editor } from '../../engine/editor/Editor.ts'
 import type { FontFamily, TextStyle } from '../../engine/model/types.ts'
 import { FONT_LABELS, FONT_STACKS } from '../../engine/render/text.ts'
@@ -35,18 +35,32 @@ export function TextFormatControls({
   editor,
   style,
   onDone,
+  onChoice,
 }: {
   editor: Editor
   style: TextStyle
   onDone?: () => void
+  /** Called after each change, e.g. to close the menu these controls sit in. */
+  onChoice?: () => void
 }) {
+  const [menu, setMenu] = useState<'font' | 'color' | 'align' | null>(null)
+  const menuProps = (name: 'font' | 'color' | 'align') => ({
+    open: menu === name,
+    onOpenChange: (open: boolean) => setMenu(open ? name : null),
+  })
   const set = (patch: Partial<TextStyle>) => editor.setTextStyle(patch)
+  /** A finished choice closes the open menus. */
+  const choose = (patch: Partial<TextStyle>) => {
+    set(patch)
+    setMenu(null)
+    onChoice?.()
+  }
   const step = (dir: 1 | -1) => {
     const next =
       dir > 0
         ? (SIZES.find((s) => s > style.size) ?? style.size)
         : ([...SIZES].reverse().find((s) => s < style.size) ?? style.size)
-    set({ size: next })
+    choose({ size: next })
   }
 
   return (
@@ -57,7 +71,7 @@ export function TextFormatControls({
         if ((e.target as HTMLElement).closest('[data-keep-focus]')) e.preventDefault()
       }}
     >
-      <Popover>
+      <Popover {...menuProps('font')}>
         <PopoverTrigger asChild>
           <button
             type="button"
@@ -74,7 +88,7 @@ export function TextFormatControls({
               key={font}
               type="button"
               aria-pressed={style.font === font}
-              onClick={() => set({ font })}
+              onClick={() => choose({ font })}
               className="h-11 rounded-control px-3 text-left text-lg hover:bg-hover aria-pressed:bg-surface-sunken"
               style={{ fontFamily: FONT_STACKS[font] }}
             >
@@ -103,21 +117,25 @@ export function TextFormatControls({
       </div>
 
       <Divider />
-      <Toggle label="Bold" active={style.bold} onClick={() => set({ bold: !style.bold })}>
+      <Toggle label="Bold" active={style.bold} onClick={() => choose({ bold: !style.bold })}>
         <Bold {...ICON} />
       </Toggle>
-      <Toggle label="Italic" active={style.italic} onClick={() => set({ italic: !style.italic })}>
+      <Toggle
+        label="Italic"
+        active={style.italic}
+        onClick={() => choose({ italic: !style.italic })}
+      >
         <Italic {...ICON} />
       </Toggle>
       <Toggle
         label="Underline"
         active={style.underline}
-        onClick={() => set({ underline: !style.underline })}
+        onClick={() => choose({ underline: !style.underline })}
       >
         <Underline {...ICON} />
       </Toggle>
 
-      <Popover>
+      <Popover {...menuProps('color')}>
         <PopoverTrigger asChild>
           <button
             type="button"
@@ -131,19 +149,24 @@ export function TextFormatControls({
           </button>
         </PopoverTrigger>
         <PopoverContent className="grid w-80 gap-4">
-          <ColorPicker value={style.color} onChange={(color) => set({ color })} />
+          <ColorPicker
+            value={style.color}
+            onChange={(color) => set({ color })}
+            onCommit={() => choose({})}
+          />
           <Slider
             label="Opacity"
             value={Math.round(style.opacity * 100)}
             min={10}
             max={100}
             onChange={(v) => set({ opacity: v / 100 })}
+            onCommit={() => choose({})}
             format={(v) => `${v}%`}
           />
         </PopoverContent>
       </Popover>
 
-      <Popover>
+      <Popover {...menuProps('align')}>
         <PopoverTrigger asChild>
           <button
             type="button"
@@ -159,21 +182,21 @@ export function TextFormatControls({
             <Toggle
               label="Align left"
               active={style.align === 'left'}
-              onClick={() => set({ align: 'left' })}
+              onClick={() => choose({ align: 'left' })}
             >
               <AlignLeft {...ICON} />
             </Toggle>
             <Toggle
               label="Align center"
               active={style.align === 'center'}
-              onClick={() => set({ align: 'center' })}
+              onClick={() => choose({ align: 'center' })}
             >
               <AlignCenter {...ICON} />
             </Toggle>
             <Toggle
               label="Align right"
               active={style.align === 'right'}
-              onClick={() => set({ align: 'right' })}
+              onClick={() => choose({ align: 'right' })}
             >
               <AlignRight {...ICON} />
             </Toggle>
@@ -185,6 +208,7 @@ export function TextFormatControls({
             max={2.5}
             step={0.05}
             onChange={(lineHeight) => set({ lineHeight })}
+            onCommit={() => choose({})}
             format={(v) => v.toFixed(2)}
           />
         </PopoverContent>

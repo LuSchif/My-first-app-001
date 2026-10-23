@@ -18,6 +18,7 @@ import {
   PopoverClose,
   PopoverContent,
   PopoverTrigger,
+  useClosePopover,
 } from '../../design/index.ts'
 
 const MENU_HEIGHT = 56
@@ -69,10 +70,7 @@ export function SelectionMenu({ editor, state }: { editor: Editor; state: Editor
           </button>
         </PopoverTrigger>
         <PopoverContent className="w-80">
-          <ColorPicker
-            value={sel.color ?? '#3e2d25'}
-            onChange={(color) => editor.recolorSelection(color)}
-          />
+          <SelectionColor editor={editor} color={sel.color ?? '#3e2d25'} />
         </PopoverContent>
       </Popover>
       {state.layers.length > 1 ? (
@@ -129,6 +127,17 @@ export function SelectionMenu({ editor, state }: { editor: Editor; state: Editor
         <Trash2 size={18} />
       </MenuButton>
     </div>
+  )
+}
+
+function SelectionColor({ editor, color }: { editor: Editor; color: string }) {
+  const close = useClosePopover()
+  return (
+    <ColorPicker
+      value={color}
+      onChange={(next) => editor.recolorSelection(next)}
+      onCommit={close}
+    />
   )
 }
 

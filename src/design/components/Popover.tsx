@@ -1,10 +1,39 @@
 import * as RadixPopover from '@radix-ui/react-popover'
-import type { ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { cn } from '../../lib/cn.ts'
+import { CloseContext, useClosePopover } from './popoverContext.ts'
 
-export const Popover = RadixPopover.Root
 export const PopoverTrigger = RadixPopover.Trigger
 export const PopoverClose = RadixPopover.Close
+
+/** A popover that can be closed from inside (`useClosePopover`); controlled or not. */
+export function Popover({
+  open,
+  onOpenChange,
+  children,
+}: {
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+  children: ReactNode
+}) {
+  const [own, setOwn] = useState(false)
+  const isOpen = open ?? own
+  const setOpen = useCallback(
+    (next: boolean) => {
+      if (open === undefined) setOwn(next)
+      onOpenChange?.(next)
+    },
+    [open, onOpenChange],
+  )
+  const close = useCallback(() => setOpen(false), [setOpen])
+  return (
+    <CloseContext.Provider value={close}>
+      <RadixPopover.Root open={isOpen} onOpenChange={setOpen}>
+        {children}
+      </RadixPopover.Root>
+    </CloseContext.Provider>
+  )
+}
 
 /** Floating panel for tool settings and small menus. */
 export function PopoverContent({
@@ -18,13 +47,41 @@ export function PopoverContent({
   side?: 'top' | 'right' | 'bottom' | 'left'
   align?: 'start' | 'center' | 'end'
 }) {
+  const close = useClosePopover()
+  const ref = useRef<HTMLDivElement>(null)
+
+  // Radix waits for a click before closing on an outside touch, and the canvas cancels touches
+  // so no click ever comes. Close on the touch itself instead.
+  useEffect(() => {
+    const onPointerDown = (e: PointerEvent) => {
+      const target = e.target as Element | null
+      const content = ref.current
+      if (!target || !content) return
+      if (content.contains(target)) return
+      // A popover opened from this one (e.g. a font list) is portalled after it; touching it
+      // keeps this one open.
+      const other = target.closest('[data-radix-popper-content-wrapper]')
+      const own = content.closest('[data-radix-popper-content-wrapper]')
+      if (other && own && own.compareDocumentPosition(other) & Node.DOCUMENT_POSITION_FOLLOWING) {
+        return
+      }
+      if (content.id && target.closest(`[aria-controls="${content.id}"]`)) return
+      close()
+    }
+    document.addEventListener('pointerdown', onPointerDown, true)
+    return () => document.removeEventListener('pointerdown', onPointerDown, true)
+  }, [close])
+
   return (
     <RadixPopover.Portal>
       <RadixPopover.Content
+        ref={ref}
         side={side}
         align={align}
         sideOffset={10}
         collisionPadding={16}
+        // Focus going back to the trigger would pop up its tooltip after every choice.
+        onCloseAutoFocus={(e) => e.preventDefault()}
         className={cn(
           'z-40 w-72 animate-pop-in rounded-panel bg-surface-raised p-4 shadow-raised ring-1 ring-line',
           className,
