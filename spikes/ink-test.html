@@ -270,6 +270,8 @@
   <dd id="s-rate">–</dd>
   <dt>Points in stroke</dt>
   <dd id="s-points">–</dd>
+  <dt>Samples filtered</dt>
+  <dd id="s-cleaned">–</dd>
   <dt>Full redraw</dt>
   <dd id="s-redraw">–</dd>
   <dt>Strokes on page</dt>
@@ -385,9 +387,9 @@
     const hl = s.tool === 'highlighter'
     return {
       size: s.size,
-      thinning: hl ? 0 : s.pressure ? 0.6 : 0.45,
-      smoothing: 0.5,
-      streamline: hl ? 0.5 : 0.3,
+      thinning: hl ? 0 : 0.5,
+      smoothing: 0.6,
+      streamline: hl ? 0.55 : 0.4,
       simulatePressure: !hl && !s.pressure,
       start: hl ? { cap: false } : {},
       end: hl ? { cap: false } : {},
@@ -482,15 +484,25 @@
     // Skip strokes outside the visible area.
     const tl = screenToWorld({ x: 0, y: 0 })
     const br = screenToWorld({ x: w, y: h })
+    scene.save()
+    clipToPage(scene)
     for (const s of state.strokes) {
       const b = s.bounds
       if (b.maxX < tl.x || b.minX > br.x || b.maxY < tl.y || b.minY > br.y) continue
       paintStroke(scene, s)
     }
+    scene.restore()
 
     const ms = performance.now() - t0
     $('s-redraw').textContent = `${ms.toFixed(1)} ms`
     $('s-strokes').textContent = state.strokes.length.toLocaleString('en-US')
+  }
+
+  // Ink never shows outside the paper.
+  function clipToPage(ctx) {
+    ctx.beginPath()
+    ctx.rect(0, 0, PAGE.w, PAGE.h)
+    ctx.clip()
   }
 
   function clearLive() {
@@ -504,11 +516,13 @@
     if (!s) return
     const points = predicted.length ? s.points.concat(predicted) : s.points
     applyCamera(live)
+    live.save()
+    clipToPage(live)
     const outline = getStroke(points, strokeOptions(s, false))
     live.globalAlpha = s.opacity
     live.fillStyle = s.color
     live.fill(outlineToPath(outline))
-    live.globalAlpha = 1
+    live.restore()
   }
 
   function resize() {
@@ -529,9 +543,54 @@
   let stageRect = stage.getBoundingClientRect()
   const screenPos = (e) => ({ x: e.clientX - stageRect.left, y: e.clientY - stageRect.top })
 
-  function samplePoint(e) {
-    const w = screenToWorld(screenPos(e))
-    return [w.x, w.y, state.current.pressure ? e.pressure : 0.5]
+  // Raw stylus samples are not clean. On iPadOS a sample can arrive late or twice, sit a fraction
+  // of a pixel from the previous one, or report zero pressure. perfect-freehand turns each of these
+  // into a pinch, a fold or a bead in the outline, so every sample passes through this filter first.
+  const MIN_STEP = 0.75 // CSS px; closer samples add only noise
+  const MAX_BACKTRACK = 4 // CSS px; shorter reversals are sensor jitter, not handwriting
+  const PRESSURE_SMOOTHING = 0.3
+
+  function toWorld(e) {
+    return screenToWorld(screenPos(e))
+  }
+
+  function addSample(s, e) {
+    if (e.timeStamp < s.lastTime) {
+      s.cleaned++
+      return
+    }
+    s.lastTime = e.timeStamp
+    const w = toWorld(e)
+    const n = s.points.length
+    if (n > 0) {
+      const zoom = state.camera.zoom
+      const last = s.points[n - 1]
+      const dx = (w.x - last[0]) * zoom
+      const dy = (w.y - last[1]) * zoom
+      const dist = Math.hypot(dx, dy)
+      if (dist < MIN_STEP) {
+        s.cleaned++
+        return
+      }
+      const prev = s.points[n - 2]
+      if (prev && dist < MAX_BACKTRACK && (last[0] - prev[0]) * dx + (last[1] - prev[1]) * dy < 0) {
+        s.cleaned++
+        return
+      }
+    }
+    s.points.push([w.x, w.y, nextPressure(s, e)])
+  }
+
+  function nextPressure(s, e) {
+    if (!s.pressure) return 0.5
+    const raw = e.pressure > 0 ? e.pressure : s.lastPressure
+    s.lastPressure += (raw - s.lastPressure) * PRESSURE_SMOOTHING
+    return s.lastPressure
+  }
+
+  function isOnPage(e) {
+    const w = toWorld(e)
+    return w.x >= 0 && w.y >= 0 && w.x <= PAGE.w && w.y <= PAGE.h
   }
 
   function beginStroke(e) {
@@ -544,13 +603,16 @@
       size: state.size[state.tool],
       opacity: tool.opacity,
       pressure: e.pointerType === 'pen',
+      lastPressure: e.pressure > 0 ? e.pressure : 0.5,
+      lastTime: -Infinity,
       points: [],
-      samples: 0,
+      samples: 1,
+      cleaned: 0,
       startedAt: e.timeStamp,
       endedAt: e.timeStamp,
     }
     stage.setPointerCapture(e.pointerId)
-    state.current.points.push(samplePoint(e))
+    addSample(state.current, e)
     showInput(e)
     renderLive([])
   }
@@ -559,16 +621,16 @@
     const s = state.current
     const coalesced = state.opts.coalesced && support.coalesced ? e.getCoalescedEvents() : []
     const events = coalesced.length ? coalesced : [e]
-    for (const ev of events) {
-      const p = samplePoint(ev)
-      const last = s.points[s.points.length - 1]
-      if (last && last[0] === p[0] && last[1] === p[1]) continue
-      s.points.push(p)
-    }
+    for (const ev of events) addSample(s, ev)
     s.samples += events.length
     s.endedAt = e.timeStamp
     const predicted =
-      state.opts.prediction && support.predicted ? e.getPredictedEvents().map(samplePoint) : []
+      state.opts.prediction && support.predicted
+        ? e.getPredictedEvents().map((ev) => {
+            const w = toWorld(ev)
+            return [w.x, w.y, s.lastPressure]
+          })
+        : []
     showInput(e)
     renderLive(predicted)
   }
@@ -579,11 +641,15 @@
     state.strokes.push(s)
     // Draw only the new stroke instead of the whole page.
     applyCamera(scene)
+    scene.save()
+    clipToPage(scene)
     paintStroke(scene, s)
+    scene.restore()
     clearLive()
     const seconds = (s.endedAt - s.startedAt) / 1000
     $('s-points').textContent = s.points.length.toLocaleString('en-US')
     $('s-rate').textContent = seconds > 0.05 ? `${Math.round(s.samples / seconds)} Hz` : '–'
+    $('s-cleaned').textContent = `${s.cleaned} of ${s.samples}`
     $('s-strokes').textContent = state.strokes.length.toLocaleString('en-US')
   }
 
@@ -640,7 +706,13 @@
       return
     }
     if (e.pointerType === 'mouse' && e.button !== 0) return
-    if (!state.current) beginStroke(e)
+    if (state.current) {
+      // The pen always wins: a palm that started a finger stroke must not block it.
+      if (e.pointerType !== 'pen') return
+      if (state.current.pointerType === 'pen') commitStroke()
+      else cancelStroke()
+    }
+    if (isOnPage(e)) beginStroke(e)
   })
 
   stage.addEventListener('pointermove', (e) => {
@@ -678,6 +750,13 @@
   }
   stage.addEventListener('pointerup', endPointer)
   stage.addEventListener('pointercancel', endPointer)
+  stage.addEventListener('lostpointercapture', endPointer)
+
+  // iPadOS still runs its own touch handling (scrolling, Scribble) unless touch events are
+  // cancelled as well; that handling delays the first pen samples of a stroke.
+  for (const type of ['touchstart', 'touchmove']) {
+    stage.addEventListener(type, (e) => e.preventDefault(), { passive: false })
+  }
 
   stage.addEventListener(
     'wheel',
