@@ -7,6 +7,7 @@ import {
   Layers,
   Scaling,
   BetweenHorizontalEnd,
+  ChartColumn,
   BetweenVerticalEnd,
   Scissors,
   Table2,
@@ -28,6 +29,7 @@ import {
 } from '../../design/index.ts'
 import { addColumn, addRow } from '../../engine/model/table.ts'
 import type { Outline } from '../../engine/model/types.ts'
+import { ChartEditor } from './ChartEditor.tsx'
 import { TableEditor } from './TableEditor.tsx'
 import { useState } from 'react'
 
@@ -60,6 +62,7 @@ export function SelectionMenu({ editor, state }: { editor: Editor; state: Editor
         </MenuButton>
       ) : null}
       {sel.boxKind === 'table' ? <TableActions editor={editor} /> : null}
+      {sel.boxKind === 'chart' ? <ChartActions editor={editor} /> : null}
       <MenuButton label="Copy" onClick={() => editor.copySelection()}>
         <Copy size={18} />
       </MenuButton>
@@ -180,6 +183,20 @@ function TableActions({ editor }: { editor: Editor }) {
         <BetweenHorizontalEnd size={18} />
       </MenuButton>
       <TableEditor editor={editor} table={table} open={editing} onOpenChange={setEditing} />
+    </>
+  )
+}
+
+function ChartActions({ editor }: { editor: Editor }) {
+  const [editing, setEditing] = useState(false)
+  const chart = editor.selectedObject()
+  if (chart?.type !== 'chart') return null
+  return (
+    <>
+      <MenuButton label="Edit chart" onClick={() => setEditing(true)}>
+        <ChartColumn size={18} />
+      </MenuButton>
+      <ChartEditor editor={editor} chart={chart} open={editing} onOpenChange={setEditing} />
     </>
   )
 }

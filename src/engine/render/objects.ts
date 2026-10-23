@@ -2,6 +2,7 @@ import { boxBounds, isBox } from '../geometry/box.ts'
 import { boundsOfPoints, type Rect } from '../geometry/rect.ts'
 import { traceStroke } from '../geometry/strokePath.ts'
 import type { CanvasObject, FillObject } from '../model/types.ts'
+import { paintChart } from './chart.ts'
 import { paintImage } from './images.ts'
 import { paintTable } from './table.ts'
 import { paintStroke, strokeBounds } from './strokes.ts'
@@ -37,6 +38,7 @@ export function paintObject(ctx: CanvasRenderingContext2D, object: CanvasObject)
   else if (object.type === 'text') paintText(ctx, object)
   else if (object.type === 'image') paintImage(ctx, object)
   else if (object.type === 'table') paintTable(ctx, object)
+  else if (object.type === 'chart') paintChart(ctx, object)
   else {
     ctx.globalAlpha = object.opacity
     ctx.fillStyle = object.color

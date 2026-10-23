@@ -64,7 +64,7 @@ export interface Page {
 export type CanvasObject = StrokeObject | TextObject | FillObject | BoxObject
 
 /** Objects that sit in a rectangle on the page: pictures, tables and charts. */
-export type BoxObject = ImageObject | TableObject
+export type BoxObject = ImageObject | TableObject | ChartObject
 
 /**
  * A rectangle on the page: (x, y) is its top-left corner before rotation, and rotation (in
@@ -118,6 +118,35 @@ export interface TableStyle {
   /** In points. */
   fontSize: number
   font: FontFamily
+}
+
+export type ChartKind = 'bar' | 'line' | 'pie' | 'donut'
+
+/** A chart drawn from its own small data table. */
+export interface ChartObject extends BoxFrame {
+  id: Id
+  type: 'chart'
+  layerId: Id
+  kind: ChartKind
+  title: string
+  /** One label per category (bar group, line point or pie slice). */
+  labels: string[]
+  /** Pie and donut charts show the first series only. */
+  series: ChartSeries[]
+  legend: boolean
+  grid: boolean
+  /** Show each value next to its bar, point or slice. */
+  values: boolean
+  textColor: string
+  /** In points. */
+  fontSize: number
+  outline?: Outline
+}
+
+export interface ChartSeries {
+  name: string
+  color: string
+  values: number[]
 }
 
 /** Image data for pictures, stored once and referred to by id. */

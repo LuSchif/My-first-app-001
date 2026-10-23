@@ -172,7 +172,8 @@ function transformShape(object: CanvasObject, t: Transform): CanvasObject {
       height,
       rotation: normalizeAngle(object.rotation + t.angle),
     }
-    if (object.type !== 'table' || t.scale === 1) return { ...object, ...frame }
+    if (t.scale === 1 || object.type === 'image') return { ...object, ...frame }
+    if (object.type === 'chart') return { ...object, ...frame, fontSize: object.fontSize * t.scale }
     // A table grows as a whole: its spacing, lines and text.
     return {
       ...object,
