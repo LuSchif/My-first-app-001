@@ -19,6 +19,7 @@ import {
   PAGE_SIZE,
   type CanvasObject,
   type Id,
+  type BoxFrame,
   type LayerDef,
   type Outline,
   type StrokeDash,
@@ -39,6 +40,7 @@ import {
 import { boundsOfPoints } from '../geometry/rect.ts'
 import { drawBroom } from '../render/broomGlyph.ts'
 import { objectBounds, paintObject } from '../render/objects.ts'
+import { onImageLoaded } from '../render/images.ts'
 import { invalidateTextLayouts } from '../render/text.ts'
 import type { EditorContext } from './context.ts'
 import { hitsObject, recolor } from './selection.ts'
@@ -335,6 +337,8 @@ export class Editor {
     observer.observe(host)
     this.cleanups.push(() => observer.disconnect())
     this.cleanups.push(doc.subscribe(() => this.onDocumentChange()))
+    // Pictures load after the first frame; draw again once one is ready.
+    this.cleanups.push(onImageLoaded(() => this.requestRender()))
     this.cleanups.push(history.subscribe(() => this.syncHistory()))
     this.resize()
   }
@@ -747,6 +751,32 @@ export class Editor {
     this.text.finish()
     this.dismissSuggestion()
     this.history.redo()
+  }
+
+  /**
+   * Places an object (a picture, table or chart) in the middle of what is visible of the current
+   * page, on the active layer, and selects it so it can be moved and resized right away.
+   * `width` and `height` are the size it would like; it is scaled down to fit the page.
+   */
+  insertBox(make: (frame: BoxFrame, layerId: Id) => CanvasObject, width: number, height: number) {
+    const layer = this.activeLayer()
+    if (!layer || this.blockedByLayer()) return
+    const index = this._state.pageIndex
+    const page = this.doc.pageList[index]
+    if (!page) return
+    const fit = Math.min(1, (PAGE_SIZE.width * 0.7) / width, (PAGE_SIZE.height * 0.6) / height)
+    const w = width * fit
+    const h = height * fit
+    const center = this.toPageLocal({ x: this.view.width / 2, y: this.view.height / 2 }, index)
+    const cx = Math.min(PAGE_SIZE.width - w / 2, Math.max(w / 2, center.x))
+    const cy = Math.min(PAGE_SIZE.height - h / 2, Math.max(h / 2, center.y))
+    const object = make(
+      { x: cx - w / 2, y: cy - h / 2, width: w, height: h, rotation: 0 },
+      layer.id,
+    )
+    this.history.execute(setPageObjects('Insert', page.id, page.objects, [...page.objects, object]))
+    this.setTool('lasso')
+    this.selection.select(page.id, [object.id])
   }
 
   addPageAfterCurrent(): void {

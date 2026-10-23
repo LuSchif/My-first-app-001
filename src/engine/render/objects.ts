@@ -1,6 +1,8 @@
+import { boxBounds, isBox } from '../geometry/box.ts'
 import { boundsOfPoints, type Rect } from '../geometry/rect.ts'
 import { traceStroke } from '../geometry/strokePath.ts'
 import type { CanvasObject, FillObject } from '../model/types.ts'
+import { paintImage } from './images.ts'
 import { paintStroke, strokeBounds } from './strokes.ts'
 import { paintText, textBounds } from './text.ts'
 
@@ -20,6 +22,7 @@ export function fillPath(fill: FillObject): Path2D {
 export function objectBounds(object: CanvasObject): Rect {
   if (object.type === 'stroke') return strokeBounds(object)
   if (object.type === 'text') return textBounds(object)
+  if (isBox(object)) return boxBounds(object, object.outline?.width ?? 0)
   let rect = fillBounds.get(object)
   if (!rect) {
     rect = boundsOfPoints(object.points, (object.outline?.width ?? 0) / 2)
@@ -31,6 +34,7 @@ export function objectBounds(object: CanvasObject): Rect {
 export function paintObject(ctx: CanvasRenderingContext2D, object: CanvasObject): void {
   if (object.type === 'stroke') paintStroke(ctx, object)
   else if (object.type === 'text') paintText(ctx, object)
+  else if (object.type === 'image') paintImage(ctx, object)
   else {
     ctx.globalAlpha = object.opacity
     ctx.fillStyle = object.color

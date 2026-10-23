@@ -3,7 +3,13 @@ import { describe, expect, it } from 'vitest'
 import { createNotebook } from '../engine/model/factory.ts'
 import { BackupError, backupFileName, createBackup, parseBackup, restoreBackup } from './backup.ts'
 import { BroomitDatabase } from './db.ts'
-import { createNotebookRecord, listNotebooks, loadNotebook } from './notebooks.ts'
+import {
+  createNotebookRecord,
+  getAssetBlob,
+  listNotebooks,
+  loadNotebook,
+  putAsset,
+} from './notebooks.ts'
 
 let dbCount = 0
 const freshDb = () => new BroomitDatabase(`backup-${++dbCount}`)
@@ -23,6 +29,20 @@ describe('backup', () => {
     expect(await restoreBackup(parseBackup(text), target)).toBe(2)
     expect((await listNotebooks(target)).map((n) => n.title).sort()).toEqual(['Drawing', 'Physics'])
     expect((await loadNotebook(a.notebook.id, target))?.pages).toHaveLength(1)
+  })
+
+  it('carries pictures along', async () => {
+    const source = freshDb()
+    const a = notebook('Photos')
+    await createNotebookRecord(a.notebook, a.pages, source)
+    const blob = new Blob([new Uint8Array([137, 80, 78, 71, 1, 2, 3])], { type: 'image/png' })
+    await putAsset({ id: 'pic', notebookId: a.notebook.id, blob, width: 4, height: 3 }, source)
+    const text = JSON.stringify(await createBackup(source))
+    const target = freshDb()
+    await restoreBackup(parseBackup(text), target)
+    const restored = await getAssetBlob('pic', target)
+    expect(restored?.type).toBe('image/png')
+    expect([...new Uint8Array(await restored!.arrayBuffer())]).toEqual([137, 80, 78, 71, 1, 2, 3])
   })
 
   it('keeps notebooks that are not in the backup', async () => {

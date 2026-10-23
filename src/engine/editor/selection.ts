@@ -1,3 +1,4 @@
+import { boxCenter, boxContains, boxCorners, isBox } from '../geometry/box.ts'
 import { strokeTouchesCircle } from '../geometry/erase.ts'
 import { union, type Rect } from '../geometry/rect.ts'
 import type { CanvasObject, Outline, TextObject } from '../model/types.ts'
@@ -29,6 +30,18 @@ export function lassoCatches(object: CanvasObject, poly: Polygon): boolean {
     if (pointInPolygon(c.x, c.y, poly)) return true
     if (textCorners(object).some((p) => pointInPolygon(p.x, p.y, poly))) return true
     return poly.length >= 2 && textContains(object, poly[0]!, poly[1]!)
+  }
+  if (isBox(object)) {
+    const c = boxCenter(object)
+    if (pointInPolygon(c.x, c.y, poly)) return true
+    const corners = boxCorners(object)
+    if (corners.some((p) => pointInPolygon(p.x, p.y, poly))) return true
+    for (let i = 0; i < 4; i++) {
+      const a = corners[i]!
+      const b = corners[(i + 1) % 4]!
+      if (segmentCrossesPolygon(a.x, a.y, b.x, b.y, poly)) return true
+    }
+    return poly.length >= 2 && boxContains(object, poly[0]!, poly[1]!)
   }
   const pts = object.points
   for (let i = 0; i < pts.length; i += 2) {
@@ -100,6 +113,8 @@ export function withOutline(object: CanvasObject, outline: Outline | null): Canv
 /** The same object in another color: the ink of a stroke or fill, the text of a text box. */
 export function recolor(object: CanvasObject, color: string): CanvasObject {
   if (object.type === 'text') return { ...object, style: { ...object.style, color } }
+  // Pictures keep their own colors.
+  if (isBox(object)) return object
   return { ...object, color }
 }
 
@@ -107,6 +122,7 @@ export function recolor(object: CanvasObject, color: string): CanvasObject {
 export function hitsObject(object: CanvasObject, x: number, y: number, slop: number): boolean {
   if (object.type === 'text') return textContains(object, x, y, slop)
   if (object.type === 'fill') return pointInPolygon(x, y, object.points)
+  if (isBox(object)) return boxContains(object, x, y, slop)
   return strokeTouchesCircle(object.points, x, y, object.width / 2 + slop)
 }
 
@@ -144,6 +160,19 @@ export function transformObject(object: CanvasObject, t: Transform): CanvasObjec
 }
 
 function transformShape(object: CanvasObject, t: Transform): CanvasObject {
+  if (isBox(object)) {
+    const c = transformPoint(t, object.x + object.width / 2, object.y + object.height / 2)
+    const width = object.width * t.scale
+    const height = object.height * t.scale
+    return {
+      ...object,
+      x: c.x - width / 2,
+      y: c.y - height / 2,
+      width,
+      height,
+      rotation: normalizeAngle(object.rotation + t.angle),
+    }
+  }
   if (object.type !== 'text') {
     const points: number[] = []
     for (let i = 0; i < object.points.length; i += 2) {
@@ -179,6 +208,18 @@ export function flipObject(
 ): CanvasObject {
   const fx = (x: number) => (axis === 'horizontal' ? 2 * cx - x : x)
   const fy = (y: number) => (axis === 'vertical' ? 2 * cy - y : y)
+  if (object.type === 'image') {
+    // A picture is mirrored in place, and moves to its mirrored position.
+    const c = boxCenter(object)
+    return {
+      ...object,
+      x: fx(c.x) - object.width / 2,
+      y: fy(c.y) - object.height / 2,
+      rotation: normalizeAngle(-object.rotation),
+      flipX: axis === 'horizontal' ? !object.flipX : object.flipX,
+      flipY: axis === 'vertical' ? !object.flipY : object.flipY,
+    }
+  }
   if (object.type !== 'text') {
     const points: number[] = []
     for (let i = 0; i < object.points.length; i += 2) {

@@ -1,4 +1,4 @@
-import type { Folder, Notebook, Page } from '../engine/model/types.ts'
+import type { Asset, Folder, Notebook, Page } from '../engine/model/types.ts'
 import { db, type BroomitDatabase } from './db.ts'
 
 /**
@@ -13,23 +13,50 @@ export interface Backup {
   folders: Folder[]
   notebooks: Notebook[]
   pages: Page[]
+  /** Pictures, with their data as base64. Older backups have none. */
+  assets?: BackupAsset[]
+}
+
+export interface BackupAsset extends Omit<Asset, 'blob'> {
+  mime: string
+  data: string
 }
 
 export async function createBackup(database: BroomitDatabase = db): Promise<Backup> {
-  return database.transaction(
-    'r',
-    database.folders,
-    database.notebooks,
-    database.pages,
-    async () => ({
-      format: 'broomit-backup' as const,
-      version: 1 as const,
-      exportedAt: Date.now(),
-      folders: await database.folders.toArray(),
-      notebooks: await database.notebooks.toArray(),
-      pages: await database.pages.toArray(),
-    }),
-  )
+  return database
+    .transaction(
+      'r',
+      [database.folders, database.notebooks, database.pages, database.assets],
+      async () => ({
+        format: 'broomit-backup' as const,
+        version: 1 as const,
+        exportedAt: Date.now(),
+        folders: await database.folders.toArray(),
+        notebooks: await database.notebooks.toArray(),
+        pages: await database.pages.toArray(),
+        assets: await database.assets.toArray(),
+      }),
+    )
+    .then(async ({ assets, ...rest }) => ({
+      ...rest,
+      assets: await Promise.all(assets.map(encodeAsset)),
+    }))
+}
+
+export async function encodeAsset({ blob, ...rest }: Asset): Promise<BackupAsset> {
+  const bytes = new Uint8Array(await blob.arrayBuffer())
+  let binary = ''
+  for (let i = 0; i < bytes.length; i += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000))
+  }
+  return { ...rest, mime: blob.type, data: btoa(binary) }
+}
+
+export function decodeAsset({ mime, data, ...rest }: BackupAsset): Asset {
+  const binary = atob(data)
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+  return { ...rest, blob: new Blob([bytes], { type: mime }) }
 }
 
 export function backupFileName(date = new Date()): string {
@@ -75,7 +102,12 @@ export function parseBackup(text: string): Backup {
         typeof p.notebookId === 'string' &&
         Array.isArray(p.objects),
     ) &&
-    b.folders.every((f) => isRecord(f) && typeof f.id === 'string')
+    b.folders.every((f) => isRecord(f) && typeof f.id === 'string') &&
+    (b.assets === undefined ||
+      (Array.isArray(b.assets) &&
+        b.assets.every(
+          (a) => isRecord(a) && typeof a.id === 'string' && typeof a.data === 'string',
+        )))
   if (!valid) throw new BackupError('This backup is damaged.')
   return b as Backup
 }
@@ -85,12 +117,12 @@ export async function restoreBackup(
   backup: Backup,
   database: BroomitDatabase = db,
 ): Promise<number> {
+  const assets = (backup.assets ?? []).map(decodeAsset)
   await database.transaction(
     'rw',
-    database.folders,
-    database.notebooks,
-    database.pages,
+    [database.folders, database.notebooks, database.pages, database.assets],
     async () => {
+      await database.assets.bulkPut(assets)
       await database.folders.bulkPut(backup.folders)
       await database.notebooks.bulkPut(backup.notebooks)
       // A restored notebook gets exactly its backed-up pages, not a mix with newer local ones.

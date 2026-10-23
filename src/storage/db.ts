@@ -1,5 +1,5 @@
 import Dexie, { type Table } from 'dexie'
-import type { Folder, Notebook, Page } from '../engine/model/types.ts'
+import type { Asset, Folder, Notebook, Page } from '../engine/model/types.ts'
 
 /**
  * Local storage for everything the user creates. Each page is its own record, so a stroke on one
@@ -10,6 +10,7 @@ export class BroomitDatabase extends Dexie {
   folders!: Table<Folder, string>
   notebooks!: Table<Notebook, string>
   pages!: Table<Page, string>
+  assets!: Table<Asset, string>
 
   constructor(name = 'broomit') {
     super(name)
@@ -18,6 +19,8 @@ export class BroomitDatabase extends Dexie {
       notebooks: 'id, folderId, updatedAt',
       pages: 'id, notebookId',
     })
+    // Pictures: their data is kept apart from the pages, so a page stays small to save.
+    this.version(2).stores({ assets: 'id, notebookId' })
   }
 }
 

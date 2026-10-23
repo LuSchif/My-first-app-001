@@ -79,12 +79,22 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
 - A backup is one JSON file with all folders, notebooks and pages. Restoring adds and replaces
   by id and never deletes other notebooks.
 
+## Pictures, tables and charts
+
+- These objects sit in a rotated rectangle (`BoxFrame`, `engine/geometry/box.ts`) and share
+  selection, moving, scaling and rotation.
+- Picture data is stored once per picture in the `assets` table (schema version 2), apart from
+  the pages, and loaded lazily for drawing. Large photos are scaled to 2400 px on the long side.
+  Backups carry pictures as base64.
+
 ## Layers
 
 - Layers belong to the notebook; the editor keeps an active layer for new ink, text and
   selections. Hidden or locked layers cannot be changed, and the editor says so.
 - Every layer change (add, delete with content, reorder, rename, show, lock, opacity) is an
   undoable command. Layers below full opacity are drawn as a whole, then faded.
+- A layer can be a clipping mask: it shows only where the nearest unclipped layer below has
+  content (`render/layers.ts`).
 
 ## Roadmap
 

@@ -61,7 +61,45 @@ export interface Page {
   updatedAt: number
 }
 
-export type CanvasObject = StrokeObject | TextObject | FillObject
+export type CanvasObject = StrokeObject | TextObject | FillObject | BoxObject
+
+/** Objects that sit in a rectangle on the page: pictures, tables and charts. */
+export type BoxObject = ImageObject
+
+/**
+ * A rectangle on the page: (x, y) is its top-left corner before rotation, and rotation (in
+ * radians) turns it around its center.
+ */
+export interface BoxFrame {
+  x: number
+  y: number
+  width: number
+  height: number
+  rotation: number
+}
+
+/** A picture. The image data lives in the asset store; `assetId` refers to it. */
+export interface ImageObject extends BoxFrame {
+  id: Id
+  type: 'image'
+  layerId: Id
+  assetId: Id
+  opacity: number
+  /** Mirrored left to right, or top to bottom. */
+  flipX?: boolean
+  flipY?: boolean
+  outline?: Outline
+}
+
+/** Image data for pictures, stored once and referred to by id. */
+export interface Asset {
+  id: Id
+  /** The notebook the asset belongs to, so it is deleted with it. */
+  notebookId: Id
+  blob: Blob
+  width: number
+  height: number
+}
 
 /** A contour drawn around an object: around a line, the edge of an area, or each letter. */
 export interface Outline {

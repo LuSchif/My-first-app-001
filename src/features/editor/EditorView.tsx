@@ -6,7 +6,8 @@ import { Editor } from '../../engine/editor/Editor.ts'
 import { Button } from '../../design/index.ts'
 import { useFixedViewport } from '../../lib/useFixedViewport.ts'
 import { Autosave } from '../../storage/Autosave.ts'
-import { loadNotebook, saveChanges } from '../../storage/notebooks.ts'
+import { setImageLoader } from '../../engine/render/images.ts'
+import { getAssetBlob, loadNotebook, saveChanges } from '../../storage/notebooks.ts'
 import { Toolbar } from './Toolbar.tsx'
 
 type Loaded = { doc: NotebookDocument; history: History; autosave: Autosave }
@@ -62,6 +63,7 @@ function EditorSession({ doc, history, autosave }: Loaded) {
   useFixedViewport()
 
   useEffect(() => {
+    setImageLoader(getAssetBlob)
     const instance = new Editor(hostRef.current!, doc, history)
     instance.setRecentColors(loadRecentColors())
     // Recent colors belong to this device, not to a notebook.
@@ -103,6 +105,7 @@ function EditorSession({ doc, history, autosave }: Loaded) {
           editor={editor}
           autosave={autosave}
           title={title}
+          notebookId={doc.notebook.id}
           onBack={async () => {
             await autosave.flush()
             navigate({ name: 'library' })

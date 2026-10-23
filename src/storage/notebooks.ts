@@ -1,5 +1,5 @@
 import type { UnsavedChanges } from '../engine/document/NotebookDocument.ts'
-import type { Notebook, Page } from '../engine/model/types.ts'
+import type { Asset, Notebook, Page } from '../engine/model/types.ts'
 import { db, type BroomitDatabase } from './db.ts'
 
 export async function listNotebooks(database: BroomitDatabase = db): Promise<Notebook[]> {
@@ -46,8 +46,26 @@ export async function saveChanges(
 }
 
 export async function deleteNotebook(id: string, database: BroomitDatabase = db): Promise<void> {
-  await database.transaction('rw', database.notebooks, database.pages, async () => {
-    await database.pages.where('notebookId').equals(id).delete()
-    await database.notebooks.delete(id)
-  })
+  await database.transaction(
+    'rw',
+    database.notebooks,
+    database.pages,
+    database.assets,
+    async () => {
+      await database.pages.where('notebookId').equals(id).delete()
+      await database.assets.where('notebookId').equals(id).delete()
+      await database.notebooks.delete(id)
+    },
+  )
+}
+
+export async function putAsset(asset: Asset, database: BroomitDatabase = db): Promise<void> {
+  await database.assets.put(asset)
+}
+
+export async function getAssetBlob(
+  id: string,
+  database: BroomitDatabase = db,
+): Promise<Blob | null> {
+  return (await database.assets.get(id))?.blob ?? null
 }

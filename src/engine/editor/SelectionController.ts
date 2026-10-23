@@ -580,7 +580,7 @@ export class SelectionController {
   /** Whole degrees, or 45° steps with snapping on (absolute for text boxes, which know their angle). */
   private snap(angle: number, originals: CanvasObject[]): number {
     if (!this.snapRotation) return Math.round(angle / DEGREE) * DEGREE
-    const base = commonTextRotation(originals)
+    const base = commonRotation(originals)
     return Math.round((base + angle) / SNAP_STEP) * SNAP_STEP - base
   }
 
@@ -736,16 +736,16 @@ export class SelectionController {
   }
 }
 
-function colorOf(object: CanvasObject): string {
-  return object.type === 'text' ? object.style.color : object.color
+function colorOf(object: CanvasObject): string | null {
+  if (object.type === 'text') return object.style.color
+  return 'color' in object ? object.color : null
 }
 
-function commonTextRotation(objects: CanvasObject[]): number {
+/** The angle shared by text boxes and pictures that know their rotation, else 0. */
+function commonRotation(objects: CanvasObject[]): number {
   const first = objects[0]
-  if (first?.type !== 'text') return 0
-  return objects.every((o) => o.type === 'text' && o.rotation === first.rotation)
-    ? first.rotation
-    : 0
+  if (!first || !('rotation' in first)) return 0
+  return objects.every((o) => 'rotation' in o && o.rotation === first.rotation) ? first.rotation : 0
 }
 
 /** A filled round button with a turning arrow, so it reads as "rotate". */

@@ -39,6 +39,7 @@ import {
 } from '../../design/index.ts'
 import { useVisualViewportBottom } from '../../lib/useVisualViewport.ts'
 import type { Autosave } from '../../storage/Autosave.ts'
+import { InsertMenu } from './InsertMenu.tsx'
 import { LayersPanel } from './LayersPanel.tsx'
 import { RecentColors } from './RecentColors.tsx'
 import { PathMenu } from './PathMenu.tsx'
@@ -63,11 +64,13 @@ export function Toolbar({
   editor,
   autosave,
   title,
+  notebookId,
   onBack,
 }: {
   editor: Editor
   autosave: Autosave
   title: string
+  notebookId: string
   onBack: () => void
 }) {
   const state = useSyncExternalStore(
@@ -160,6 +163,7 @@ export function Toolbar({
             <LaserSettings editor={editor} state={state} />,
           )}
           <span className="mx-1 h-7 w-px bg-line" />
+          <InsertMenu editor={editor} notebookId={notebookId} />
           <IconButton
             label="Undo"
             icon={<Undo2 {...ICON} />}
