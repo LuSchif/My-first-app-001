@@ -83,7 +83,7 @@ export function PopoverContent({
         // Focus going back to the trigger would pop up its tooltip after every choice.
         onCloseAutoFocus={(e) => e.preventDefault()}
         className={cn(
-          'z-40 w-72 animate-pop-in rounded-panel bg-surface-raised p-4 shadow-raised ring-1 ring-line',
+          'z-60 w-72 animate-pop-in rounded-panel bg-surface-raised p-4 shadow-raised ring-1 ring-line',
           className,
         )}
       >

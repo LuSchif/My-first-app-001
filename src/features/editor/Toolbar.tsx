@@ -2,18 +2,16 @@ import {
   Check,
   ChevronLeft,
   CloudAlert,
-  Copy,
   EyeOff,
-  FilePlus2,
   Highlighter,
   Lasso,
   Layers,
   LoaderCircle,
+  LayoutGrid,
   Lock,
   PenLine,
   PenTool,
   Redo2,
-  Trash2,
   SquareDashed,
   Type,
   Undo2,
@@ -25,10 +23,11 @@ import { dashPattern } from '../../engine/render/strokes.ts'
 import { cn } from '../../lib/cn.ts'
 import {
   BroomIcon,
-  Button,
   LaserBroomIcon,
   ColorPicker,
   ColorSwatch,
+  Dialog,
+  DialogTrigger,
   IconButton,
   Popover,
   PopoverContent,
@@ -39,7 +38,9 @@ import {
 } from '../../design/index.ts'
 import { useVisualViewportBottom } from '../../lib/useVisualViewport.ts'
 import type { Autosave } from '../../storage/Autosave.ts'
+import type { NotebookDocument } from '../../engine/document/NotebookDocument.ts'
 import { InsertMenu } from './InsertMenu.tsx'
+import { PagesOverview } from './PagesOverview.tsx'
 import { LayersPanel } from './LayersPanel.tsx'
 import { RecentColors } from './RecentColors.tsx'
 import { PathMenu } from './PathMenu.tsx'
@@ -64,13 +65,13 @@ export function Toolbar({
   editor,
   autosave,
   title,
-  notebookId,
+  doc,
   onBack,
 }: {
   editor: Editor
   autosave: Autosave
   title: string
-  notebookId: string
+  doc: NotebookDocument
   onBack: () => void
 }) {
   const state = useSyncExternalStore(
@@ -163,7 +164,7 @@ export function Toolbar({
             <LaserSettings editor={editor} state={state} />,
           )}
           <span className="mx-1 h-7 w-px bg-line" />
-          <InsertMenu editor={editor} notebookId={notebookId} />
+          <InsertMenu editor={editor} notebookId={doc.notebook.id} />
           <IconButton
             label="Undo"
             icon={<Undo2 {...ICON} />}
@@ -205,22 +206,25 @@ export function Toolbar({
               <LayersPanel editor={editor} state={state} />
             </PopoverContent>
           </Popover>
-          <Popover
-            open={panel === 'pages'}
-            onOpenChange={(open) => setPanel(open ? 'pages' : null)}
-          >
-            <PopoverTrigger asChild>
+          <Dialog open={panel === 'pages'} onOpenChange={(open) => setPanel(open ? 'pages' : null)}>
+            <DialogTrigger asChild>
               <button
                 type="button"
-                className="h-11 rounded-control px-3 text-sm font-semibold tabular-nums hover:bg-hover"
+                className="flex h-11 items-center gap-1.5 rounded-control px-3 text-sm font-semibold tabular-nums hover:bg-hover"
               >
+                <LayoutGrid size={18} />
                 Page {state.pageIndex + 1} of {state.pageCount}
               </button>
-            </PopoverTrigger>
-            <PopoverContent align="end" className="w-64">
-              <PageMenu editor={editor} state={state} onDone={() => setPanel(null)} />
-            </PopoverContent>
-          </Popover>
+            </DialogTrigger>
+            {panel === 'pages' ? (
+              <PagesOverview
+                editor={editor}
+                doc={doc}
+                currentIndex={state.pageIndex}
+                onClose={() => setPanel(null)}
+              />
+            ) : null}
+          </Dialog>
         </div>
       </div>
       {state.editingText ? <FormatBar editor={editor} state={state} /> : null}
@@ -517,71 +521,6 @@ function BroomSettings({ editor, state }: { editor: Editor; state: EditorState }
         ))}
       </div>
     </>
-  )
-}
-
-function PageMenu({
-  editor,
-  state,
-  onDone,
-}: {
-  editor: Editor
-  state: EditorState
-  onDone: () => void
-}) {
-  const [confirmDelete, setConfirmDelete] = useState(false)
-  const only = state.pageCount <= 1
-  return (
-    <div className="grid gap-1">
-      <Button
-        variant="ghost"
-        className="justify-start"
-        icon={<FilePlus2 size={18} />}
-        onClick={() => {
-          editor.addPageAfterCurrent()
-          onDone()
-        }}
-      >
-        Add page after this one
-      </Button>
-      <Button
-        variant="ghost"
-        className="justify-start"
-        icon={<Copy size={18} />}
-        onClick={() => {
-          editor.duplicateCurrentPage()
-          onDone()
-        }}
-      >
-        Duplicate page
-      </Button>
-      {confirmDelete ? (
-        <Button
-          variant="danger"
-          className="justify-start"
-          icon={<Trash2 size={18} />}
-          onClick={() => {
-            editor.deleteCurrentPage()
-            onDone()
-          }}
-        >
-          Delete page {state.pageIndex + 1}
-        </Button>
-      ) : (
-        <Button
-          variant="ghost"
-          className="justify-start text-danger"
-          icon={<Trash2 size={18} />}
-          disabled={only}
-          onClick={() => setConfirmDelete(true)}
-        >
-          Delete page…
-        </Button>
-      )}
-      {only ? (
-        <p className="px-3 pt-1 text-xs text-ink-muted">A notebook keeps at least one page.</p>
-      ) : null}
-    </div>
   )
 }
 

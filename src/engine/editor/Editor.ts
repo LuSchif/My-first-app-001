@@ -798,22 +798,39 @@ export class Editor {
     this.scrollToPage(index)
   }
 
+  /** Adds an empty page at `index` in the page order. */
+  addPageAt(index: number): void {
+    this.history.execute(
+      insertPages('Add page', index, [createPage(this.doc.notebook.id, this.doc.notebook.paper)]),
+    )
+    this.scrollToPage(index)
+  }
+
   duplicateCurrentPage(): void {
-    const source = this.doc.pageList[this._state.pageIndex]
+    this.duplicatePage(this._state.pageIndex)
+  }
+
+  /** Inserts a copy of page `at` right after it. */
+  duplicatePage(at: number): void {
+    const source = this.doc.pageList[at]
     if (!source) return
     const copy = {
       ...createPage(this.doc.notebook.id, source.paper),
       objects: source.objects.map((o) => ({ ...o, id: newId() })),
       ...(source.background ? { background: source.background } : {}),
     }
-    const index = this._state.pageIndex + 1
+    const index = at + 1
     this.history.execute(insertPages('Duplicate page', index, [copy]))
     this.scrollToPage(index)
   }
 
   deleteCurrentPage(): void {
+    this.deletePage(this._state.pageIndex)
+  }
+
+  deletePage(index: number): void {
     const pages = this.doc.pageList
-    const page = pages[this._state.pageIndex]
+    const page = pages[index]
     if (!page || pages.length <= 1) return
     this.history.execute(removePage('Delete page', page.id))
   }

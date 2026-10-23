@@ -27,16 +27,34 @@ export function rememberImage(assetId: string, bitmap: ImageBitmap): void {
 export function imageFor(assetId: string): ImageBitmap | null {
   const hit = cache.get(assetId)
   if (hit && hit !== 'loading' && hit !== 'missing') return hit
-  if (hit || !loader) return null
+  if (!hit) void loadImage(assetId)
+  return null
+}
+
+const pending = new Map<string, Promise<ImageBitmap | null>>()
+
+/** Loads and decodes a picture, e.g. before drawing a page for export. */
+export function loadImage(assetId: string): Promise<ImageBitmap | null> {
+  const hit = cache.get(assetId)
+  if (hit && hit !== 'loading') return Promise.resolve(hit === 'missing' ? null : hit)
+  const running = pending.get(assetId)
+  if (running) return running
+  if (!loader) return Promise.resolve(null)
   cache.set(assetId, 'loading')
-  loader(assetId)
+  const promise = loader(assetId)
     .then((blob) => (blob ? createImageBitmap(blob) : null))
     .then((bitmap) => {
       cache.set(assetId, bitmap ?? 'missing')
       for (const listener of listeners) listener()
+      return bitmap
     })
-    .catch(() => cache.set(assetId, 'missing'))
-  return null
+    .catch(() => {
+      cache.set(assetId, 'missing')
+      return null
+    })
+    .finally(() => pending.delete(assetId))
+  pending.set(assetId, promise)
+  return promise
 }
 
 export function paintImage(ctx: CanvasRenderingContext2D, image: ImageObject): void {

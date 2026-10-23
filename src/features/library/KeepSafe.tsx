@@ -1,4 +1,4 @@
-import { ArchiveRestore, Download, HardDriveDownload, Share, X } from 'lucide-react'
+import { ArchiveRestore, Download, FileUp, HardDriveDownload, Share, X } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { Button, Popover, PopoverContent, PopoverTrigger } from '../../design/index.ts'
 import { isInstalled } from '../../lib/install.ts'
@@ -10,6 +10,7 @@ import {
   parseBackup,
   restoreBackup,
 } from '../../storage/backup.ts'
+import { importNotebookFile, NotebookFileError } from '../../storage/notebookFile.ts'
 
 const LAST_BACKUP_KEY = 'broomit.lastBackup'
 const INSTALL_DISMISSED_KEY = 'broomit.installHintDismissed'
@@ -21,6 +22,7 @@ export function BackupMenu({ onRestored }: { onRestored: () => void }) {
   const [message, setMessage] = useState<{ text: string; error?: boolean } | null>(null)
   const [lastBackup, setLastBackup] = useState(() => Number(read(LAST_BACKUP_KEY)) || null)
   const fileInput = useRef<HTMLInputElement>(null)
+  const notebookInput = useRef<HTMLInputElement>(null)
 
   const save = async () => {
     setBusy(true)
@@ -64,66 +66,104 @@ export function BackupMenu({ onRestored }: { onRestored: () => void }) {
     }
   }
 
+  const openNotebook = async (file: File) => {
+    setBusy(true)
+    setMessage(null)
+    try {
+      await importNotebookFile(await file.text())
+      setMessage({ text: `Added “${file.name.replace(/\.broomit$/i, '')}”.` })
+      onRestored()
+    } catch (err) {
+      console.error(err)
+      const text =
+        err instanceof NotebookFileError ? err.message : 'The notebook could not be opened.'
+      setMessage({ text, error: true })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  // The file fields live outside the menu, which may close while the file picker is open.
   return (
-    <Popover
-      open={open}
-      onOpenChange={(next) => {
-        setOpen(next)
-        if (!next) setMessage(null)
-      }}
-    >
-      <PopoverTrigger asChild>
-        <Button variant="secondary" icon={<HardDriveDownload size={18} />}>
-          Backup
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent align="end" className="grid w-80 gap-3">
-        <div className="grid gap-1">
-          <p className="text-sm font-semibold">Backup</p>
-          <p className="text-sm text-ink-muted">
-            Your notebooks live only on this device. Save a backup file now and then, e.g. to Files
-            or iCloud Drive.
-          </p>
-          <p className="text-xs text-ink-muted">
-            {lastBackup ? `Last backup ${formatEdited(lastBackup)}.` : 'No backup saved yet.'}
-          </p>
-        </div>
-        <Button variant="primary" icon={<Download size={18} />} disabled={busy} onClick={save}>
-          Save backup
-        </Button>
-        <Button
-          variant="secondary"
-          icon={<ArchiveRestore size={18} />}
-          disabled={busy}
-          onClick={() => fileInput.current?.click()}
-        >
-          Restore from file…
-        </Button>
-        <input
-          ref={fileInput}
-          type="file"
-          accept="application/json,.json"
-          className="hidden"
-          onChange={(e) => {
-            const file = e.target.files?.[0]
-            e.target.value = ''
-            if (file) void restore(file)
-          }}
-        />
-        <p className="text-xs text-ink-muted">
-          Restoring adds the notebooks from the file. Notebooks that are also in the file are
-          replaced by their saved version; all others stay as they are.
-        </p>
-        {message ? (
-          <p
-            role="status"
-            className={message.error ? 'text-sm text-danger' : 'text-sm font-semibold'}
+    <>
+      <Popover
+        open={open}
+        onOpenChange={(next) => {
+          setOpen(next)
+          if (!next) setMessage(null)
+        }}
+      >
+        <PopoverTrigger asChild>
+          <Button variant="secondary" icon={<HardDriveDownload size={18} />}>
+            Backup
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent align="end" className="grid w-80 gap-3">
+          <div className="grid gap-1">
+            <p className="text-sm font-semibold">Backup</p>
+            <p className="text-sm text-ink-muted">
+              Your notebooks live only on this device. Save a backup file now and then, e.g. to
+              Files or iCloud Drive.
+            </p>
+            <p className="text-xs text-ink-muted">
+              {lastBackup ? `Last backup ${formatEdited(lastBackup)}.` : 'No backup saved yet.'}
+            </p>
+          </div>
+          <Button variant="primary" icon={<Download size={18} />} disabled={busy} onClick={save}>
+            Save backup
+          </Button>
+          <Button
+            variant="secondary"
+            icon={<ArchiveRestore size={18} />}
+            disabled={busy}
+            onClick={() => fileInput.current?.click()}
           >
-            {message.text}
+            Restore from file…
+          </Button>
+          <Button
+            variant="secondary"
+            icon={<FileUp size={18} />}
+            disabled={busy}
+            onClick={() => notebookInput.current?.click()}
+          >
+            Open a .broomit notebook…
+          </Button>
+          <p className="text-xs text-ink-muted">
+            Restoring adds the notebooks from the file. Notebooks that are also in the file are
+            replaced by their saved version; all others stay as they are.
           </p>
-        ) : null}
-      </PopoverContent>
-    </Popover>
+          {message ? (
+            <p
+              role="status"
+              className={message.error ? 'text-sm text-danger' : 'text-sm font-semibold'}
+            >
+              {message.text}
+            </p>
+          ) : null}
+        </PopoverContent>
+      </Popover>
+      <input
+        ref={fileInput}
+        type="file"
+        accept="application/json,.json"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0]
+          e.target.value = ''
+          if (file) void restore(file)
+        }}
+      />
+      <input
+        ref={notebookInput}
+        type="file"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0]
+          e.target.value = ''
+          if (file) void openNotebook(file)
+        }}
+      />
+    </>
   )
 }
 

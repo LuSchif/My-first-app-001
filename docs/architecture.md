@@ -87,6 +87,15 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
   the pages, and loaded lazily for drawing. Large photos are scaled to 2400 px on the long side.
   Backups carry pictures as base64.
 
+## Export
+
+- The page overview (the page button in the toolbar) shows every page and exports single pages
+  or the whole notebook.
+- PDF and JPG are drawn from the same renderer as the screen at 3 pixels per point (about
+  216 dpi). The PDF holds one JPEG per page (`lib/pdf.ts`, no library); vector PDF can follow.
+- A `.broomit` file holds one notebook (or some pages) with its pictures. Opening it in the
+  library adds a copy with new ids.
+
 ## Layers
 
 - Layers belong to the notebook; the editor keeps an active layer for new ink, text and

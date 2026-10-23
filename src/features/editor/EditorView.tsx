@@ -105,7 +105,7 @@ function EditorSession({ doc, history, autosave }: Loaded) {
           editor={editor}
           autosave={autosave}
           title={title}
-          notebookId={doc.notebook.id}
+          doc={doc}
           onBack={async () => {
             await autosave.flush()
             navigate({ name: 'library' })
