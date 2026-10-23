@@ -57,7 +57,7 @@ export interface Page {
   updatedAt: number
 }
 
-export type CanvasObject = StrokeObject
+export type CanvasObject = StrokeObject | TextObject
 
 export type InkTool = 'pen' | 'highlighter'
 
@@ -72,6 +72,38 @@ export interface StrokeObject {
   opacity: number
   /** Flat list of page coordinates in points: x0, y0, x1, y1, … */
   points: number[]
+}
+
+export type FontFamily = 'sans' | 'serif' | 'hand' | 'mono'
+
+export interface TextStyle {
+  font: FontFamily
+  /** In points. */
+  size: number
+  color: string
+  opacity: number
+  bold: boolean
+  italic: boolean
+  underline: boolean
+  align: 'left' | 'center' | 'right'
+  /** Multiple of the font size. */
+  lineHeight: number
+}
+
+/**
+ * A text box. (x, y) is its top-left corner before rotation; the height follows from the text,
+ * width and style. Rotation is in radians around the box center.
+ */
+export interface TextObject {
+  id: Id
+  type: 'text'
+  layerId: Id
+  x: number
+  y: number
+  width: number
+  rotation: number
+  text: string
+  style: TextStyle
 }
 
 /** A4 in PostScript points. */

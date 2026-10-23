@@ -7,13 +7,24 @@ import type { Camera, Point } from '../geometry/camera.ts'
 import { StrokeSampler } from '../input/StrokeSampler.ts'
 import { createPage } from '../model/factory.ts'
 import { newId } from '../model/ids.ts'
-import { PAGE_SIZE, type CanvasObject, type Id, type StrokeObject } from '../model/types.ts'
+import {
+  PAGE_SIZE,
+  type CanvasObject,
+  type Id,
+  type StrokeObject,
+  type TextStyle,
+} from '../model/types.ts'
 import { contentHeight, PAGE_PITCH, pageIndexAt, pageOrigin } from '../render/layout.ts'
 import { enterPage, renderScene, type View } from '../render/SceneRenderer.ts'
 import { paintStroke, setInkStyle, strokeBounds } from '../render/strokes.ts'
 import { smoothedAt, smoothPoints, traceSegments } from '../geometry/strokePath.ts'
+import { invalidateTextLayouts } from '../render/text.ts'
+import type { EditorContext } from './context.ts'
+import { hitsObject } from './selection.ts'
+import { SelectionController, type SelectionInfo } from './SelectionController.ts'
+import { DEFAULT_TEXT_STYLE, TextController } from './TextController.ts'
 
-export type ToolId = 'pen' | 'highlighter' | 'broom'
+export type ToolId = 'pen' | 'highlighter' | 'broom' | 'lasso' | 'text'
 export type BroomMode = 'precise' | 'stroke'
 
 export interface EditorState {
@@ -25,6 +36,11 @@ export interface EditorState {
   canRedo: boolean
   pageIndex: number
   pageCount: number
+  /** Style for new text boxes, or of the box being edited. */
+  textStyle: TextStyle
+  editingText: boolean
+  selection: SelectionInfo | null
+  hasClipboard: boolean
 }
 
 const HIGHLIGHTER_OPACITY = 0.45
@@ -84,9 +100,14 @@ export class Editor {
   private readonly inkLayer: HTMLDivElement
   private readonly wetCanvas: HTMLCanvasElement
   private readonly tipCanvas: HTMLCanvasElement
+  private readonly overlayCanvas: HTMLCanvasElement
   private readonly scene: CanvasRenderingContext2D
   private readonly wet: CanvasRenderingContext2D
   private readonly tip: CanvasRenderingContext2D
+  private readonly selection: SelectionController
+  private readonly text: TextController
+  private hidden: ReadonlySet<Id> = new Set()
+  private textTap: { pointerId: number; x: number; y: number } | null = null
 
   private camera: Camera = { offsetX: 0, offsetY: TOP_INSET, zoom: 1 }
   private view: View = { width: 0, height: 0, dpr: 1 }
@@ -124,6 +145,10 @@ export class Editor {
       canRedo: history.canRedo,
       pageIndex: 0,
       pageCount: doc.notebook.pageIds.length,
+      textStyle: DEFAULT_TEXT_STYLE,
+      editingText: false,
+      selection: null,
+      hasClipboard: false,
     }
 
     // The canvases are positioned inside the host; keep the host's own positioning if it has one.
@@ -140,13 +165,19 @@ export class Editor {
     this.wetCanvas = makeCanvas()
     this.tipCanvas = makeCanvas()
     this.inkLayer.append(this.wetCanvas, this.tipCanvas)
-    host.append(this.sceneCanvas, this.inkLayer)
+    // Selection frames and the lasso path draw above the ink.
+    this.overlayCanvas = makeCanvas()
+    this.overlayCanvas.style.pointerEvents = 'none'
+    host.append(this.sceneCanvas, this.inkLayer, this.overlayCanvas)
 
     this.scene = this.sceneCanvas.getContext('2d', { alpha: false })!
     // desynchronized asks for a low-latency path where the browser has one.
     this.wet = this.wetCanvas.getContext('2d', { desynchronized: true })!
     this.tip = this.tipCanvas.getContext('2d', { desynchronized: true })!
     this.hostRect = host.getBoundingClientRect()
+    const context = this.createContext(this.overlayCanvas.getContext('2d')!)
+    this.selection = new SelectionController(context)
+    this.text = new TextController(context)
 
     this.listen(host, 'pointerdown', (e) => this.onPointerDown(e))
     this.listen(host, 'pointermove', (e) => this.onPointerMove(e))
@@ -158,7 +189,25 @@ export class Editor {
     // iPadOS runs its own touch handling (scrolling, Scribble) unless touch events are cancelled,
     // and that delays the first pen samples of a stroke.
     for (const type of ['touchstart', 'touchmove'] as const) {
-      this.listen(host, type, (e) => e.preventDefault(), { passive: false })
+      this.listen(
+        host,
+        type,
+        (e) => {
+          if (e.target !== this.text.element) e.preventDefault()
+        },
+        { passive: false },
+      )
+    }
+    // Text drawn before the web fonts arrive used fallback metrics; lay it out again.
+    if (document.fonts) {
+      this.listen(document.fonts as unknown as HTMLElement, 'loadingdone', () => {
+        invalidateTextLayouts()
+        this.requestRender()
+      })
+      for (const family of ['Lora Variable', 'Caveat Variable', 'JetBrains Mono Variable']) {
+        void document.fonts.load(`16px "${family}"`)
+      }
+      void document.fonts.load('16px "Plus Jakarta Sans Variable"')
     }
     for (const type of ['gesturestart', 'gesturechange'] as const) {
       this.listen(document, type, (e) => e.preventDefault())
@@ -185,7 +234,51 @@ export class Editor {
   }
 
   setTool(tool: ToolId): void {
+    if (tool !== 'text') this.text.finish()
+    if (tool !== 'lasso') this.selection.clear()
     this.update({ tool })
+  }
+
+  /** Changes the box being edited, and the style for the next new box. */
+  setTextStyle(patch: Partial<TextStyle>): void {
+    this.text.setStyle(patch)
+    this.update({ textStyle: { ...(this.text.style ?? this._state.textStyle), ...patch } })
+  }
+
+  finishText(): void {
+    this.text.finish()
+  }
+
+  deleteSelection(): void {
+    this.selection.deleteSelection()
+  }
+
+  copySelection(): void {
+    this.selection.copy()
+  }
+
+  cutSelection(): void {
+    this.selection.cut()
+  }
+
+  duplicateSelection(): void {
+    this.selection.duplicate()
+  }
+
+  paste(): void {
+    const page = this.doc.pageList[this._state.pageIndex]
+    if (page) this.selection.paste(page.id)
+  }
+
+  /** Opens the selected text box for typing. */
+  editSelectedText(): void {
+    const id = this.selection.info()?.textId
+    const page = this.doc.pageList.find((p) => p.objects.some((o) => o.id === id))
+    const object = page?.objects.find((o) => o.id === id)
+    if (!page || object?.type !== 'text') return
+    this.selection.clear()
+    this.update({ tool: 'text' })
+    this.text.edit(page.id, object)
   }
 
   setPen(patch: Partial<EditorState['pen']>): void {
@@ -201,11 +294,15 @@ export class Editor {
   }
 
   undo(): void {
-    if (!this.session) this.history.undo()
+    if (this.session || this.selection.busy) return
+    this.text.finish()
+    this.history.undo()
   }
 
   redo(): void {
-    if (!this.session) this.history.redo()
+    if (this.session || this.selection.busy) return
+    this.text.finish()
+    this.history.redo()
   }
 
   addPageAfterCurrent(): void {
@@ -241,9 +338,12 @@ export class Editor {
   }
 
   dispose(): void {
+    this.text.finish()
     this.cleanups.forEach((fn) => fn())
     this.sceneCanvas.remove()
     this.inkLayer.remove()
+    this.overlayCanvas.remove()
+    this.text.element.remove()
     this.listeners.clear()
   }
 
@@ -269,6 +369,50 @@ export class Editor {
     }
     // The editor already painted its own new stroke; everything else needs a redraw.
     if (!this.paintedByEditor) this.requestRender()
+    this.selection.onDocumentChange()
+  }
+
+  /** Shares what the selection and text controllers need, without exposing the whole editor. */
+  private createContext(overlay: CanvasRenderingContext2D): EditorContext {
+    return {
+      doc: this.doc,
+      history: this.history,
+      host: this.host,
+      overlay,
+      camera: () => this.camera,
+      view: () => this.view,
+      screenPos: (e) => this.screenPos(e),
+      pageAt: (screen) => {
+        const w = this.toWorld(screen)
+        const index = pageIndexAt(w.x, w.y, this.doc.notebook.pageIds.length)
+        const page = this.doc.pageList[index]
+        if (!page) return null
+        const o = pageOrigin(index)
+        return { index, page, x: w.x - o.x, y: w.y - o.y }
+      },
+      pageIndexOf: (id) => this.doc.notebook.pageIds.indexOf(id),
+      toScreen: (index, x, y) => {
+        const o = pageOrigin(index)
+        const c = this.camera
+        return { x: (x + o.x) * c.zoom + c.offsetX, y: (y + o.y) * c.zoom + c.offsetY }
+      },
+      activeLayer: () => this.activeLayer(),
+      setHidden: (ids) => {
+        this.hidden = ids
+        this.requestRender()
+      },
+      requestRender: () => this.requestRender(),
+      changed: () => this.syncControllers(),
+    }
+  }
+
+  private syncControllers(): void {
+    this.update({
+      selection: this.selection.info(),
+      hasClipboard: this.selection.hasClipboard,
+      editingText: this.text.isEditing,
+      textStyle: this.text.style ?? this._state.textStyle,
+    })
   }
 
   // ---------- Camera and rendering ----------
@@ -302,6 +446,12 @@ export class Editor {
     )
     if (pageIndex !== this._state.pageIndex) this.update({ pageIndex })
     this.requestRender()
+    // Frames, handles and the text field follow the page.
+    if (this.selection.active) {
+      this.selection.draw()
+      this.syncControllers()
+    }
+    this.text.position()
   }
 
   private zoomAt(anchor: Point, factor: number): void {
@@ -318,7 +468,7 @@ export class Editor {
     const first = this.view.width === 0
     const dpr = window.devicePixelRatio || 1
     this.view = { width: rect.width, height: rect.height, dpr }
-    for (const c of [this.sceneCanvas, this.wetCanvas, this.tipCanvas]) {
+    for (const c of [this.sceneCanvas, this.wetCanvas, this.tipCanvas, this.overlayCanvas]) {
       c.width = Math.round(rect.width * dpr)
       c.height = Math.round(rect.height * dpr)
     }
@@ -335,7 +485,14 @@ export class Editor {
     this.renderQueued = true
     requestAnimationFrame(() => {
       this.renderQueued = false
-      renderScene(this.scene, this.doc.pageList, this.doc.notebook.layers, this.camera, this.view)
+      renderScene(
+        this.scene,
+        this.doc.pageList,
+        this.doc.notebook.layers,
+        this.camera,
+        this.view,
+        this.hidden,
+      )
     })
   }
 
@@ -351,6 +508,8 @@ export class Editor {
   }
 
   private onPointerDown(e: PointerEvent): void {
+    // Taps inside the text field place the caret; leave them to the browser.
+    if (e.target === this.text.element) return
     e.preventDefault()
     this.hostRect = this.host.getBoundingClientRect()
     this.momentum = null
@@ -382,11 +541,54 @@ export class Editor {
       if (e.pointerType !== 'pen') return
       this.endSession()
     }
-    if (this._state.tool === 'broom') this.beginErase(e)
+    if (this.selection.busy || this.textTap) return
+
+    const tool = this._state.tool
+    if (tool === 'lasso') {
+      this.host.setPointerCapture(e.pointerId)
+      this.selection.pointerDown(e)
+      return
+    }
+    if (tool === 'text') {
+      this.host.setPointerCapture(e.pointerId)
+      this.textTap = { pointerId: e.pointerId, ...this.screenPos(e) }
+      return
+    }
+    this.text.finish()
+    if (tool === 'broom') this.beginErase(e)
     else this.beginInk(e)
   }
 
+  /**
+   * Text tool taps act on release, because iPadOS only shows the keyboard for a text field
+   * focused at the end of a tap. A tap on a text box edits it, a tap elsewhere ends editing,
+   * and a tap on empty paper starts a new box.
+   */
+  private onTextTap(screen: Point): void {
+    const wasEditing = this.text.isEditing
+    this.text.finish()
+    const w = this.toWorld(screen)
+    const index = pageIndexAt(w.x, w.y, this.doc.notebook.pageIds.length)
+    const page = this.doc.pageList[index]
+    const layer = this.activeLayer()
+    if (!page || !layer || layer.locked || !layer.visible) return
+    const o = pageOrigin(index)
+    const x = w.x - o.x
+    const y = w.y - o.y
+    const hit = [...page.objects]
+      .reverse()
+      .find((obj) => obj.layerId === layer.id && obj.type === 'text' && hitsObject(obj, x, y, 4))
+    if (hit?.type === 'text') this.text.edit(page.id, hit)
+    else if (!wasEditing) this.text.create(page.id, x, y, this._state.textStyle)
+  }
+
   private onPointerMove(e: PointerEvent): void {
+    if (this.selection.pointerMove(e)) return
+    if (this.textTap?.pointerId === e.pointerId) {
+      const p = this.screenPos(e)
+      if (Math.hypot(p.x - this.textTap.x, p.y - this.textTap.y) > TAP_SLOP_PX) this.textTap = null
+      return
+    }
     const s = this.session
     if (s && e.pointerId === s.pointerId) {
       if (s.kind === 'ink') this.extendInk(s, e)
@@ -422,6 +624,12 @@ export class Editor {
   }
 
   private onPointerEnd(e: PointerEvent): void {
+    this.selection.pointerUp(e)
+    if (this.textTap?.pointerId === e.pointerId) {
+      const tap = this.textTap
+      this.textTap = null
+      if (e.type === 'pointerup') this.onTextTap(tap)
+    }
     const s = this.session
     if (s && e.pointerId === s.pointerId) this.endSession()
     if (this.touches.delete(e.pointerId)) {
@@ -459,7 +667,26 @@ export class Editor {
     if (target?.closest('input, textarea, [contenteditable="true"]')) return
     const mod = e.metaKey || e.ctrlKey
     const key = e.key.toLowerCase()
-    if (mod && key === 'z') {
+    const selected = this._state.selection !== null
+    if (mod && key === 'c' && selected) {
+      e.preventDefault()
+      this.copySelection()
+    } else if (mod && key === 'x' && selected) {
+      e.preventDefault()
+      this.cutSelection()
+    } else if (mod && key === 'd' && selected) {
+      e.preventDefault()
+      this.duplicateSelection()
+    } else if (mod && key === 'v' && this._state.hasClipboard) {
+      e.preventDefault()
+      this.setTool('lasso')
+      this.paste()
+    } else if ((key === 'backspace' || key === 'delete') && selected) {
+      e.preventDefault()
+      this.deleteSelection()
+    } else if (key === 'escape') {
+      this.selection.clear()
+    } else if (mod && key === 'z') {
       e.preventDefault()
       if (e.shiftKey) this.redo()
       else this.undo()
@@ -470,6 +697,8 @@ export class Editor {
       if (key === 'p') this.setTool('pen')
       else if (key === 'h') this.setTool('highlighter')
       else if (key === 'e' || key === 'b') this.setTool('broom')
+      else if (key === 'l') this.setTool('lasso')
+      else if (key === 't') this.setTool('text')
     }
   }
 
@@ -776,7 +1005,12 @@ export class Editor {
       let changed = false
       const next: CanvasObject[] = []
       for (const object of page.objects) {
-        if (object.layerId !== layerId || !intersects(strokeBounds(object), probe)) {
+        // The broom sweeps ink; text boxes are removed with the lasso.
+        if (
+          object.type !== 'stroke' ||
+          object.layerId !== layerId ||
+          !intersects(strokeBounds(object), probe)
+        ) {
           next.push(object)
           continue
         }

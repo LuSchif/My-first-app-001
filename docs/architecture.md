@@ -62,5 +62,5 @@ The editor was moved ahead of the dashboard (packages 2–3) so the tools can be
 | 2a–2b   | Dashboard, folders, folder preview animation, folder view                 |             |
 | 3       | Notebook creation dialog with cover designer and paper carousel           |             |
 | 4a–4c   | Engine: camera, pages, paper, fineliner, highlighter, undo, autosave      | Done        |
-| 5a–5d   | Broom (done), lasso and transforms, text boxes, layer basics, PWA, backup | MVP         |
+| 5a–5d   | Broom, lasso and transforms, text boxes (done); layer basics, PWA, backup | MVP         |
 | 6–10    | Full layers, text, tables, charts, colour drag and drop, PDF, polish      | Version 1.0 |

@@ -5,10 +5,12 @@ import {
   Copy,
   FilePlus2,
   Highlighter,
+  Lasso,
   LoaderCircle,
   PenLine,
   Redo2,
   Trash2,
+  Type,
   Undo2,
 } from 'lucide-react'
 import { useState, useSyncExternalStore, type ReactNode } from 'react'
@@ -26,6 +28,8 @@ import {
   SwatchGrid,
 } from '../../design/index.ts'
 import type { Autosave } from '../../storage/Autosave.ts'
+import { PasteButton, SelectionMenu } from './SelectionMenu.tsx'
+import { TextFormatControls } from './TextFormatControls.tsx'
 
 const HIGHLIGHTER_COLORS = [
   ['Yellow', '#f2cf4a'],
@@ -58,88 +62,122 @@ export function Toolbar({
   const [panel, setPanel] = useState<ToolId | 'pages' | null>(null)
 
   // The first tap selects a tool; tapping the selected tool again opens its settings.
-  const toolButton = (tool: ToolId, label: string, icon: ReactNode, settings: ReactNode) => (
-    <Popover open={panel === tool} onOpenChange={(open) => setPanel(open ? tool : null)}>
-      <PopoverTrigger asChild>
-        <IconButton
-          label={label}
-          icon={icon}
-          active={state.tool === tool}
-          onClick={(e) => {
-            if (state.tool !== tool) {
-              e.preventDefault()
-              editor.setTool(tool)
-              setPanel(null)
-            }
-          }}
-        />
-      </PopoverTrigger>
-      <PopoverContent className="grid w-80 gap-5">{settings}</PopoverContent>
-    </Popover>
-  )
+  const toolButton = (tool: ToolId, label: string, icon: ReactNode, settings?: ReactNode) =>
+    settings === undefined ? (
+      <IconButton
+        label={label}
+        icon={icon}
+        active={state.tool === tool}
+        onClick={() => editor.setTool(tool)}
+      />
+    ) : (
+      <Popover open={panel === tool} onOpenChange={(open) => setPanel(open ? tool : null)}>
+        <PopoverTrigger asChild>
+          <IconButton
+            label={label}
+            icon={icon}
+            active={state.tool === tool}
+            onClick={(e) => {
+              if (state.tool !== tool) {
+                e.preventDefault()
+                editor.setTool(tool)
+                setPanel(null)
+              }
+            }}
+          />
+        </PopoverTrigger>
+        <PopoverContent className="grid w-80 gap-5">{settings}</PopoverContent>
+      </Popover>
+    )
 
   return (
-    <div className="pointer-events-none absolute inset-x-0 top-0 flex flex-wrap items-start justify-between gap-2 px-[max(12px,env(safe-area-inset-left))] pt-[calc(10px+env(safe-area-inset-top))]">
-      <div className="pointer-events-auto flex min-w-0 items-center gap-1 rounded-panel bg-surface-raised/95 p-1.5 pr-4 shadow-raised backdrop-blur">
-        <IconButton label="All notebooks" icon={<ChevronLeft {...ICON} />} onClick={onBack} />
-        <span className="max-w-[16ch] truncate font-semibold sm:max-w-[24ch]">{title}</span>
-      </div>
+    <>
+      <div className="pointer-events-none absolute inset-x-0 top-0 flex flex-wrap items-start justify-between gap-2 px-[max(12px,env(safe-area-inset-left))] pt-[calc(10px+env(safe-area-inset-top))]">
+        <div className="pointer-events-auto flex min-w-0 items-center gap-1 rounded-panel bg-surface-raised/95 p-1.5 pr-4 shadow-raised backdrop-blur">
+          <IconButton label="All notebooks" icon={<ChevronLeft {...ICON} />} onClick={onBack} />
+          <span className="max-w-[16ch] truncate font-semibold sm:max-w-[24ch]">{title}</span>
+        </div>
 
-      <div
-        role="toolbar"
-        aria-label="Tools"
-        className="pointer-events-auto flex items-center gap-1 rounded-panel bg-surface-raised/95 p-1.5 shadow-raised backdrop-blur"
-      >
-        {toolButton(
-          'pen',
-          'Pen',
-          <PenLine {...ICON} />,
-          <PenSettings editor={editor} state={state} />,
-        )}
-        {toolButton(
-          'highlighter',
-          'Highlighter',
-          <Highlighter {...ICON} />,
-          <HighlighterSettings editor={editor} state={state} />,
-        )}
-        {toolButton(
-          'broom',
-          'Broom',
-          <BroomIcon size={22} />,
-          <BroomSettings editor={editor} state={state} />,
-        )}
-        <span className="mx-1 h-7 w-px bg-line" />
-        <IconButton
-          label="Undo"
-          icon={<Undo2 {...ICON} />}
-          disabled={!state.canUndo}
-          onClick={() => editor.undo()}
-        />
-        <IconButton
-          label="Redo"
-          icon={<Redo2 {...ICON} />}
-          disabled={!state.canRedo}
-          onClick={() => editor.redo()}
-        />
-      </div>
+        <div
+          role="toolbar"
+          aria-label="Tools"
+          className="pointer-events-auto flex items-center gap-1 rounded-panel bg-surface-raised/95 p-1.5 shadow-raised backdrop-blur"
+        >
+          {toolButton('lasso', 'Lasso', <Lasso {...ICON} />)}
+          {toolButton(
+            'pen',
+            'Pen',
+            <PenLine {...ICON} />,
+            <PenSettings editor={editor} state={state} />,
+          )}
+          {toolButton(
+            'highlighter',
+            'Highlighter',
+            <Highlighter {...ICON} />,
+            <HighlighterSettings editor={editor} state={state} />,
+          )}
+          {toolButton(
+            'broom',
+            'Broom',
+            <BroomIcon size={22} />,
+            <BroomSettings editor={editor} state={state} />,
+          )}
+          {toolButton(
+            'text',
+            'Text',
+            <Type {...ICON} />,
+            <>
+              <p className="text-sm font-semibold">Style for new text</p>
+              <TextFormatControls editor={editor} style={state.textStyle} />
+            </>,
+          )}
+          <span className="mx-1 h-7 w-px bg-line" />
+          <IconButton
+            label="Undo"
+            icon={<Undo2 {...ICON} />}
+            disabled={!state.canUndo}
+            onClick={() => editor.undo()}
+          />
+          <IconButton
+            label="Redo"
+            icon={<Redo2 {...ICON} />}
+            disabled={!state.canRedo}
+            onClick={() => editor.redo()}
+          />
+        </div>
 
-      <div className="pointer-events-auto flex items-center gap-1 rounded-panel bg-surface-raised/95 p-1.5 shadow-raised backdrop-blur">
-        <SaveStatus autosave={autosave} />
-        <Popover open={panel === 'pages'} onOpenChange={(open) => setPanel(open ? 'pages' : null)}>
-          <PopoverTrigger asChild>
-            <button
-              type="button"
-              className="h-11 rounded-control px-3 text-sm font-semibold tabular-nums hover:bg-hover"
-            >
-              Page {state.pageIndex + 1} of {state.pageCount}
-            </button>
-          </PopoverTrigger>
-          <PopoverContent align="end" className="w-64">
-            <PageMenu editor={editor} state={state} onDone={() => setPanel(null)} />
-          </PopoverContent>
-        </Popover>
+        <div className="pointer-events-auto flex items-center gap-1 rounded-panel bg-surface-raised/95 p-1.5 shadow-raised backdrop-blur">
+          <SaveStatus autosave={autosave} />
+          <Popover
+            open={panel === 'pages'}
+            onOpenChange={(open) => setPanel(open ? 'pages' : null)}
+          >
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                className="h-11 rounded-control px-3 text-sm font-semibold tabular-nums hover:bg-hover"
+              >
+                Page {state.pageIndex + 1} of {state.pageCount}
+              </button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-64">
+              <PageMenu editor={editor} state={state} onDone={() => setPanel(null)} />
+            </PopoverContent>
+          </Popover>
+        </div>
       </div>
-    </div>
+      {state.editingText ? (
+        <div className="pointer-events-auto absolute top-[calc(76px+env(safe-area-inset-top))] left-1/2 z-10 max-w-[calc(100%-24px)] -translate-x-1/2 rounded-panel bg-surface-raised/95 p-1.5 shadow-raised backdrop-blur">
+          <TextFormatControls
+            editor={editor}
+            style={state.textStyle}
+            onDone={() => editor.finishText()}
+          />
+        </div>
+      ) : null}
+      <SelectionMenu editor={editor} state={state} />
+      <PasteButton editor={editor} state={state} />
+    </>
   )
 }
 

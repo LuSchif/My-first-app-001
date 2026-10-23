@@ -3,7 +3,7 @@ import { intersects, type Rect } from '../geometry/rect.ts'
 import { PAGE_SIZE, type LayerDef, type Page } from '../model/types.ts'
 import { pageOrigin } from './layout.ts'
 import { drawPaper, PAPER_STYLE } from './paper.ts'
-import { paintStroke, strokeBounds } from './strokes.ts'
+import { objectBounds, paintObject } from './objects.ts'
 
 export const DESK_COLOR = '#ede4d8'
 
@@ -50,6 +50,8 @@ export function renderScene(
   layers: readonly LayerDef[],
   camera: Camera,
   view: View,
+  /** Objects drawn elsewhere right now, e.g. a selection being moved or text being edited. */
+  hidden: ReadonlySet<string> = new Set(),
 ): void {
   const { dpr } = view
   ctx.setTransform(1, 0, 0, 1, 0, 0)
@@ -83,9 +85,9 @@ export function renderScene(
     for (const layer of layers) {
       if (!layer.visible) continue
       for (const object of page.objects) {
-        if (object.layerId !== layer.id) continue
-        if (!intersects(strokeBounds(object), local)) continue
-        paintStroke(ctx, object)
+        if (object.layerId !== layer.id || hidden.has(object.id)) continue
+        if (!intersects(objectBounds(object), local)) continue
+        paintObject(ctx, object)
       }
     }
     ctx.restore()
