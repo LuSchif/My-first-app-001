@@ -52,7 +52,7 @@ export function moveLayer(doc: NotebookDocument, id: Id, step: 1 | -1): Command 
   return setLayers('Reorder layers', before, after)
 }
 
-export type LayerPatch = Partial<Pick<LayerDef, 'name' | 'visible' | 'locked' | 'opacity'>>
+export type LayerPatch = Partial<Pick<LayerDef, 'name' | 'visible' | 'locked' | 'opacity' | 'clip'>>
 
 export function patchLayer(layers: readonly LayerDef[], id: Id, patch: LayerPatch): LayerDef[] {
   return layers.map((l) => (l.id === id ? { ...l, ...patch } : l))

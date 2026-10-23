@@ -31,6 +31,8 @@ export interface LayerDef {
   visible: boolean
   locked: boolean
   opacity: number
+  /** A clipping mask: shows only where the layer below has content. */
+  clip?: boolean
 }
 
 export interface Notebook {

@@ -3,6 +3,7 @@ import { History } from '../commands/History.ts'
 import { NotebookDocument } from '../document/NotebookDocument.ts'
 import { createNotebook } from '../model/factory.ts'
 import type { StrokeObject } from '../model/types.ts'
+import { layerGroups } from '../render/layers.ts'
 import { addLayer, moveLayer, nextLayerName, removeLayer } from './layers.ts'
 
 function setup() {
@@ -66,5 +67,30 @@ describe('layers', () => {
   it('keeps the last layer', () => {
     const { doc } = setup()
     expect(removeLayer(doc, doc.notebook.layers[0]!.id)).toBeNull()
+  })
+})
+
+describe('clipping masks', () => {
+  it('groups clipped layers with the nearest unclipped layer below', () => {
+    const layer = (id: string, clip = false) => ({
+      id,
+      name: id,
+      visible: true,
+      locked: false,
+      opacity: 1,
+      clip,
+    })
+    const groups = layerGroups([
+      layer('a', true),
+      layer('b'),
+      layer('c', true),
+      layer('d', true),
+      layer('e'),
+    ])
+    expect(groups.map((g) => [g.base.id, g.clipped.map((l) => l.id)])).toEqual([
+      ['a', []],
+      ['b', ['c', 'd']],
+      ['e', []],
+    ])
   })
 })

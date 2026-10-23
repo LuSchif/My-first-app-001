@@ -1,8 +1,18 @@
-import { ArrowDown, ArrowUp, Eye, EyeOff, Lock, LockOpen, Plus, Trash2 } from 'lucide-react'
+import {
+  ArrowDown,
+  ArrowUp,
+  CornerLeftDown,
+  Eye,
+  EyeOff,
+  Lock,
+  LockOpen,
+  Plus,
+  Trash2,
+} from 'lucide-react'
 import { useState } from 'react'
 import type { Editor, EditorState } from '../../engine/editor/Editor.ts'
 import type { LayerDef } from '../../engine/model/types.ts'
-import { Button, IconButton, Slider, TextField } from '../../design/index.ts'
+import { Button, IconButton, Slider, Switch, TextField } from '../../design/index.ts'
 import { cn } from '../../lib/cn.ts'
 
 /**
@@ -60,6 +70,13 @@ function LayerRow({ editor, layer, active }: { editor: Editor; layer: LayerDef; 
         onClick={() => editor.setActiveLayer(layer.id)}
         className="flex min-h-11 min-w-0 flex-1 items-center px-3 text-left"
       >
+        {layer.clip ? (
+          <CornerLeftDown
+            size={16}
+            aria-label="Clipped to the layer below"
+            className="mr-1.5 shrink-0 opacity-75"
+          />
+        ) : null}
         <span className={cn('truncate text-sm font-semibold', !layer.visible && 'opacity-55')}>
           {layer.name}
         </span>
@@ -129,6 +146,14 @@ function ActiveLayerSettings({
         onCommit={(v) => editor.setLayerOpacity(layer.id, v / 100, true)}
         format={(v) => `${v}%`}
       />
+      {isBottom ? null : (
+        <Switch
+          label="Clipping mask"
+          hint="Show this layer only where the layer below has content"
+          checked={Boolean(layer.clip)}
+          onChange={(clip) => editor.updateLayer(layer.id, { clip })}
+        />
+      )}
       <div className="flex flex-wrap gap-1">
         <Button
           variant="ghost"

@@ -3,7 +3,7 @@ import { intersects, type Rect } from '../geometry/rect.ts'
 import { PAGE_SIZE, type LayerDef, type Page } from '../model/types.ts'
 import { pageOrigin } from './layout.ts'
 import { drawPaper, PAPER_STYLE } from './paper.ts'
-import { objectBounds, paintObject } from './objects.ts'
+import { paintLayers } from './layers.ts'
 
 export const DESK_COLOR = '#ede4d8'
 
@@ -82,40 +82,7 @@ export function renderScene(
       maxX: world.maxX - o.x,
       maxY: world.maxY - o.y,
     }
-    for (const layer of layers) {
-      if (!layer.visible || layer.opacity <= 0) continue
-      const objects = page.objects.filter(
-        (o) => o.layerId === layer.id && !hidden.has(o.id) && intersects(objectBounds(o), local),
-      )
-      if (objects.length === 0) continue
-      if (layer.opacity >= 1) {
-        for (const object of objects) paintObject(ctx, object)
-        continue
-      }
-      // A see-through layer is drawn as a whole and then faded, so overlapping strokes on it
-      // do not show through each other.
-      const scratch = scratchContext(ctx.canvas.width, ctx.canvas.height)
-      scratch.setTransform(1, 0, 0, 1, 0, 0)
-      scratch.clearRect(0, 0, scratch.canvas.width, scratch.canvas.height)
-      scratch.setTransform(ctx.getTransform())
-      for (const object of objects) paintObject(scratch, object)
-      ctx.save()
-      ctx.setTransform(1, 0, 0, 1, 0, 0)
-      ctx.globalAlpha = layer.opacity
-      ctx.drawImage(scratch.canvas, 0, 0)
-      ctx.restore()
-    }
+    paintLayers(ctx, page.objects, layers, local, hidden)
     ctx.restore()
   })
-}
-
-let scratch: CanvasRenderingContext2D | null = null
-
-function scratchContext(width: number, height: number): CanvasRenderingContext2D {
-  if (!scratch) scratch = document.createElement('canvas').getContext('2d')!
-  if (scratch.canvas.width !== width || scratch.canvas.height !== height) {
-    scratch.canvas.width = width
-    scratch.canvas.height = height
-  }
-  return scratch
 }

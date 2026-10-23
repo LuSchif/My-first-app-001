@@ -1562,7 +1562,7 @@ export class Editor {
           }
       const layers = this.doc.notebook.layers.filter((l) => l.visible)
       const top = layers[layers.length - 1]
-      const onTop = top?.id === stroke.layerId && top.opacity >= 1
+      const onTop = top?.id === stroke.layerId && top.opacity >= 1 && !top.clip
       // Paint the finished stroke straight onto the scene, so there is no frame without it.
       if (onTop) {
         this.scene.save()
