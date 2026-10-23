@@ -15,6 +15,7 @@ import {
   PopoverTrigger,
 } from '../../design/index.ts'
 import { deleteNotebook, listNotebooks } from '../../storage/notebooks.ts'
+import { BackupMenu, InstallHint } from './KeepSafe.tsx'
 import { NewNotebookDialog } from './NewNotebookDialog.tsx'
 
 /**
@@ -43,15 +44,20 @@ export function LibraryView() {
       <div className="mx-auto grid max-w-5xl gap-8">
         <header className="flex flex-wrap items-center justify-between gap-4">
           <h1 className="text-3xl font-bold tracking-tight">Broomit</h1>
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button variant="primary" icon={<Plus size={18} />}>
-                New notebook
-              </Button>
-            </DialogTrigger>
-            <NewNotebookDialog onCreated={open} />
-          </Dialog>
+          <div className="flex flex-wrap gap-2">
+            <BackupMenu onRestored={reload} />
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button variant="primary" icon={<Plus size={18} />}>
+                  New notebook
+                </Button>
+              </DialogTrigger>
+              <NewNotebookDialog onCreated={open} />
+            </Dialog>
+          </div>
         </header>
+
+        <InstallHint />
 
         {loadError ? (
           <p className="text-danger">

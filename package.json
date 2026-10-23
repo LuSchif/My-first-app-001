@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build && node scripts/build-spikes.mjs",
+    "build": "tsc -b && vite build && node scripts/build-spikes.mjs && node scripts/build-service-worker.mjs",
     "preview": "vite preview",
     "typecheck": "tsc -b",
     "lint": "oxlint",

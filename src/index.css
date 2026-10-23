@@ -1,4 +1,7 @@
 @import '@fontsource-variable/plus-jakarta-sans';
+@import '@fontsource-variable/lora';
+@import '@fontsource-variable/caveat';
+@import '@fontsource-variable/jetbrains-mono';
 @import 'tailwindcss';
 @import './design/tokens.css';
 

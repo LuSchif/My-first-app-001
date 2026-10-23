@@ -71,6 +71,17 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
 - iPadOS deletes website storage after 7 days without use unless the app is installed to the
   Home Screen, so Broomit is installed as a PWA, requests persistent storage and offers a backup
   export from the first release.
+- The service worker (`scripts/build-service-worker.mjs`, generated at build time) precaches the
+  whole app, so it starts offline. Pages load network first, hashed build files cache first.
+- A backup is one JSON file with all folders, notebooks and pages. Restoring adds and replaces
+  by id and never deletes other notebooks.
+
+## Layers
+
+- Layers belong to the notebook; the editor keeps an active layer for new ink, text and
+  selections. Hidden or locked layers cannot be changed, and the editor says so.
+- Every layer change (add, delete with content, reorder, rename, show, lock, opacity) is an
+  undoable command. Layers below full opacity are drawn as a whole, then faded.
 
 ## Roadmap
 
@@ -85,5 +96,5 @@ The editor was moved ahead of the dashboard (packages 2–3) so the tools can be
 | 2a–2b   | Dashboard, folders, folder preview animation, folder view                 |             |
 | 3       | Notebook creation dialog with cover designer and paper carousel           |             |
 | 4a–4c   | Engine: camera, pages, paper, fineliner, highlighter, undo, autosave      | Done        |
-| 5a–5d   | Broom, lasso and transforms, text boxes (done); layer basics, PWA, backup | MVP         |
+| 5a–5d   | Broom, lasso and transforms, text boxes, layers, PWA, backup              | Done        |
 | 6–10    | Full layers, text, tables, charts, colour drag and drop, PDF, polish      | Version 1.0 |
