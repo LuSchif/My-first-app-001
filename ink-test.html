@@ -51,11 +51,14 @@
     width: 100%;
     height: 100%;
   }
-  #live {
+  #ink {
+    position: absolute;
+    inset: 0;
     pointer-events: none;
   }
-  /* While highlighting, the live layer blends like the finished stroke: it tints, never covers. */
-  #live.highlighter {
+  /* While highlighting, the ink layers blend like the finished stroke: they tint, never cover.
+     Opacity sits on the group so the two layers never tint twice where they overlap. */
+  #ink.highlighter {
     opacity: 0.45;
     mix-blend-mode: multiply;
   }
@@ -230,7 +233,10 @@
 
 <div id="stage">
   <canvas id="scene"></canvas>
-  <canvas id="live"></canvas>
+  <div id="ink">
+    <canvas id="wet"></canvas>
+    <canvas id="tip"></canvas>
+  </div>
 </div>
 
 <div class="toolbar" role="toolbar" aria-label="Ink test tools">
@@ -331,7 +337,7 @@
       max: 40,
       step: 1,
       opacity: 0.45,
-      cap: 'butt',
+      cap: 'round',
     },
   }
 
@@ -346,10 +352,16 @@
   const $ = (id) => document.getElementById(id)
   const stage = $('stage')
   const sceneCanvas = $('scene')
-  const liveCanvas = $('live')
+  const inkLayer = $('ink')
+  const wetCanvas = $('wet')
+  const tipCanvas = $('tip')
   const scene = sceneCanvas.getContext('2d', { alpha: false })
+  // The stroke in progress lives on two layers above the page. "wet" collects the settled part
+  // and is never cleared while the stroke lasts; "tip" holds only the short end that still
+  // changes. Each event therefore draws a few pixels, however long the stroke gets.
   // desynchronized asks the browser for a low-latency path where it has one.
-  const live = liveCanvas.getContext('2d', { desynchronized: true })
+  const wet = wetCanvas.getContext('2d', { desynchronized: true })
+  const tip = tipCanvas.getContext('2d', { desynchronized: true })
 
   const state = {
     tool: 'fineliner',
@@ -359,8 +371,7 @@
     view: { w: 0, h: 0, dpr: 1 },
     strokes: [],
     current: null,
-    liveDirty: null,
-    liveFrameQueued: false,
+    tipDirty: null,
     frameTimes: [],
     frameIntervals: [],
     lastFrameAt: 0,
@@ -562,68 +573,111 @@
     $('s-strokes').textContent = state.strokes.length.toLocaleString('en-US')
   }
 
-  // Clears only the area the live stroke covered last frame, not the whole screen.
-  function clearLive() {
-    const r = state.liveDirty
-    if (!r) return
-    live.setTransform(1, 0, 0, 1, 0, 0)
-    live.clearRect(r.x, r.y, r.w, r.h)
-    state.liveDirty = null
-  }
-
-  function requestLiveFrame() {
-    if (state.liveFrameQueued) return
-    state.liveFrameQueued = true
-    requestAnimationFrame((now) => {
-      state.liveFrameQueued = false
-      if (state.lastFrameAt && now - state.lastFrameAt < 50) {
-        state.frameIntervals.push(now - state.lastFrameAt)
-        if (state.frameIntervals.length > 60) state.frameIntervals.shift()
-      }
-      state.lastFrameAt = now
-      renderLive()
-    })
-  }
-
-  // The stroke in progress is drawn once per display frame, however many samples arrived.
-  function renderLive() {
-    const s = state.current
-    clearLive()
-    if (!s || s.points.length === 0) return
-    const t0 = performance.now()
-    // The filtered line trails the pen slightly, so the live line always runs on to the latest
-    // raw sample (the pen tip) and then one frame beyond it.
-    const extra = []
-    if (s.lastRaw) {
-      const tip = screenToWorld(s.lastRaw)
-      const last = s.points[s.points.length - 1]
-      if (tip.x !== last[0] || tip.y !== last[1]) extra.push([tip.x, tip.y])
-    }
-    const tail = predictTail(s)
-    if (tail) extra.push(tail)
-    const points = extra.length ? s.points.concat(extra) : s.points
-
-    applyCamera(live)
-    live.save()
-    clipToPage(live)
-    setInkStyle(live, s)
-    live.stroke(buildPath(points))
-    live.restore()
-
-    const b = boundsOf(points, s.size)
+  // Device-pixel rectangle covering a run of world points, with room for the line width.
+  function deviceRect(points, size) {
+    const b = boundsOf(points, size)
     const a = worldToScreen({ x: b.minX, y: b.minY })
     const z = worldToScreen({ x: b.maxX, y: b.maxY })
     const d = state.view.dpr
-    state.liveDirty = {
+    return {
       x: Math.floor(a.x * d) - 4,
       y: Math.floor(a.y * d) - 4,
       w: Math.ceil((z.x - a.x) * d) + 8,
       h: Math.ceil((z.y - a.y) * d) + 8,
     }
+  }
+
+  function unionRect(a, b) {
+    if (!a) return b
+    const x = Math.min(a.x, b.x)
+    const y = Math.min(a.y, b.y)
+    return {
+      x,
+      y,
+      w: Math.max(a.x + a.w, b.x + b.w) - x,
+      h: Math.max(a.y + a.h, b.y + b.h) - y,
+    }
+  }
+
+  function clearArea(ctx, r) {
+    if (!r) return
+    ctx.setTransform(1, 0, 0, 1, 0, 0)
+    ctx.clearRect(r.x, r.y, r.w, r.h)
+  }
+
+  function clearInk(s) {
+    clearArea(wet, s?.wetDirty)
+    clearArea(tip, state.tipDirty)
+    state.tipDirty = null
+  }
+
+  // Draws the stroke in progress right away, inside the input event, so the newest samples make
+  // it into the very next frame.
+  function drawInk(s) {
+    const t0 = performance.now()
+    const pts = s.points
+    const n = pts.length
+
+    // Settled part: the curve up to the midpoint between the last two points never changes again.
+    if (n - 2 > s.drawnTo) {
+      const path = new Path2D()
+      const covered = [s.drawnEnd]
+      path.moveTo(s.drawnEnd[0], s.drawnEnd[1])
+      for (let i = s.drawnTo + 1; i <= n - 2; i++) {
+        const [x0, y0] = pts[i]
+        const [x1, y1] = pts[i + 1]
+        s.drawnEnd = [(x0 + x1) / 2, (y0 + y1) / 2]
+        path.quadraticCurveTo(x0, y0, s.drawnEnd[0], s.drawnEnd[1])
+        covered.push(pts[i])
+      }
+      covered.push(s.drawnEnd)
+      s.drawnTo = n - 2
+      applyCamera(wet)
+      wet.save()
+      clipToPage(wet)
+      setInkStyle(wet, s)
+      wet.stroke(path)
+      wet.restore()
+      s.wetDirty = unionRect(s.wetDirty, deviceRect(covered, s.size))
+    }
+
+    // Unsettled end: from there to the latest point, then on to the pen tip and one frame beyond,
+    // because the smoothed line trails the pen slightly.
+    const end = [s.drawnEnd, ...pts.slice(s.drawnTo + 1)]
+    if (s.lastRaw) {
+      const p = screenToWorld(s.lastRaw)
+      const last = end[end.length - 1]
+      if (p.x !== last[0] || p.y !== last[1]) end.push([p.x, p.y])
+    }
+    const ahead = predictTail(s)
+    if (ahead) end.push(ahead)
+
+    clearArea(tip, state.tipDirty)
+    applyCamera(tip)
+    tip.save()
+    clipToPage(tip)
+    setInkStyle(tip, s)
+    tip.stroke(buildPath(end))
+    tip.restore()
+    state.tipDirty = deviceRect(end, s.size)
 
     const times = state.frameTimes
     times.push(performance.now() - t0)
-    if (times.length > 60) times.shift()
+    if (times.length > 120) times.shift()
+  }
+
+  // Measures the display refresh rate while a stroke is drawn.
+  function trackFrames(now) {
+    if (!state.current) {
+      state.lastFrameAt = 0
+      return
+    }
+    if (state.lastFrameAt && now - state.lastFrameAt < 50) {
+      state.frameIntervals.push(now - state.lastFrameAt)
+      if (state.frameIntervals.length > 60) state.frameIntervals.shift()
+    }
+    state.lastFrameAt = now
+    requestAnimationFrame(trackFrames)
   }
 
   function resize() {
@@ -631,11 +685,11 @@
     const dpr = window.devicePixelRatio || 1
     const first = state.view.w === 0
     state.view = { w: rect.width, h: rect.height, dpr }
-    for (const c of [sceneCanvas, liveCanvas]) {
+    for (const c of [sceneCanvas, wetCanvas, tipCanvas]) {
       c.width = Math.round(rect.width * dpr)
       c.height = Math.round(rect.height * dpr)
     }
-    state.liveDirty = null
+    state.tipDirty = null
     if (first) fitPage()
     else requestRender()
   }
@@ -648,14 +702,18 @@
   // Raw stylus samples are not clean: on iPadOS a sample can arrive late or twice, or sit a
   // fraction of a pixel from the previous one. Every sample passes these checks, then the filter.
   function addSample(s, e) {
-    let t = e.timeStamp
-    if (t < s.lastTime) {
+    // Late samples carry an older time stamp than one already used.
+    if (e.timeStamp < s.lastStamp) {
       s.cleaned++
       return
     }
-    // Some browsers give all samples of one frame the same time stamp.
-    if (t === s.lastTime) t += FALLBACK_SAMPLE_MS
+    // Some browsers give all samples of one frame the same time stamp; space those evenly.
+    const t =
+      e.timeStamp > s.lastStamp
+        ? Math.max(e.timeStamp, s.lastTime + 1)
+        : s.lastTime + FALLBACK_SAMPLE_MS
     const dt = s.lastTime === -Infinity ? FALLBACK_SAMPLE_MS / 1000 : (t - s.lastTime) / 1000
+    s.lastStamp = e.timeStamp
     s.lastTime = t
 
     const raw = screenPos(e)
@@ -735,6 +793,7 @@
       fx: new OneEuroFilter(SMOOTHING),
       fy: new OneEuroFilter(SMOOTHING),
       lastTime: -Infinity,
+      lastStamp: -Infinity,
       lastRaw: null,
       raw: [],
       predicted: null,
@@ -745,11 +804,17 @@
       startedAt: e.timeStamp,
       endedAt: e.timeStamp,
     }
-    liveCanvas.classList.toggle('highlighter', state.tool === 'highlighter')
+    inkLayer.classList.toggle('highlighter', state.tool === 'highlighter')
     stage.setPointerCapture(e.pointerId)
-    addSample(state.current, e)
+    const s = state.current
+    addSample(s, e)
+    s.drawnTo = 0
+    s.drawnEnd = s.points[0]
+    s.wetDirty = null
     showInput(e)
-    requestLiveFrame()
+    drawInk(s)
+    state.lastFrameAt = 0
+    requestAnimationFrame(trackFrames)
   }
 
   function extendStroke(e) {
@@ -768,13 +833,12 @@
       }
     }
     showInput(e)
-    requestLiveFrame()
+    drawInk(s)
   }
 
   function commitStroke() {
     const s = state.current
     state.current = null
-    state.lastFrameAt = 0
     // The filter trails the pen slightly; end the line exactly where the pen lifted.
     if (s.lastRaw) {
       const end = screenToWorld(s.lastRaw)
@@ -791,7 +855,7 @@
     clipToPage(scene)
     paintStroke(scene, s)
     scene.restore()
-    clearLive()
+    clearInk(s)
 
     const seconds = (s.endedAt - s.startedAt) / 1000
     const times = state.frameTimes
@@ -808,8 +872,8 @@
   }
 
   function cancelStroke() {
+    clearInk(state.current)
     state.current = null
-    clearLive()
   }
 
   function showInput(e) {
