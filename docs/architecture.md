@@ -4,16 +4,16 @@ This document records the decisions agreed before implementation. Change it when
 
 ## Decisions
 
-| Topic          | Decision                                                                      |
-| -------------- | ----------------------------------------------------------------------------- |
-| Platform       | Web app (PWA) first; Capacitor (iOS/Android) and Tauri (desktop) later        |
-| Primary device | iPad Pro with Apple Pencil, Chrome and Safari (both use WebKit on iPadOS)     |
-| UI language    | English, with strings kept ready for translation                              |
-| Pages          | Fixed A4 pages (595 × 842 pt), scrolled vertically                            |
-| Layers         | Defined per notebook (name, order, visibility, lock); content stored per page |
-| Stack          | React, TypeScript (strict), Vite, Tailwind CSS v4, Zustand, Dexie (IndexedDB) |
-| Ink geometry   | perfect-freehand                                                              |
-| Rendering      | Own Canvas 2D engine; no Fabric.js or Konva                                   |
+| Topic          | Decision                                                                                                    |
+| -------------- | ----------------------------------------------------------------------------------------------------------- |
+| Platform       | Web app (PWA) first; Capacitor (iOS/Android) and Tauri (desktop) later                                      |
+| Primary device | iPad Pro with Apple Pencil, Chrome and Safari (both use WebKit on iPadOS)                                   |
+| UI language    | English, with strings kept ready for translation                                                            |
+| Pages          | Fixed A4 pages (595 × 842 pt), scrolled vertically                                                          |
+| Layers         | Defined per notebook (name, order, visibility, lock); content stored per page                               |
+| Stack          | React, TypeScript (strict), Vite, Tailwind CSS v4, Zustand, Dexie (IndexedDB)                               |
+| Ink            | Constant-width strokes (width set by the user, not by pressure); 1€ input filter; quadratic midpoint curves |
+| Rendering      | Own Canvas 2D engine; no Fabric.js or Konva                                                                 |
 
 ## Why an own canvas engine
 
@@ -31,8 +31,12 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
   cached bitmap per layer, and a live canvas that draws only the stroke in progress.
   The renderer can later be swapped for WebGL without touching the model.
 - **Spatial index** (`engine/spatial`): an R-tree per page for lasso, broom and drop targets.
-- **Input** (`engine/input`): pointer events with coalesced and predicted samples, pressure and
-  tilt, palm rejection (fingers pan and zoom while a pen is in use).
+- **Input** (`engine/input`): pointer events with coalesced samples, palm rejection (fingers pan
+  and zoom while a pen is in use). Samples that arrive late, repeat or sit under a pixel apart are
+  dropped, then a 1€ filter removes jitter. The live stroke is drawn once per frame, one frame
+  ahead of the pen (browser prediction or velocity extrapolation), clearing only its own area.
+- **Ink**: strokes keep a constant width chosen with the size control; pen pressure does not
+  change it. Strokes are stored as points and drawn as smooth quadratic curves.
 - **Text and tables**: rendered on the canvas at rest; edited through a DOM overlay positioned
   with the same transform, so typing feels native.
 

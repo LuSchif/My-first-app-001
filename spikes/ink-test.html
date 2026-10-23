@@ -45,7 +45,10 @@
   }
   #live {
     pointer-events: none;
-    /* Live ink blends like real ink: highlighter does not hide the writing underneath. */
+  }
+  /* While highlighting, the live layer blends like the finished stroke: it tints, never covers. */
+  #live.highlighter {
+    opacity: 0.45;
     mix-blend-mode: multiply;
   }
 
@@ -240,7 +243,7 @@
   </div>
   <div class="divider"></div>
   <div class="group" id="colors"></div>
-  <label class="size" for="size">Size<input id="size" type="range" min="1" max="12" step="0.5" value="3" /></label>
+  <label class="size" for="size">Size<input id="size" type="range" min="0.5" max="10" step="0.5" value="2" /></label>
   <div class="divider"></div>
   <div class="group">
     <button class="icon-btn" id="undo" aria-label="Undo" title="Undo (Ctrl/Cmd+Z)">
@@ -255,7 +258,7 @@
   <div class="divider"></div>
   <div class="group" style="gap: 6px">
     <button class="toggle" id="opt-coalesced" aria-pressed="true" title="Use every sample the device reports, not just one per frame">All samples</button>
-    <button class="toggle" id="opt-prediction" aria-pressed="true" title="Draw a short predicted tail ahead of the pen to hide latency">Prediction</button>
+    <button class="toggle" id="opt-prediction" aria-pressed="true" title="Draw the line slightly ahead of the pen to hide display latency">Prediction</button>
     <button class="toggle" id="opt-finger" aria-pressed="true" title="Let one finger draw. Turns off automatically when a pen is detected.">Finger draws</button>
     <button class="text-btn" id="stress">Fill page</button>
   </div>
@@ -264,14 +267,14 @@
 <dl class="stats" aria-live="off">
   <dt>Input</dt>
   <dd id="s-input">–</dd>
-  <dt>Pressure</dt>
-  <dd id="s-pressure">–</dd>
   <dt>Sample rate</dt>
   <dd id="s-rate">–</dd>
   <dt>Points in stroke</dt>
   <dd id="s-points">–</dd>
   <dt>Samples filtered</dt>
   <dd id="s-cleaned">–</dd>
+  <dt>Ink frame</dt>
+  <dd id="s-frame">–</dd>
   <dt>Full redraw</dt>
   <dd id="s-redraw">–</dd>
   <dt>Strokes on page</dt>
@@ -283,14 +286,12 @@
 </dl>
 
 <p class="hint">
-  Write with the Apple Pencil. Pan with one finger, pinch with two. Toggle <b>All samples</b> and
-  <b>Prediction</b> while writing to feel the difference. <b>Fill page</b> adds a full page of
+  Write with the Apple Pencil. Pan with one finger, pinch with two. The line width stays the same
+  however hard you press; change it with <b>Size</b>. <b>Fill page</b> adds a full page of
   handwriting so you can test zooming under load.
 </p>
 
 <script type="module">
-  import { getStroke } from 'https://cdn.jsdelivr.net/npm/perfect-freehand@1.2.3/dist/esm/index.mjs'
-
   // A4 in PostScript points. The editor will use the same unit for page coordinates.
   const PAGE = { w: 595, h: 842 }
   const RULE = { top: 96, gap: 24, bottom: 48, margin: 64 }
@@ -302,31 +303,42 @@
     rule: 'rgba(121, 90, 70, 0.22)',
     margin: 'rgba(185, 139, 101, 0.45)',
   }
+  // Sizes are line widths in points. Pressure never changes them.
   const TOOLS = {
     fineliner: {
       colors: ['#3e2d25', '#284b7a', '#a63d32', '#2f6b4f'],
-      size: 3,
-      min: 1,
-      max: 12,
+      size: 2,
+      min: 0.5,
+      max: 10,
       step: 0.5,
       opacity: 1,
+      cap: 'round',
     },
     highlighter: {
       colors: ['#f2cf4a', '#a8d98f', '#f4a9bc', '#9cc9f0'],
-      size: 16,
-      min: 8,
+      size: 14,
+      min: 6,
       max: 40,
       step: 1,
       opacity: 0.45,
+      cap: 'butt',
     },
   }
+
+  // Input smoothing, in screen pixels and seconds. See OneEuroFilter below.
+  const SMOOTHING = { minCutoff: 3, beta: 0.02 }
+  const MIN_STEP = 0.75 // px; closer samples add only noise
+  const MAX_BACKTRACK = 4 // px; shorter reversals are sensor jitter, not handwriting
+  const FALLBACK_SAMPLE_MS = 1000 / 240 // Apple Pencil reports at 240 Hz
+  const PREDICT_MS = 16 // one frame ahead
+  const PREDICT_MAX_PX = 14
 
   const $ = (id) => document.getElementById(id)
   const stage = $('stage')
   const sceneCanvas = $('scene')
   const liveCanvas = $('live')
   const scene = sceneCanvas.getContext('2d', { alpha: false })
-  // desynchronized asks the browser for a low-latency path where it has one (Chrome on desktop).
+  // desynchronized asks the browser for a low-latency path where it has one.
   const live = liveCanvas.getContext('2d', { desynchronized: true })
 
   const state = {
@@ -337,6 +349,9 @@
     view: { w: 0, h: 0, dpr: 1 },
     strokes: [],
     current: null,
+    liveDirty: null,
+    liveFrameQueued: false,
+    frameTimes: [],
     touches: new Map(),
     panning: false,
     gesture: null,
@@ -351,13 +366,17 @@
     predicted: 'getPredictedEvents' in PointerEvent.prototype,
   }
   $('s-coalesced').textContent = support.coalesced ? 'supported' : 'missing'
-  $('s-predicted').textContent = support.predicted ? 'supported' : 'missing'
+  $('s-predicted').textContent = support.predicted ? 'supported' : 'own estimate'
 
   // ---------- Camera ----------
 
   function screenToWorld(p) {
     const c = state.camera
     return { x: (p.x - c.x) / c.zoom, y: (p.y - c.y) / c.zoom }
+  }
+  function worldToScreen(p) {
+    const c = state.camera
+    return { x: p.x * c.zoom + c.x, y: p.y * c.zoom + c.y }
   }
   function zoomAt(anchor, factor) {
     const c = state.camera
@@ -381,61 +400,94 @@
     ctx.setTransform(d * zoom, 0, 0, d * zoom, d * x, d * y)
   }
 
-  // ---------- Strokes ----------
+  // ---------- Smoothing ----------
 
-  function strokeOptions(s, last) {
-    const hl = s.tool === 'highlighter'
-    return {
-      size: s.size,
-      thinning: hl ? 0 : 0.5,
-      smoothing: 0.6,
-      streamline: hl ? 0.55 : 0.4,
-      simulatePressure: !hl && !s.pressure,
-      start: hl ? { cap: false } : {},
-      end: hl ? { cap: false } : {},
-      last,
+  // The 1€ filter (Casiez et al., 2012): strong smoothing when the pen moves slowly, where jitter
+  // is visible, and almost none when it moves fast, where lag would be visible.
+  class OneEuroFilter {
+    constructor({ minCutoff, beta, dCutoff = 1 }) {
+      this.minCutoff = minCutoff
+      this.beta = beta
+      this.dCutoff = dCutoff
+      this.value = null
+      this.speed = 0
+    }
+    static alpha(dt, cutoff) {
+      const tau = 1 / (2 * Math.PI * cutoff)
+      return 1 / (1 + tau / dt)
+    }
+    filter(x, dt) {
+      if (this.value === null) {
+        this.value = x
+        return x
+      }
+      const rawSpeed = (x - this.value) / dt
+      this.speed += OneEuroFilter.alpha(dt, this.dCutoff) * (rawSpeed - this.speed)
+      const cutoff = this.minCutoff + this.beta * Math.abs(this.speed)
+      this.value += OneEuroFilter.alpha(dt, cutoff) * (x - this.value)
+      return this.value
     }
   }
 
-  function outlineToPath(outline) {
+  // ---------- Strokes ----------
+
+  // A smooth curve through the points: quadratic segments that meet at the midpoints.
+  function buildPath(points) {
     const path = new Path2D()
-    const n = outline.length
-    if (n < 2) return path
-    path.moveTo(outline[0][0], outline[0][1])
-    for (let i = 1; i < n; i++) {
-      const [x0, y0] = outline[i]
-      const [x1, y1] = outline[(i + 1) % n]
+    const n = points.length
+    path.moveTo(points[0][0], points[0][1])
+    if (n === 1) {
+      path.lineTo(points[0][0] + 0.001, points[0][1])
+      return path
+    }
+    for (let i = 1; i < n - 1; i++) {
+      const [x0, y0] = points[i]
+      const [x1, y1] = points[i + 1]
       path.quadraticCurveTo(x0, y0, (x0 + x1) / 2, (y0 + y1) / 2)
     }
-    path.closePath()
+    path.lineTo(points[n - 1][0], points[n - 1][1])
     return path
   }
 
-  function boundsOf(outline) {
+  function boundsOf(points, size) {
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
-    for (const [x, y] of outline) {
+    for (const [x, y] of points) {
       if (x < minX) minX = x
       if (y < minY) minY = y
       if (x > maxX) maxX = x
       if (y > maxY) maxY = y
     }
-    return { minX, minY, maxX, maxY }
+    const r = size / 2
+    return { minX: minX - r, minY: minY - r, maxX: maxX + r, maxY: maxY + r }
   }
 
   function finishStroke(s) {
-    const outline = getStroke(s.points, strokeOptions(s, true))
-    s.path = outlineToPath(outline)
-    s.bounds = boundsOf(outline)
+    s.path = buildPath(s.points)
+    s.bounds = boundsOf(s.points, s.size)
     return s
   }
 
-  function paintStroke(ctx, s, path = s.path) {
+  function setInkStyle(ctx, s) {
+    ctx.lineWidth = s.size
+    ctx.lineCap = TOOLS[s.tool].cap
+    ctx.lineJoin = 'round'
+    ctx.strokeStyle = s.color
+  }
+
+  function paintStroke(ctx, s) {
+    setInkStyle(ctx, s)
     ctx.globalAlpha = s.opacity
     ctx.globalCompositeOperation = s.tool === 'highlighter' ? 'multiply' : 'source-over'
-    ctx.fillStyle = s.color
-    ctx.fill(path)
+    ctx.stroke(s.path)
     ctx.globalAlpha = 1
     ctx.globalCompositeOperation = 'source-over'
+  }
+
+  // Ink never shows outside the paper.
+  function clipToPage(ctx) {
+    ctx.beginPath()
+    ctx.rect(0, 0, PAGE.w, PAGE.h)
+    ctx.clip()
   }
 
   // ---------- Rendering ----------
@@ -498,31 +550,54 @@
     $('s-strokes').textContent = state.strokes.length.toLocaleString('en-US')
   }
 
-  // Ink never shows outside the paper.
-  function clipToPage(ctx) {
-    ctx.beginPath()
-    ctx.rect(0, 0, PAGE.w, PAGE.h)
-    ctx.clip()
-  }
-
+  // Clears only the area the live stroke covered last frame, not the whole screen.
   function clearLive() {
+    const r = state.liveDirty
+    if (!r) return
     live.setTransform(1, 0, 0, 1, 0, 0)
-    live.clearRect(0, 0, liveCanvas.width, liveCanvas.height)
+    live.clearRect(r.x, r.y, r.w, r.h)
+    state.liveDirty = null
   }
 
-  function renderLive(predicted) {
+  function requestLiveFrame() {
+    if (state.liveFrameQueued) return
+    state.liveFrameQueued = true
+    requestAnimationFrame(() => {
+      state.liveFrameQueued = false
+      renderLive()
+    })
+  }
+
+  // The stroke in progress is drawn once per display frame, however many samples arrived.
+  function renderLive() {
     const s = state.current
     clearLive()
-    if (!s) return
-    const points = predicted.length ? s.points.concat(predicted) : s.points
+    if (!s || s.points.length === 0) return
+    const t0 = performance.now()
+    const tail = predictTail(s)
+    const points = tail ? s.points.concat([tail]) : s.points
+
     applyCamera(live)
     live.save()
     clipToPage(live)
-    const outline = getStroke(points, strokeOptions(s, false))
-    live.globalAlpha = s.opacity
-    live.fillStyle = s.color
-    live.fill(outlineToPath(outline))
+    setInkStyle(live, s)
+    live.stroke(buildPath(points))
     live.restore()
+
+    const b = boundsOf(points, s.size)
+    const a = worldToScreen({ x: b.minX, y: b.minY })
+    const z = worldToScreen({ x: b.maxX, y: b.maxY })
+    const d = state.view.dpr
+    state.liveDirty = {
+      x: Math.floor(a.x * d) - 4,
+      y: Math.floor(a.y * d) - 4,
+      w: Math.ceil((z.x - a.x) * d) + 8,
+      h: Math.ceil((z.y - a.y) * d) + 8,
+    }
+
+    const times = state.frameTimes
+    times.push(performance.now() - t0)
+    if (times.length > 60) times.shift()
   }
 
   function resize() {
@@ -534,6 +609,7 @@
       c.width = Math.round(rect.width * dpr)
       c.height = Math.round(rect.height * dpr)
     }
+    state.liveDirty = null
     if (first) fitPage()
     else requestRender()
   }
@@ -543,53 +619,69 @@
   let stageRect = stage.getBoundingClientRect()
   const screenPos = (e) => ({ x: e.clientX - stageRect.left, y: e.clientY - stageRect.top })
 
-  // Raw stylus samples are not clean. On iPadOS a sample can arrive late or twice, sit a fraction
-  // of a pixel from the previous one, or report zero pressure. perfect-freehand turns each of these
-  // into a pinch, a fold or a bead in the outline, so every sample passes through this filter first.
-  const MIN_STEP = 0.75 // CSS px; closer samples add only noise
-  const MAX_BACKTRACK = 4 // CSS px; shorter reversals are sensor jitter, not handwriting
-  const PRESSURE_SMOOTHING = 0.3
-
-  function toWorld(e) {
-    return screenToWorld(screenPos(e))
-  }
-
+  // Raw stylus samples are not clean: on iPadOS a sample can arrive late or twice, or sit a
+  // fraction of a pixel from the previous one. Every sample passes these checks, then the filter.
   function addSample(s, e) {
-    if (e.timeStamp < s.lastTime) {
+    let t = e.timeStamp
+    if (t < s.lastTime) {
       s.cleaned++
       return
     }
-    s.lastTime = e.timeStamp
-    const w = toWorld(e)
-    const n = s.points.length
+    // Some browsers give all samples of one frame the same time stamp.
+    if (t === s.lastTime) t += FALLBACK_SAMPLE_MS
+    const dt = s.lastTime === -Infinity ? FALLBACK_SAMPLE_MS / 1000 : (t - s.lastTime) / 1000
+    s.lastTime = t
+
+    const raw = screenPos(e)
+    const p = { x: s.fx.filter(raw.x, dt), y: s.fy.filter(raw.y, dt) }
+    s.lastRaw = raw
+
+    const n = s.screen.length
     if (n > 0) {
-      const zoom = state.camera.zoom
-      const last = s.points[n - 1]
-      const dx = (w.x - last[0]) * zoom
-      const dy = (w.y - last[1]) * zoom
+      const last = s.screen[n - 1]
+      const dx = p.x - last.x
+      const dy = p.y - last.y
       const dist = Math.hypot(dx, dy)
       if (dist < MIN_STEP) {
         s.cleaned++
         return
       }
-      const prev = s.points[n - 2]
-      if (prev && dist < MAX_BACKTRACK && (last[0] - prev[0]) * dx + (last[1] - prev[1]) * dy < 0) {
+      const prev = s.screen[n - 2]
+      if (prev && dist < MAX_BACKTRACK && (last.x - prev.x) * dx + (last.y - prev.y) * dy < 0) {
         s.cleaned++
         return
       }
     }
-    s.points.push([w.x, w.y, nextPressure(s, e)])
+    s.screen.push({ x: p.x, y: p.y, t })
+    const w = screenToWorld(p)
+    s.points.push([w.x, w.y])
   }
 
-  function nextPressure(s, e) {
-    if (!s.pressure) return 0.5
-    const raw = e.pressure > 0 ? e.pressure : s.lastPressure
-    s.lastPressure += (raw - s.lastPressure) * PRESSURE_SMOOTHING
-    return s.lastPressure
+  // Draws the line a frame ahead of the pen to hide display latency. Uses the browser's own
+  // prediction where it has one, otherwise extrapolates the recent pen velocity.
+  function predictTail(s) {
+    if (!state.opts.prediction) return null
+    if (s.predicted) return s.predicted
+    const pts = s.screen
+    const n = pts.length
+    if (n < 4) return null
+    const last = pts[n - 1]
+    const from = pts[n - 4]
+    const dt = last.t - from.t
+    if (dt <= 0) return null
+    let dx = ((last.x - from.x) / dt) * PREDICT_MS
+    let dy = ((last.y - from.y) / dt) * PREDICT_MS
+    const len = Math.hypot(dx, dy)
+    if (len > PREDICT_MAX_PX) {
+      dx *= PREDICT_MAX_PX / len
+      dy *= PREDICT_MAX_PX / len
+    }
+    const w = screenToWorld({ x: last.x + dx, y: last.y + dy })
+    return [w.x, w.y]
   }
 
   function isOnPage(e) {
-    const w = toWorld(e)
+    const w = screenToWorld(screenPos(e))
     return w.x >= 0 && w.y >= 0 && w.x <= PAGE.w && w.y <= PAGE.h
   }
 
@@ -602,19 +694,23 @@
       color: state.color[state.tool],
       size: state.size[state.tool],
       opacity: tool.opacity,
-      pressure: e.pointerType === 'pen',
-      lastPressure: e.pressure > 0 ? e.pressure : 0.5,
+      fx: new OneEuroFilter(SMOOTHING),
+      fy: new OneEuroFilter(SMOOTHING),
       lastTime: -Infinity,
+      lastRaw: null,
+      predicted: null,
+      screen: [],
       points: [],
       samples: 1,
       cleaned: 0,
       startedAt: e.timeStamp,
       endedAt: e.timeStamp,
     }
+    liveCanvas.classList.toggle('highlighter', state.tool === 'highlighter')
     stage.setPointerCapture(e.pointerId)
     addSample(state.current, e)
     showInput(e)
-    renderLive([])
+    requestLiveFrame()
   }
 
   function extendStroke(e) {
@@ -624,20 +720,30 @@
     for (const ev of events) addSample(s, ev)
     s.samples += events.length
     s.endedAt = e.timeStamp
-    const predicted =
-      state.opts.prediction && support.predicted
-        ? e.getPredictedEvents().map((ev) => {
-            const w = toWorld(ev)
-            return [w.x, w.y, s.lastPressure]
-          })
-        : []
+    s.predicted = null
+    if (state.opts.prediction && support.predicted) {
+      const next = e.getPredictedEvents()[0]
+      if (next) {
+        const w = screenToWorld(screenPos(next))
+        s.predicted = [w.x, w.y]
+      }
+    }
     showInput(e)
-    renderLive(predicted)
+    requestLiveFrame()
   }
 
   function commitStroke() {
-    const s = finishStroke(state.current)
+    const s = state.current
     state.current = null
+    // The filter trails the pen slightly; end the line exactly where the pen lifted.
+    if (s.lastRaw) {
+      const end = screenToWorld(s.lastRaw)
+      const last = s.points[s.points.length - 1]
+      if (Math.hypot(end.x - last[0], end.y - last[1]) * state.camera.zoom >= MIN_STEP) {
+        s.points.push([end.x, end.y])
+      }
+    }
+    finishStroke(s)
     state.strokes.push(s)
     // Draw only the new stroke instead of the whole page.
     applyCamera(scene)
@@ -646,11 +752,16 @@
     paintStroke(scene, s)
     scene.restore()
     clearLive()
+
     const seconds = (s.endedAt - s.startedAt) / 1000
+    const times = state.frameTimes
+    const avg = times.reduce((a, b) => a + b, 0) / (times.length || 1)
     $('s-points').textContent = s.points.length.toLocaleString('en-US')
     $('s-rate').textContent = seconds > 0.05 ? `${Math.round(s.samples / seconds)} Hz` : '–'
     $('s-cleaned').textContent = `${s.cleaned} of ${s.samples}`
+    $('s-frame').textContent = times.length ? `${avg.toFixed(2)} ms` : '–'
     $('s-strokes').textContent = state.strokes.length.toLocaleString('en-US')
+    times.length = 0
   }
 
   function cancelStroke() {
@@ -660,7 +771,6 @@
 
   function showInput(e) {
     $('s-input').textContent = e.pointerType || '–'
-    $('s-pressure').textContent = e.pointerType === 'pen' ? e.pressure.toFixed(2) : 'simulated'
   }
 
   function touchFrame() {
@@ -856,17 +966,15 @@
           const t = i / steps
           points.push([
             x + t * width + Math.sin(t * 18 + phase) * 2,
-            line - 6 - Math.abs(Math.sin(t * 9 + phase)) * 9 + rand(),
-            0.35 + 0.4 * Math.sin(t * Math.PI),
+            line - 6 - Math.abs(Math.sin(t * 9 + phase)) * 9 + rand() * 0.3,
           ])
         }
         state.strokes.push(
           finishStroke({
             tool: 'fineliner',
             color: TOOLS.fineliner.colors[added % 7 === 0 ? 1 : 0],
-            size: 2.4,
+            size: 1.5,
             opacity: 1,
-            pressure: true,
             points,
           }),
         )
