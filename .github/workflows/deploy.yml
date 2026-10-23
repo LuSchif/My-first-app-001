@@ -1,9 +1,10 @@
 name: Deploy preview
 
 # Publishes the app and the spikes to the gh-pages branch, which GitHub Pages serves.
+# The most recent push to main or any claude/ branch is what the preview shows.
 on:
   push:
-    branches: [main, claude/broomit-foundation]
+    branches: [main, 'claude/**']
   workflow_dispatch:
 
 permissions:
