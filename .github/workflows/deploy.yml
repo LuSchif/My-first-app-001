@@ -24,6 +24,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+      # Records which commit is live. It also changes on every deploy, so Pages always rebuilds.
+      - run: echo "{\"commit\":\"$GITHUB_SHA\",\"builtAt\":\"$(date -u +%FT%TZ)\"}" > dist/version.json
       - uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
