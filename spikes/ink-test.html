@@ -273,6 +273,8 @@
   <dd id="s-points">–</dd>
   <dt>Samples filtered</dt>
   <dd id="s-cleaned">–</dd>
+  <dt>Display rate</dt>
+  <dd id="s-fps">–</dd>
   <dt>Ink frame</dt>
   <dd id="s-frame">–</dd>
   <dt>Full redraw</dt>
@@ -326,12 +328,12 @@
   }
 
   // Input smoothing, in screen pixels and seconds. See OneEuroFilter below.
-  const SMOOTHING = { minCutoff: 3, beta: 0.02 }
+  const SMOOTHING = { minCutoff: 4, beta: 0.03 }
   const MIN_STEP = 0.75 // px; closer samples add only noise
   const MAX_BACKTRACK = 4 // px; shorter reversals are sensor jitter, not handwriting
   const FALLBACK_SAMPLE_MS = 1000 / 240 // Apple Pencil reports at 240 Hz
-  const PREDICT_MS = 16 // one frame ahead
-  const PREDICT_MAX_PX = 14
+  const PREDICT_WINDOW_MS = 24 // pen velocity is measured over this much recent movement
+  const PREDICT_MAX_PX = 18
 
   const $ = (id) => document.getElementById(id)
   const stage = $('stage')
@@ -352,6 +354,8 @@
     liveDirty: null,
     liveFrameQueued: false,
     frameTimes: [],
+    frameIntervals: [],
+    lastFrameAt: 0,
     touches: new Map(),
     panning: false,
     gesture: null,
@@ -562,8 +566,13 @@
   function requestLiveFrame() {
     if (state.liveFrameQueued) return
     state.liveFrameQueued = true
-    requestAnimationFrame(() => {
+    requestAnimationFrame((now) => {
       state.liveFrameQueued = false
+      if (state.lastFrameAt && now - state.lastFrameAt < 50) {
+        state.frameIntervals.push(now - state.lastFrameAt)
+        if (state.frameIntervals.length > 60) state.frameIntervals.shift()
+      }
+      state.lastFrameAt = now
       renderLive()
     })
   }
@@ -574,8 +583,17 @@
     clearLive()
     if (!s || s.points.length === 0) return
     const t0 = performance.now()
+    // The filtered line trails the pen slightly, so the live line always runs on to the latest
+    // raw sample (the pen tip) and then one frame beyond it.
+    const extra = []
+    if (s.lastRaw) {
+      const tip = screenToWorld(s.lastRaw)
+      const last = s.points[s.points.length - 1]
+      if (tip.x !== last[0] || tip.y !== last[1]) extra.push([tip.x, tip.y])
+    }
     const tail = predictTail(s)
-    const points = tail ? s.points.concat([tail]) : s.points
+    if (tail) extra.push(tail)
+    const points = extra.length ? s.points.concat(extra) : s.points
 
     applyCamera(live)
     live.save()
@@ -635,6 +653,8 @@
     const raw = screenPos(e)
     const p = { x: s.fx.filter(raw.x, dt), y: s.fy.filter(raw.y, dt) }
     s.lastRaw = raw
+    s.raw.push({ x: raw.x, y: raw.y, t })
+    if (s.raw.length > 32) s.raw.shift()
 
     const n = s.screen.length
     if (n > 0) {
@@ -657,27 +677,37 @@
     s.points.push([w.x, w.y])
   }
 
-  // Draws the line a frame ahead of the pen to hide display latency. Uses the browser's own
-  // prediction where it has one, otherwise extrapolates the recent pen velocity.
+  // Draws the line one display frame ahead of the pen to hide display latency. Uses the
+  // browser's own prediction where it has one, otherwise extrapolates the recent pen velocity.
   function predictTail(s) {
     if (!state.opts.prediction) return null
     if (s.predicted) return s.predicted
-    const pts = s.screen
-    const n = pts.length
-    if (n < 4) return null
-    const last = pts[n - 1]
-    const from = pts[n - 4]
-    const dt = last.t - from.t
-    if (dt <= 0) return null
-    let dx = ((last.x - from.x) / dt) * PREDICT_MS
-    let dy = ((last.y - from.y) / dt) * PREDICT_MS
+    const raw = s.raw
+    const last = raw[raw.length - 1]
+    if (!last) return null
+    let from = null
+    for (let i = raw.length - 2; i >= 0; i--) {
+      from = raw[i]
+      if (last.t - raw[i].t >= PREDICT_WINDOW_MS) break
+    }
+    if (!from || last.t <= from.t) return null
+    const ahead = frameInterval()
+    let dx = ((last.x - from.x) / (last.t - from.t)) * ahead
+    let dy = ((last.y - from.y) / (last.t - from.t)) * ahead
     const len = Math.hypot(dx, dy)
+    if (len < 0.5) return null
     if (len > PREDICT_MAX_PX) {
       dx *= PREDICT_MAX_PX / len
       dy *= PREDICT_MAX_PX / len
     }
     const w = screenToWorld({ x: last.x + dx, y: last.y + dy })
     return [w.x, w.y]
+  }
+
+  function frameInterval() {
+    const iv = state.frameIntervals
+    if (iv.length < 5) return 1000 / 60
+    return iv.reduce((a, b) => a + b, 0) / iv.length
   }
 
   function isOnPage(e) {
@@ -698,6 +728,7 @@
       fy: new OneEuroFilter(SMOOTHING),
       lastTime: -Infinity,
       lastRaw: null,
+      raw: [],
       predicted: null,
       screen: [],
       points: [],
@@ -735,6 +766,7 @@
   function commitStroke() {
     const s = state.current
     state.current = null
+    state.lastFrameAt = 0
     // The filter trails the pen slightly; end the line exactly where the pen lifted.
     if (s.lastRaw) {
       const end = screenToWorld(s.lastRaw)
@@ -760,6 +792,9 @@
     $('s-rate').textContent = seconds > 0.05 ? `${Math.round(s.samples / seconds)} Hz` : '–'
     $('s-cleaned').textContent = `${s.cleaned} of ${s.samples}`
     $('s-frame').textContent = times.length ? `${avg.toFixed(2)} ms` : '–'
+    if (state.frameIntervals.length >= 5) {
+      $('s-fps').textContent = `${Math.round(1000 / frameInterval())} fps`
+    }
     $('s-strokes').textContent = state.strokes.length.toLocaleString('en-US')
     times.length = 0
   }
