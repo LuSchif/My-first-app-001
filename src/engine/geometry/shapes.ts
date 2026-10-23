@@ -10,7 +10,27 @@ export interface Pt {
 }
 
 export type ShapeKind =
-  'circle' | 'ellipse' | 'triangle' | 'rectangle' | 'quadrilateral' | 'pentagon' | 'parabola'
+  | 'circle'
+  | 'ellipse'
+  | 'triangle'
+  | 'square'
+  | 'rectangle'
+  | 'quadrilateral'
+  | 'pentagon'
+  | 'parabola'
+  | 'line'
+
+const LABELS: Record<ShapeKind, string> = {
+  circle: 'Circle',
+  ellipse: 'Ellipse',
+  triangle: 'Triangle',
+  square: 'Square',
+  rectangle: 'Rectangle',
+  quadrilateral: 'Quadrilateral',
+  pentagon: 'Pentagon',
+  parabola: 'Curve',
+  line: 'Line',
+}
 
 export interface Shape {
   kind: ShapeKind
@@ -241,7 +261,7 @@ export function recognizeShape(flat: readonly number[]): Shape | null {
   if (pts.length < 8) return null
   const loop = closedLoop(flat)
   if (loop) return recognizeClosed(loop)
-  return recognizeParabola(pts)
+  return recognizeLine(pts) ?? recognizeParabola(pts)
 }
 
 function recognizeClosed(loop: Pt[]): Shape | null {
@@ -318,7 +338,7 @@ function ellipseShape(e: Ellipse): Shape {
   }
   return {
     kind: circle ? 'circle' : 'ellipse',
-    label: circle ? 'Circle' : 'Ellipse',
+    label: circle ? LABELS.circle : LABELS.ellipse,
     points,
     closed: true,
     straight: false,
@@ -327,7 +347,7 @@ function ellipseShape(e: Ellipse): Shape {
 
 /** Finds the corners of a closed outline and, for 3 to 5 corners, the clean polygon. */
 function fitPolygon(pts: Pt[], diag: number): Shape | null {
-  let corners = cornersOf(pts, diag)
+  let corners = mergeShortEdges(cornersOf(pts, diag))
   if (corners.length < 3 || corners.length > 5) return null
   // Every outline point must lie close to the polygon's edges.
   let error = 0
@@ -345,17 +365,20 @@ function fitPolygon(pts: Pt[], diag: number): Shape | null {
   if (kind === 'quadrilateral' && nearlyRectangular(corners)) {
     corners = rectangleThrough(corners)
     kind = 'rectangle'
+    // Sides within 15% of each other were meant to be equal.
+    const w = dist(corners[0]!, corners[1]!)
+    const h = dist(corners[1]!, corners[2]!)
+    if (Math.abs(w - h) / Math.max(w, h) < 0.15) {
+      corners = regularPolygon(
+        4,
+        centroid(corners),
+        (w + h) / 2 / Math.SQRT2,
+        edgeAngle(corners) + Math.PI / 4,
+      )
+      kind = 'square'
+    }
   }
-  const labels: Record<ShapeKind, string> = {
-    circle: 'Circle',
-    ellipse: 'Ellipse',
-    triangle: 'Triangle',
-    rectangle: 'Rectangle',
-    quadrilateral: 'Quadrilateral',
-    pentagon: 'Pentagon',
-    parabola: 'Curve',
-  }
-  return { kind, label: labels[kind], points: toFlat(corners), closed: true, straight: true }
+  return { kind, label: LABELS[kind], points: toFlat(corners), closed: true, straight: true }
 }
 
 /** Corners by Douglas–Peucker on the closed outline, then dropping nearly straight ones. */
@@ -462,10 +485,14 @@ function rectangleThrough(c: Pt[]): Pt[] {
   const cos = Math.cos(angle)
   const sin = Math.sin(angle)
   const local = c.map((p) => ({ u: p.x * cos + p.y * sin, v: -p.x * sin + p.y * cos }))
-  const u0 = (local[0]!.u + local[3]!.u) / 2
-  const u1 = (local[1]!.u + local[2]!.u) / 2
-  const v0 = (local[0]!.v + local[1]!.v) / 2
-  const v1 = (local[2]!.v + local[3]!.v) / 2
+  // Each side of the rectangle lies between the two corners closest to it, whichever corner the
+  // drawing started at.
+  const us = local.map((p) => p.u).sort((a, b) => a - b)
+  const vs = local.map((p) => p.v).sort((a, b) => a - b)
+  const u0 = (us[0]! + us[1]!) / 2
+  const u1 = (us[2]! + us[3]!) / 2
+  const v0 = (vs[0]! + vs[1]!) / 2
+  const v1 = (vs[2]! + vs[3]!) / 2
   return [
     [u0, v0],
     [u1, v0],
@@ -511,7 +538,7 @@ function recognizeParabola(raw: Pt[]): Shape | null {
       const v = fit.a * u * u + fit.b * u + fit.c
       points.push(cx + u * cos - v * sin, cy + u * sin + v * cos)
     }
-    return { kind: 'parabola', label: 'Curve', points, closed: false, straight: false }
+    return { kind: 'parabola', label: LABELS.parabola, points, closed: false, straight: false }
   }
   return null
 }
@@ -564,4 +591,174 @@ function fitQuadratic(pts: { u: number; v: number }[]) {
   let sq = 0
   for (const { u, v } of pts) sq += (a * u * u + b * u + c - v) ** 2
   return { a, b, c, rms: Math.sqrt(sq / pts.length) }
+}
+
+/** A stroke that barely strays from the line between its ends. */
+function recognizeLine(pts: Pt[]): Shape | null {
+  const a = pts[0]!
+  const b = pts[pts.length - 1]!
+  const length = dist(a, b)
+  if (length < 10) return null
+  let max = 0
+  let sum = 0
+  for (const p of pts) {
+    const d = distanceToSegment(p, a, b)
+    max = Math.max(max, d)
+    sum += d
+  }
+  if (max > 0.04 * length + 1.5 || sum / pts.length > 0.015 * length + 0.5) return null
+  return {
+    kind: 'line',
+    label: LABELS.line,
+    points: [a.x, a.y, b.x, b.y],
+    closed: false,
+    straight: true,
+  }
+}
+
+/**
+ * A rounded corner can come out of the simplification as two corners joined by a short edge.
+ * Such pairs become one corner where the two neighbouring edges meet.
+ */
+function mergeShortEdges(corners: Pt[]): Pt[] {
+  let out = corners
+  for (let guard = 0; guard < 4 && out.length > 3; guard++) {
+    const n = out.length
+    const lengths = out.map((p, i) => dist(p, out[(i + 1) % n]!))
+    const average = lengths.reduce((s, l) => s + l, 0) / n
+    const i = lengths.indexOf(Math.min(...lengths))
+    if (lengths[i]! > 0.3 * average) break
+    const prev = out[(i - 1 + n) % n]!
+    const a = out[i]!
+    const b = out[(i + 1) % n]!
+    const next = out[(i + 2) % n]!
+    const meet = lineIntersection(prev, a, b, next) ?? { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }
+    out = out.flatMap((p, k) => (k === i ? [meet] : k === (i + 1) % n ? [] : [p]))
+  }
+  return out
+}
+
+function lineIntersection(a: Pt, b: Pt, c: Pt, d: Pt): Pt | null {
+  const den = (b.x - a.x) * (d.y - c.y) - (b.y - a.y) * (d.x - c.x)
+  if (Math.abs(den) < 1e-9) return null
+  const t = ((c.x - a.x) * (d.y - c.y) - (c.y - a.y) * (d.x - c.x)) / den
+  return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t }
+}
+
+function centroid(pts: readonly Pt[]): Pt {
+  return {
+    x: pts.reduce((s, p) => s + p.x, 0) / pts.length,
+    y: pts.reduce((s, p) => s + p.y, 0) / pts.length,
+  }
+}
+
+function edgeAngle(corners: readonly Pt[]): number {
+  return Math.atan2(corners[1]!.y - corners[0]!.y, corners[1]!.x - corners[0]!.x)
+}
+
+/** Corners of a regular polygon; the first corner points in direction `rotation`. */
+function regularPolygon(n: number, center: Pt, radius: number, rotation: number): Pt[] {
+  return Array.from({ length: n }, (_, k) => {
+    const t = rotation + (k * 2 * Math.PI) / n
+    return { x: center.x + radius * Math.cos(t), y: center.y + radius * Math.sin(t) }
+  })
+}
+
+/** Rounds an angle to the nearest multiple of `step`. */
+function snapAngle(angle: number, step: number): number {
+  return Math.round(angle / step) * step
+}
+
+/**
+ * The closed outline formed by a stroke together with others joined to it end to end, such as
+ * the four sides of a square drawn one by one.
+ */
+export function chainThrough(
+  sources: readonly OutlineSource[],
+  id: string,
+): { points: number[]; ids: string[] } | null {
+  const open = sources
+    .filter((s) => !closedLoop(s.points, s.closed))
+    .map((s) => ({ id: s.id, pts: toPts(s.points) }))
+  let best: { points: number[]; ids: string[]; area: number } | null = null
+  for (const chain of chains(open)) {
+    if (!chain.ids.includes(id)) continue
+    const area = polygonArea(chain.pts)
+    if (!best || area < best.area) best = { points: toFlat(chain.pts), ids: chain.ids, area }
+  }
+  return best && { points: best.points, ids: best.ids }
+}
+
+/**
+ * The ideal version of a recognized shape, the same size and roughly the same orientation:
+ * equal sides and angles, a true circle, a straight line at a clean angle, a symmetric curve.
+ */
+export function perfectShape(shape: Shape): Shape {
+  const pts = toPts(shape.points)
+  const c = centroid(pts)
+  const quarter = Math.PI / 12
+  switch (shape.kind) {
+    case 'circle':
+    case 'ellipse': {
+      // Same area as the drawn ellipse.
+      const radius = Math.sqrt(polygonArea(pts) / Math.PI)
+      return ellipseShape({ cx: c.x, cy: c.y, a: radius, b: radius, angle: 0, error: 0 })
+    }
+    case 'triangle':
+    case 'pentagon':
+    case 'square':
+    case 'rectangle':
+    case 'quadrilateral': {
+      const n = pts.length
+      const radius = pts.reduce((s, p) => s + dist(p, c), 0) / n
+      // Average the corner directions (folded by the polygon's symmetry) for its orientation.
+      let sx = 0
+      let sy = 0
+      for (const p of pts) {
+        const t = Math.atan2(p.y - c.y, p.x - c.x) * n
+        sx += Math.cos(t)
+        sy += Math.sin(t)
+      }
+      const rotation = snapAngle(Math.atan2(sy, sx) / n, quarter)
+      const kind: ShapeKind = n === 3 ? 'triangle' : n === 4 ? 'square' : 'pentagon'
+      return {
+        kind,
+        label: LABELS[kind],
+        points: toFlat(regularPolygon(n, c, radius, rotation)),
+        closed: true,
+        straight: true,
+      }
+    }
+    case 'line': {
+      const [a, b] = pts as [Pt, Pt]
+      const length = dist(a, b)
+      const angle = snapAngle(Math.atan2(b.y - a.y, b.x - a.x), quarter)
+      return {
+        ...shape,
+        points: [a.x, a.y, a.x + length * Math.cos(angle), a.y + length * Math.sin(angle)],
+      }
+    }
+    case 'parabola': {
+      // Mirror-symmetric around the middle: the same width, opening and depth.
+      const a = pts[0]!
+      const b = pts[pts.length - 1]!
+      const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }
+      const vertex = pts.reduce(
+        (far, p) => (distanceToSegment(p, a, b) > distanceToSegment(far, a, b) ? p : far),
+        a,
+      )
+      const angle = Math.atan2(b.y - a.y, b.x - a.x)
+      const half = dist(a, b) / 2
+      const ux = Math.cos(angle)
+      const uy = Math.sin(angle)
+      const depth = (vertex.x - mid.x) * -uy + (vertex.y - mid.y) * ux
+      const points: number[] = []
+      for (let i = 0; i <= 48; i++) {
+        const u = -half + (2 * half * i) / 48
+        const v = depth * (1 - (u * u) / (half * half))
+        points.push(mid.x + u * ux - v * uy, mid.y + u * uy + v * ux)
+      }
+      return { ...shape, points }
+    }
+  }
 }

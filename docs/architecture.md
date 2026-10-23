@@ -56,6 +56,13 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
   kind 70 times with random shaky lines.
 - After drawing, the editor offers Auto shape (strokes from 36 pt) or Auto fill (when a stroke
   colors in a closed outline). Fills are `FillObject`s placed directly below their outline.
+  Straight lines and squares (equal sides, rounded corners allowed) are recognized too, also
+  when drawn from several strokes.
+- Auto shape keeps the drawn proportions. Holding the pen still at the end of a stroke (550 ms)
+  replaces it with the perfect shape instead (equilateral triangle, square, circle, regular
+  pentagon) at the same size and angle.
+- The shape analysis runs 350 ms after the pen lifts and only over nearby strokes, so it never
+  costs time while writing.
 
 ## Data safety
 

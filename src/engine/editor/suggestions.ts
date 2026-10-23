@@ -1,5 +1,7 @@
-import { boundsOfPoints } from '../geometry/rect.ts'
+import { boundsOfPoints, intersects, type Rect } from '../geometry/rect.ts'
+import { objectBounds } from '../render/objects.ts'
 import {
+  chainThrough,
   insidePolygon,
   recognizeShape,
   regionAt,
@@ -16,20 +18,40 @@ const MIN_SHAPE_SIZE = 36
 const INSIDE_SHARE = 0.85
 
 export type Suggestion =
-  | { kind: 'shape'; strokeId: Id; shape: Shape }
+  /** The first stroke becomes the shape; the others (sides drawn separately) are removed. */
+  | { kind: 'shape'; strokeIds: Id[]; shape: Shape }
   | { kind: 'fill'; region: Region; color: string; opacity: number; removeIds: Id[] }
 
-/** The strokes of one layer, as outlines that can enclose an area. */
+/** Strokes shorter than this rarely outline an area; skipping them keeps the search fast. */
+const MIN_OUTLINE_SIZE = 12
+/** At most this many nearby strokes are tried as outlines. */
+const MAX_OUTLINES = 80
+
+/**
+ * The strokes of one layer near `around`, as outlines that can enclose an area. Only nearby
+ * strokes can enclose something there, and handwriting pages hold hundreds of strokes.
+ */
 export function outlineSources(
   objects: readonly CanvasObject[],
   layerId: Id,
+  around: Rect,
   except?: Id,
 ): OutlineSource[] {
-  return objects.flatMap((o) =>
-    o.type === 'stroke' && o.layerId === layerId && o.id !== except
-      ? [{ id: o.id, points: o.points, closed: o.closed, straight: o.straight }]
-      : [],
-  )
+  const out: OutlineSource[] = []
+  for (const o of objects) {
+    if (o.type !== 'stroke' || o.layerId !== layerId || o.id === except) continue
+    const b = objectBounds(o)
+    if (!intersects(b, around)) continue
+    if (Math.max(b.maxX - b.minX, b.maxY - b.minY) < MIN_OUTLINE_SIZE) continue
+    out.push({ id: o.id, points: o.points, closed: o.closed, straight: o.straight })
+    if (out.length >= MAX_OUTLINES) break
+  }
+  return out
+}
+
+/** A square of `reach` points around a spot. */
+export function around(x: number, y: number, reach: number): Rect {
+  return { minX: x - reach, minY: y - reach, maxX: x + reach, maxY: y + reach }
 }
 
 function shareInside(points: readonly number[], region: Region): number {
@@ -59,7 +81,13 @@ export function suggestFor(
   cx /= pts.length / 2
   cy /= pts.length / 2
 
-  const region = regionAt(outlineSources(objects, stroke.layerId, stroke.id), cx, cy)
+  const sb = boundsOfPoints(pts)
+  const reach = Math.max(sb.maxX - sb.minX, sb.maxY - sb.minY) + 120
+  const region = regionAt(
+    outlineSources(objects, stroke.layerId, around(cx, cy, reach), stroke.id),
+    cx,
+    cy,
+  )
   if (region) {
     const b = boundsOfPoints(pts)
     const covers = ((b.maxX - b.minX) * (b.maxY - b.minY)) / region.area
@@ -78,10 +106,21 @@ export function suggestFor(
     }
   }
 
+  // A stroke that closes a figure drawn side by side (a square from four lines) offers that
+  // figure as one shape.
+  const sources = outlineSources(objects, stroke.layerId, around(cx, cy, reach))
+  const chain = chainThrough(sources, stroke.id)
+  if (chain) {
+    const shape = recognizeShape(chain.points)
+    // Keep the drawing order: the earliest side becomes the shape.
+    const ids = objects.filter((o) => chain.ids.includes(o.id)).map((o) => o.id)
+    if (shape?.closed) return { kind: 'shape', strokeIds: ids, shape }
+  }
+
   const b = boundsOfPoints(pts)
   if (Math.hypot(b.maxX - b.minX, b.maxY - b.minY) < MIN_SHAPE_SIZE) return null
   const shape = recognizeShape(pts)
-  return shape ? { kind: 'shape', strokeId: stroke.id, shape } : null
+  return shape ? { kind: 'shape', strokeIds: [stroke.id], shape } : null
 }
 
 export function fillFor(
@@ -114,12 +153,15 @@ export function applySuggestion(
   newId: () => Id,
 ): CanvasObject[] {
   if (suggestion.kind === 'shape') {
-    const { shape } = suggestion
-    return objects.map((o) =>
-      o.id === suggestion.strokeId && o.type === 'stroke'
-        ? { ...o, points: shape.points, closed: shape.closed, straight: shape.straight }
-        : o,
-    )
+    const { shape, strokeIds } = suggestion
+    const [keep, ...drop] = strokeIds
+    return objects.flatMap((o) => {
+      if (drop.includes(o.id)) return []
+      if (o.id === keep && o.type === 'stroke') {
+        return [{ ...o, points: shape.points, closed: shape.closed, straight: shape.straight }]
+      }
+      return [o]
+    })
   }
   const fill = fillFor(suggestion.region, suggestion.color, suggestion.opacity, layerId, newId())
   const kept = objects.filter((o) => !suggestion.removeIds.includes(o.id))

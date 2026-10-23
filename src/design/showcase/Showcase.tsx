@@ -436,12 +436,7 @@ function DialogSection() {
                 setOpen(false)
               }}
             >
-              <TextField
-                label="Title"
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                autoFocus
-              />
+              <TextField label="Title" value={draft} onChange={(e) => setDraft(e.target.value)} />
               <div className="flex justify-end gap-2">
                 <DialogClose asChild>
                   <Button variant="ghost">Cancel</Button>

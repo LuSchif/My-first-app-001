@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  SMOOTH_RADIUS,
   smoothedAt,
   smoothPoints,
   traceSegments,
@@ -56,7 +57,7 @@ describe('traceSegments', () => {
     for (let n = 1; n <= raw.length / 2; n++) {
       const known = raw.slice(0, n * 2)
       const smooth: number[] = []
-      for (let i = 0; i <= n - 3; i++) smooth.push(...smoothedAt(known, i))
+      for (let i = 0; i <= n - 1 - SMOOTH_RADIUS; i++) smooth.push(...smoothedAt(known, i))
       const settled = smooth.length / 2 - 2
       if (settled > drawn) {
         traceSegments(live.sink, smooth, drawn, settled)

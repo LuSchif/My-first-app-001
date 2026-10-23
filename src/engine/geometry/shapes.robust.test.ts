@@ -66,7 +66,8 @@ it('recognizes shaky hand-drawn shapes reliably', () => {
     ['circle', () => ellipse(60, 60 * (0.93 + r() * 0.07), r() * 6)],
     ['ellipse', () => ellipse(80, 40, r() * 6)],
     ['triangle', () => poly(3, 70, r() * 6)],
-    ['rectangle', () => poly(4, 70, r() * 6, 1 + r() * 0.6)],
+    ['square', () => poly(4, 70, r() * 6, 1 + r() * 0.08)],
+    ['rectangle', () => poly(4, 70, r() * 6, 1.3 + r() * 0.5)],
     ['pentagon', () => poly(5, 70, r() * 6)],
     ['parabola', () => parabola(60, r() * 6)],
   ]

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { closedLoop, recognizeShape, regionAt } from './shapes.ts'
+import { chainThrough, closedLoop, perfectShape, recognizeShape, regionAt } from './shapes.ts'
 
 let seed = 11
 const noise = (amount: number) => ((seed = (seed * 16807) % 2147483647) / 2147483647 - 0.5) * amount
@@ -105,5 +105,56 @@ describe('regions', () => {
     const small = { id: 'small', points: ellipseStroke(100, 100, 30, 30, 0) }
     expect(regionAt([big, small], 100, 100)?.sourceIds).toEqual(['small'])
     expect(regionAt([big, small], 100, 160)?.sourceIds).toEqual(['big'])
+  })
+})
+
+describe('lines, chains and perfect shapes', () => {
+  it('recognizes a shaky straight line', () => {
+    const pts: number[] = []
+    for (let i = 0; i <= 40; i++) pts.push(100 + i * 5 + noise(1.5), 100 + i * 1 + noise(1.5))
+    expect(recognizeShape(pts)?.kind).toBe('line')
+  })
+
+  it('finds a square drawn as four separate sides', () => {
+    const sides = [
+      { id: 'a', points: [0, 0, 50, 1, 100, 0] },
+      { id: 'b', points: [101, 2, 100, 50, 99, 100] },
+      { id: 'c', points: [98, 101, 50, 100, 1, 99] },
+      { id: 'd', points: [0, 98, 1, 50, 2, 3] },
+    ]
+    const chain = chainThrough(sides, 'c')
+    expect(chain?.ids.sort()).toEqual(['a', 'b', 'c', 'd'])
+    expect(recognizeShape(chain!.points)?.kind).toBe('square')
+  })
+
+  it('makes a perfect, equal-sided triangle of the same size', () => {
+    const drawn = recognizeShape(
+      polygonStroke([
+        [0, 100],
+        [30, 0],
+        [150, 90],
+      ]),
+    )!
+    const perfect = perfectShape(drawn)
+    const p = perfect.points
+    const sides = [0, 1, 2].map((i) => {
+      const j = (i + 1) % 3
+      return Math.hypot(p[j * 2]! - p[i * 2]!, p[j * 2 + 1]! - p[i * 2 + 1]!)
+    })
+    expect(Math.max(...sides) - Math.min(...sides)).toBeLessThan(0.01)
+    expect(sides[0]).toBeGreaterThan(60)
+    expect(sides[0]).toBeLessThan(160)
+  })
+
+  it('turns an ellipse into a circle and snaps a nearly level line', () => {
+    expect(perfectShape(recognizeShape(ellipseStroke(100, 100, 80, 40))!).kind).toBe('circle')
+    const line = perfectShape({
+      kind: 'line',
+      label: 'Line',
+      points: [0, 0, 100, 4],
+      closed: false,
+      straight: true,
+    })
+    expect(line.points[3]).toBeCloseTo(0)
   })
 })

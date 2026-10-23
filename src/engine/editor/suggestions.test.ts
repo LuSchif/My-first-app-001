@@ -44,6 +44,19 @@ describe('suggestions', () => {
     expect(suggestFor([letter], letter)).toBeNull()
   })
 
+  it('offers a square drawn as four sides as one shape', () => {
+    const sides = [
+      stroke('a', [100, 100, 150, 101, 200, 100]),
+      stroke('b', [201, 102, 200, 150, 199, 200]),
+      stroke('c', [198, 201, 150, 200, 101, 199]),
+      stroke('d', [100, 198, 101, 150, 102, 103]),
+    ]
+    const suggestion = suggestFor(sides, sides[3]!)
+    expect(suggestion).toMatchObject({ kind: 'shape', shape: { kind: 'square' } })
+    const after = applySuggestion(sides, suggestion!, 'l', () => 'x')
+    expect(after.map((o) => o.id)).toEqual(['a'])
+  })
+
   it('replaces the drawn stroke with the clean shape', () => {
     const big = stroke('big', circle(200, 200, 60))
     const after = applySuggestion([big], suggestFor([big], big)!, 'l', () => 'x')

@@ -6,7 +6,8 @@ const MIN_STEP = 0.75 // px; closer samples add only noise
 const MAX_BACKTRACK = 4 // px; shorter reversals are sensor jitter, not handwriting
 const FALLBACK_SAMPLE_MS = 1000 / 240 // Apple Pencil reports at 240 Hz
 const PREDICT_WINDOW_MS = 24
-const PREDICT_MAX_PX = 18
+// Kept short: a long guess wobbles visibly when the pen changes direction.
+const PREDICT_MAX_PX = 10
 
 export interface ScreenSample {
   x: number

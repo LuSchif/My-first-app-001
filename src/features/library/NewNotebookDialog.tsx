@@ -57,7 +57,6 @@ export function NewNotebookDialog({ onCreated }: { onCreated: (id: string) => vo
           placeholder="e.g. Biology"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          autoFocus
         />
 
         <fieldset className="grid gap-2">
@@ -69,6 +68,9 @@ export function NewNotebookDialog({ onCreated }: { onCreated: (id: string) => vo
                 type="button"
                 aria-pressed={paper === option.kind}
                 onClick={() => setPaper(option.kind)}
+                // Selecting on release as well makes the tiles respond to Apple Pencil taps even
+                // when iPadOS does not turn them into clicks.
+                onPointerUp={() => setPaper(option.kind)}
                 className="group grid gap-1.5 text-sm"
               >
                 <span

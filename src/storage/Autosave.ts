@@ -19,7 +19,8 @@ export class Autosave {
   constructor(
     doc: NotebookDocument,
     save: (changes: UnsavedChanges) => Promise<void>,
-    delay = 400,
+    // Long enough not to save between the strokes of a word; flush() saves at once when leaving.
+    delay = 1200,
   ) {
     this.doc = doc
     this.save = save

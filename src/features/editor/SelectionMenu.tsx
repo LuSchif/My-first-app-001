@@ -21,7 +21,9 @@ export function SelectionMenu({ editor, state }: { editor: Editor; state: Editor
   if (!sel) return null
   // Leaves room for the rotate handle above the frame.
   const above = sel.rect.y - MENU_HEIGHT - GAP - 56
-  const top = above > 72 ? above : sel.rect.y + sel.rect.height + GAP
+  // Below the frame, it also clears the rotate handle when that sits below.
+  const below = sel.rect.y + sel.rect.height + GAP + (sel.handleBelow ? 60 : 0)
+  const top = above > 72 && !sel.handleBelow ? above : below
   const left = sel.rect.x + sel.rect.width / 2
   return (
     <div

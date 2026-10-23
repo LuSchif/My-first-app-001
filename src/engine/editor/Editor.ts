@@ -23,8 +23,14 @@ import {
 import { contentHeight, PAGE_PITCH, pageIndexAt, pageOrigin } from '../render/layout.ts'
 import { enterPage, renderScene, type View } from '../render/SceneRenderer.ts'
 import { paintStroke, setInkStyle, strokeBounds } from '../render/strokes.ts'
-import { regionAt } from '../geometry/shapes.ts'
-import { smoothedAt, smoothPoints, traceSegments, traceStroke } from '../geometry/strokePath.ts'
+import { perfectShape, recognizeShape, regionAt, type Shape } from '../geometry/shapes.ts'
+import {
+  SMOOTH_RADIUS,
+  smoothedAt,
+  smoothPoints,
+  traceSegments,
+  traceStroke,
+} from '../geometry/strokePath.ts'
 import { boundsOfPoints } from '../geometry/rect.ts'
 import { drawBroom } from '../render/broomGlyph.ts'
 import { objectBounds, paintObject } from '../render/objects.ts'
@@ -33,6 +39,7 @@ import type { EditorContext } from './context.ts'
 import { hitsObject, recolor } from './selection.ts'
 import {
   applySuggestion,
+  around,
   fillFor,
   insertBelow,
   outlineSources,
@@ -73,6 +80,13 @@ const HIGHLIGHTER_OPACITY = 0.45
 /** Space kept free above the first page for the floating toolbar. */
 const TOP_INSET = 84
 const SIDE_MARGIN = 24
+/** Resting the pen this long after drawing a shape turns it into the perfect shape. */
+const HOLD_MS = 550
+const HOLD_SLOP_PX = 4
+const MIN_HOLD_SHAPE = 30
+
+/** Pause after a stroke before looking for shapes to offer. */
+const SUGGEST_DELAY_MS = 350
 const DEFAULT_RECENT_COLORS = ['#3e2d25', '#4a80c0', '#c4473a', '#5f9a4a', '#f2cf4a']
 const RECENT_LIMIT = 5
 
@@ -97,6 +111,11 @@ interface InkSession {
   drawnSegments: number
   wetDirty: DeviceRect | null
   predicted: Point | null
+  /** Where the pen last moved noticeably, and the timer for "hold to perfect". */
+  holdAt: Point
+  holdTimer: ReturnType<typeof setTimeout> | null
+  /** Set once the pen was held still: the stroke becomes this perfect shape. */
+  snapped: Shape | null
 }
 
 interface EraseSession {
@@ -149,6 +168,7 @@ export class Editor {
   /** Screen pixels at the bottom hidden by the keyboard and format bar while typing. */
   private bottomInset = 0
   private pending: { pageId: Id; layerId: Id; suggestion: Suggestion } | null = null
+  private suggestTimer: ReturnType<typeof setTimeout> | null = null
 
   private camera: Camera = { offsetX: 0, offsetY: TOP_INSET, zoom: 1 }
   private view: View = { width: 0, height: 0, dpr: 1 }
@@ -229,7 +249,11 @@ export class Editor {
     this.listen(host, 'pointermove', (e) => this.onPointerMove(e))
     this.listen(host, 'pointerup', (e) => this.onPointerEnd(e))
     this.listen(host, 'pointercancel', (e) => this.onPointerEnd(e))
-    this.listen(host, 'lostpointercapture', (e) => this.onPointerEnd(e))
+    // Only the host losing its capture ends a pointer. iPadOS captures a touch to the element it
+    // lands on; moving that capture to the host makes the canvas report a loss, which is no end.
+    this.listen(host, 'lostpointercapture', (e) => {
+      if (e.target === host) this.onPointerEnd(e)
+    })
     this.listen(host, 'pointerleave', () => this.clearTip())
     this.listen(host, 'wheel', (e) => this.onWheel(e), { passive: false })
     // iPadOS runs its own touch handling (scrolling, Scribble) unless touch events are cancelled,
@@ -377,7 +401,27 @@ export class Editor {
     this.history.execute(setPageObjects(label, page.id, page.objects, after))
   }
 
+  /**
+   * Looks for a shape or fill to offer once the pen has rested briefly, never while writing:
+   * the analysis must not delay the next stroke.
+   */
+  private scheduleSuggestion(pageId: Id, stroke: StrokeObject): void {
+    if (this.suggestTimer) clearTimeout(this.suggestTimer)
+    this.suggestTimer = setTimeout(() => {
+      this.suggestTimer = null
+      if (this.session) return
+      const objects = this.doc.page(pageId)?.objects
+      if (!objects?.some((o) => o.id === stroke.id)) return
+      const suggestion = suggestFor(objects, stroke)
+      if (suggestion) this.offer(pageId, stroke.layerId, suggestion)
+    }, SUGGEST_DELAY_MS)
+  }
+
   dismissSuggestion(): void {
+    if (this.suggestTimer) {
+      clearTimeout(this.suggestTimer)
+      this.suggestTimer = null
+    }
     if (!this.pending && !this._state.suggestion) return
     this.pending = null
     this.update({ suggestion: null })
@@ -389,7 +433,7 @@ export class Editor {
     if (!pending) return
     const page = this.doc.page(pending.pageId)
     const s = pending.suggestion
-    const needed = s.kind === 'shape' ? [s.strokeId] : [...s.region.sourceIds, ...s.removeIds]
+    const needed = s.kind === 'shape' ? s.strokeIds : [...s.region.sourceIds, ...s.removeIds]
     if (!page || !needed.every((id) => page.objects.some((o) => o.id === id))) {
       this.dismissSuggestion()
     }
@@ -407,9 +451,7 @@ export class Editor {
     const index = this.doc.notebook.pageIds.indexOf(pending.pageId)
     const page = this.doc.page(pending.pageId)
     const s = pending.suggestion
-    const drawn = s.kind === 'shape' ? page?.objects.find((o) => o.id === s.strokeId) : undefined
-    const points =
-      s.kind === 'fill' ? s.region.points : drawn?.type === 'stroke' ? drawn.points : null
+    const points = page ? (s.kind === 'fill' ? s.region.points : s.shape.points) : null
     if (index < 0 || !points) {
       this.dismissSuggestion()
       return
@@ -541,7 +583,9 @@ export class Editor {
       : undefined
     // Inside a closed outline (and not on a stroke or an existing fill): fill that area.
     const region =
-      usable && !object ? regionAt(outlineSources(page.objects, usable.id), x, y) : null
+      usable && !object
+        ? regionAt(outlineSources(page.objects, usable.id, around(x, y, 400)), x, y)
+        : null
     return { page, pageIndex, object, region, layerId: usable?.id }
   }
 
@@ -812,6 +856,12 @@ export class Editor {
     this.momentum = null
     if (e.pointerType === 'pen') this.penSeen = true
 
+    // A second finger joins a finger already moving the selection: two-finger rotate.
+    if (e.pointerType === 'touch' && this._state.tool === 'lasso' && this.selection.touchDragging) {
+      this.host.setPointerCapture(e.pointerId)
+      this.selection.addFinger(e)
+      return
+    }
     // A finger on a selection's frame or rotate handle moves or rotates it instead of panning.
     if (
       e.pointerType === 'touch' &&
@@ -1133,6 +1183,9 @@ export class Editor {
       drawnSegments: 0,
       wetDirty: null,
       predicted: null,
+      holdAt: this.screenPos(e),
+      holdTimer: null,
+      snapped: null,
     }
     this.session = session
     this.host.setPointerCapture(e.pointerId)
@@ -1141,6 +1194,7 @@ export class Editor {
     this.inkLayer.style.mixBlendMode = highlighter ? 'multiply' : 'normal'
 
     this.addInkSample(session, e)
+    this.armHold(session)
     this.drawInk(session)
     this.lastFrameAt = 0
     requestAnimationFrame((t) => this.trackFrames(t))
@@ -1161,6 +1215,12 @@ export class Editor {
   }
 
   private extendInk(s: InkSession, e: PointerEvent): void {
+    if (s.snapped) return
+    const p = this.screenPos(e)
+    if (Math.hypot(p.x - s.holdAt.x, p.y - s.holdAt.y) > HOLD_SLOP_PX) {
+      s.holdAt = p
+      this.armHold(s)
+    }
     const coalesced = e.getCoalescedEvents?.() ?? []
     for (const ev of coalesced.length ? coalesced : [e]) this.addInkSample(s, ev)
     const predicted = e.getPredictedEvents?.()[0]
@@ -1174,8 +1234,8 @@ export class Editor {
     const n = raw.length / 2
     const { dpr } = this.view
 
-    // A smoothed point is final once the two raw points after it exist.
-    while (s.smooth.length / 2 <= n - 3) {
+    // A smoothed point is final once the raw points it averages over all exist.
+    while (s.smooth.length / 2 <= n - 1 - SMOOTH_RADIUS) {
       s.smooth.push(...smoothedAt(raw, s.smooth.length / 2))
     }
     // A curve segment is final once the two smoothed points after its start are final.
@@ -1195,17 +1255,19 @@ export class Editor {
       s.drawnSegments = settled
     }
 
-    // Unsettled end: on to the latest point, the pen tip, and one display frame beyond it.
-    const extended = [...raw]
+    // Unsettled end: on to the latest point, the pen tip, and a little beyond it. Only the tail is
+    // copied, starting far enough back for the smoothing kernel, so work per event stays small.
+    const start = Math.max(0, s.drawnSegments - 1)
+    const offset = Math.max(0, start - SMOOTH_RADIUS)
+    const tail = raw.slice(offset * 2)
     if (s.sampler.tip) {
       const t = this.toPageLocal(s.sampler.tip, s.pageIndex)
-      extended.push(t.x, t.y)
+      tail.push(t.x, t.y)
     }
     const ahead = s.predicted ?? this.predictLocal(s)
-    if (ahead) extended.push(ahead.x, ahead.y)
-    const start = Math.max(0, s.drawnSegments - 1)
+    if (ahead) tail.push(ahead.x, ahead.y)
     const end: number[] = []
-    for (let i = start; i < extended.length / 2; i++) end.push(...smoothedAt(extended, i))
+    for (let i = start - offset; i < tail.length / 2; i++) end.push(...smoothedAt(tail, i))
 
     this.clearTip()
     this.tip.save()
@@ -1241,16 +1303,57 @@ export class Editor {
     return iv.length < 5 ? 1000 / 60 : iv.reduce((a, b) => a + b, 0) / iv.length
   }
 
-  private finishInk(s: InkSession): void {
+  /** Restarts the wait for the pen to rest; resting long enough draws the perfect shape. */
+  private armHold(s: InkSession): void {
+    if (s.holdTimer) clearTimeout(s.holdTimer)
+    s.holdTimer = setTimeout(() => this.snapToPerfect(s), HOLD_MS)
+  }
+
+  private drawnPoints(s: InkSession): number[] {
     const raw: number[] = []
     for (const p of s.sampler.finalPoints()) {
       const local = this.toPageLocal(p, s.pageIndex)
       raw.push(local.x, local.y)
     }
-    const points = smoothPoints(raw)
+    return smoothPoints(raw)
+  }
+
+  /**
+   * Draw a shape and keep the pen on the screen: it turns into the perfect shape (equal sides,
+   * a true circle, a straight line) of the same size. Lifting the pen keeps it.
+   */
+  private snapToPerfect(s: InkSession): void {
+    s.holdTimer = null
+    if (this.session !== s || s.snapped) return
+    const points = this.drawnPoints(s)
+    const b = boundsOfPoints(points)
+    if (Math.hypot(b.maxX - b.minX, b.maxY - b.minY) < MIN_HOLD_SHAPE) return
+    const shape = recognizeShape(points)
+    if (!shape) return
+    s.snapped = perfectShape(shape)
+    this.clearArea(this.wet, s.wetDirty)
+    s.wetDirty = null
+    this.clearTip()
+    this.tip.save()
+    enterPage(this.tip, this.camera, this.view.dpr, s.pageIndex)
+    setInkStyle(this.tip, s.stroke)
+    const path = new Path2D()
+    traceStroke(path, s.snapped.points, { closed: s.snapped.closed, straight: s.snapped.straight })
+    this.tip.stroke(path)
+    this.tip.restore()
+    const { width, height, dpr } = this.view
+    this.tipDirty = { x: 0, y: 0, w: width * dpr, h: height * dpr }
+  }
+
+  private finishInk(s: InkSession): void {
+    if (s.holdTimer) clearTimeout(s.holdTimer)
+    const snapped = s.snapped
+    const points = snapped ? snapped.points : this.drawnPoints(s)
     const page = this.doc.page(s.pageId)
     if (page && points.length >= 2) {
-      const stroke: StrokeObject = { ...s.stroke, points }
+      const stroke: StrokeObject = snapped
+        ? { ...s.stroke, points, closed: snapped.closed, straight: snapped.straight }
+        : { ...s.stroke, points }
       const layers = this.doc.notebook.layers.filter((l) => l.visible)
       const onTop = layers[layers.length - 1]?.id === stroke.layerId
       // Paint the finished stroke straight onto the scene, so there is no frame without it.
@@ -1263,10 +1366,7 @@ export class Editor {
       this.paintedByEditor = onTop
       this.history.execute(setPageObjects('Draw', page.id, page.objects, [...page.objects, stroke]))
       this.paintedByEditor = false
-      if (this._state.suggest) {
-        const suggestion = suggestFor(this.doc.page(page.id)?.objects ?? [], stroke)
-        if (suggestion) this.offer(page.id, stroke.layerId, suggestion)
-      }
+      if (this._state.suggest && !snapped) this.scheduleSuggestion(page.id, stroke)
     }
     this.clearArea(this.wet, s.wetDirty)
     this.clearTip()
@@ -1421,6 +1521,7 @@ export class Editor {
     if (!s) return
     this.session = null
     if (s.kind === 'ink') {
+      if (s.holdTimer) clearTimeout(s.holdTimer)
       this.clearArea(this.wet, s.wetDirty)
       this.clearTip()
     } else {

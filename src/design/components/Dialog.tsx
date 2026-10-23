@@ -24,6 +24,12 @@ export function DialogContent({
     <RadixDialog.Portal>
       <RadixDialog.Overlay className="fixed inset-0 z-50 animate-fade-in bg-scrim backdrop-blur-[2px]" />
       <RadixDialog.Content
+        // Focus the dialog itself, not its first field: on iPad a focused field opens the
+        // keyboard bar before anyone asked to type. Tapping the field opens the full keyboard.
+        onOpenAutoFocus={(e) => {
+          e.preventDefault()
+          ;(e.currentTarget as HTMLElement | null)?.focus()
+        }}
         // Radix expects either a Description or an explicit "no description".
         {...(description ? {} : { 'aria-describedby': undefined })}
         className={cn(

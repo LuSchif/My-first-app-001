@@ -21,8 +21,11 @@ import {
 
 /** Screen-pixel sizes, so handles stay easy to hit at any zoom. */
 const HANDLE_RADIUS = 9
-const HANDLE_HIT = 26
-const ROTATE_OFFSET = 44
+const ROTATE_RADIUS = 14
+const HANDLE_HIT = 30
+const ROTATE_OFFSET = 46
+/** Below this screen height the rotate handle would sit under the toolbar; it moves below. */
+const TOP_SAFE = 100
 /** With snapping on, rotation moves in steps of 45°: 0, 45, 90, 135, 180 … */
 const SNAP_STEP = Math.PI / 4
 const DEGREE = Math.PI / 180
@@ -40,6 +43,8 @@ export interface SelectionInfo {
   scaling: boolean
   /** Color of the first selected object, for the color menu. */
   color: string | null
+  /** The rotate handle sits below the frame (near the top of the screen). */
+  handleBelow: boolean
 }
 
 type Handle = 'nw' | 'ne' | 'se' | 'sw' | 'rotate'
@@ -53,8 +58,15 @@ interface Selection {
 
 interface Drag {
   pointerId: number
-  mode: 'move' | 'scale' | 'rotate'
+  pointerType: string
+  /** 'pinch' is a two-finger move and rotate (and resize when Scale is on). */
+  mode: 'move' | 'scale' | 'rotate' | 'pinch'
   start: Point
+  /** Where the rotate handle sits during this drag. */
+  handleSide: 'top' | 'bottom'
+  /** For a pinch: both fingers in page coordinates, and the gesture at its start. */
+  fingers?: Map<number, Point>
+  pinchStart?: { cx: number; cy: number; angle: number; dist: number; base: Transform }
   originals: CanvasObject[]
   transform: Transform
   /** For scaling: distance from the center to the grabbed corner at the start. */
@@ -97,6 +109,9 @@ export class SelectionController {
   private selection: Selection | null = null
   private drag: Drag | null = null
   private lasso: Lasso | null = null
+  /** Last position of the finger dragging the selection, for starting a pinch from it. */
+  private lastFinger: Point | null = null
+  private readonly lateFingers = new Set<number>()
 
   constructor(ctx: EditorContext) {
     this.ctx = ctx
@@ -129,6 +144,7 @@ export class SelectionController {
       textId: only?.type === 'text' ? only.id : null,
       scaling: this.scaling,
       color: objects[0] ? colorOf(objects[0]) : null,
+      handleBelow: this.handleSide() === 'bottom',
     }
   }
 
@@ -169,6 +185,11 @@ export class SelectionController {
 
   pointerMove(e: PointerEvent): boolean {
     const drag = this.drag
+    if (drag?.fingers?.has(e.pointerId)) {
+      drag.fingers.set(e.pointerId, this.toLocal(this.pageIndex(), this.ctx.screenPos(e)))
+      this.updatePinch(drag)
+      return true
+    }
     if (drag && e.pointerId === drag.pointerId) {
       this.updateDrag(drag, this.ctx.screenPos(e))
       return true
@@ -198,10 +219,13 @@ export class SelectionController {
   }
 
   pointerUp(e: PointerEvent): boolean {
-    if (this.drag && e.pointerId === this.drag.pointerId) {
-      this.finishDrag(this.drag)
+    const drag = this.drag
+    if (drag && (e.pointerId === drag.pointerId || drag.fingers?.has(e.pointerId))) {
+      this.finishDrag(drag)
       return true
     }
+    // The other finger of a finished pinch lifts later; it belongs to no gesture.
+    if (this.lateFingers.delete(e.pointerId)) return true
     const lasso = this.lasso
     if (lasso && e.pointerId === lasso.pointerId) {
       this.lasso = null
@@ -398,7 +422,7 @@ export class SelectionController {
     ctx.lineTo(rotate.handle.x, rotate.handle.y)
     ctx.lineWidth = 1.5
     ctx.stroke()
-    for (const p of this.scaling ? [...corners, rotate.handle] : [rotate.handle]) {
+    for (const p of this.scaling ? corners : []) {
       ctx.beginPath()
       ctx.arc(p.x, p.y, HANDLE_RADIUS, 0, Math.PI * 2)
       ctx.fillStyle = '#fffcf7'
@@ -407,6 +431,7 @@ export class SelectionController {
       ctx.strokeStyle = '#3e2d25'
       ctx.stroke()
     }
+    drawRotateHandle(ctx, rotate.handle.x, rotate.handle.y)
 
     // While rotating, show the angle next to the handle.
     if (this.drag?.mode === 'rotate') {
@@ -463,6 +488,77 @@ export class SelectionController {
     this.select(page.id, ids)
   }
 
+  /** Whether a finger is moving the selection, so a second finger can join for a pinch. */
+  get touchDragging(): boolean {
+    return this.drag?.pointerType === 'touch' && !this.drag.fingers
+  }
+
+  /**
+   * A second finger joins a one-finger drag: from now on both fingers move, rotate (and, with
+   * Scale on, resize) the selection, like turning a sheet of paper on a desk.
+   */
+  addFinger(e: PointerEvent): void {
+    const drag = this.drag
+    if (!drag || drag.fingers) return
+    const index = this.pageIndex()
+    const first = this.lastFinger ?? drag.start
+    const second = this.toLocal(index, this.ctx.screenPos(e))
+    drag.fingers = new Map([
+      [drag.pointerId, first],
+      [e.pointerId, second],
+    ])
+    drag.mode = 'pinch'
+    drag.pinchStart = {
+      cx: (first.x + second.x) / 2,
+      cy: (first.y + second.y) / 2,
+      angle: Math.atan2(second.y - first.y, second.x - first.x),
+      dist: Math.max(1, Math.hypot(second.x - first.x, second.y - first.y)),
+      base: drag.transform,
+    }
+    this.ctx.host.setPointerCapture(e.pointerId)
+  }
+
+  private updatePinch(drag: Drag): void {
+    const [a, b] = [...drag.fingers!.values()] as [Point, Point]
+    const s = drag.pinchStart!
+    const cx = (a.x + b.x) / 2
+    const cy = (a.y + b.y) / 2
+    const angle = this.snap(
+      s.base.angle + Math.atan2(b.y - a.y, b.x - a.x) - s.angle,
+      drag.originals,
+    )
+    const scale = this.scaling
+      ? Math.max(0.05, s.base.scale * (Math.hypot(b.x - a.x, b.y - a.y) / s.dist))
+      : s.base.scale
+    drag.transform = {
+      ...s.base,
+      dx: s.base.dx + cx - s.cx,
+      dy: s.base.dy + cy - s.cy,
+      angle,
+      scale,
+    }
+    this.draw()
+  }
+
+  /** Whole degrees, or 45° steps with snapping on (absolute for text boxes, which know their angle). */
+  private snap(angle: number, originals: CanvasObject[]): number {
+    if (!this.snapRotation) return Math.round(angle / DEGREE) * DEGREE
+    const base = commonTextRotation(originals)
+    return Math.round((base + angle) / SNAP_STEP) * SNAP_STEP - base
+  }
+
+  private pageIndex(): number {
+    return this.selection ? this.ctx.pageIndexOf(this.selection.pageId) : -1
+  }
+
+  private handleSide(): 'top' | 'bottom' {
+    const sel = this.selection
+    if (!sel) return 'top'
+    const index = this.ctx.pageIndexOf(sel.pageId)
+    const top = this.ctx.toScreen(index, sel.bounds.minX, sel.bounds.minY).y
+    return top - FRAME_PAD - ROTATE_OFFSET < TOP_SAFE ? 'bottom' : 'top'
+  }
+
   private startDrag(e: PointerEvent, mode: Drag['mode'], screen: Point): void {
     const sel = this.selection!
     const index = this.ctx.pageIndexOf(sel.pageId)
@@ -470,10 +566,13 @@ export class SelectionController {
     const cx = (sel.bounds.minX + sel.bounds.maxX) / 2
     const cy = (sel.bounds.minY + sel.bounds.maxY) / 2
     const originals = this.selectedObjects()
+    this.lastFinger = start
     this.drag = {
       pointerId: e.pointerId,
+      pointerType: e.pointerType,
       mode,
       start,
+      handleSide: this.handleSide(),
       originals,
       transform: { ...IDENTITY, cx, cy },
       startDist: Math.max(1, Math.hypot(start.x - cx, start.y - cy)),
@@ -488,6 +587,7 @@ export class SelectionController {
   private updateDrag(drag: Drag, screen: Point): void {
     const index = this.ctx.pageIndexOf(this.selection!.pageId)
     const p = this.toLocal(index, screen)
+    this.lastFinger = p
     const t = drag.transform
     if (drag.mode === 'move') {
       drag.transform = { ...t, dx: p.x - drag.start.x, dy: p.y - drag.start.y }
@@ -495,22 +595,18 @@ export class SelectionController {
       const dist = Math.hypot(p.x - t.cx, p.y - t.cy)
       drag.transform = { ...t, scale: Math.max(0.05, dist / drag.startDist) }
     } else {
-      let angle = Math.atan2(p.y - t.cy, p.x - t.cx) - drag.startAngle
-      if (this.snapRotation) {
-        // Text boxes know their own angle, so they snap to absolute angles; ink snaps in steps
-        // from where it started.
-        const base = commonTextRotation(drag.originals)
-        angle = Math.round((base + angle) / SNAP_STEP) * SNAP_STEP - base
-      } else {
-        angle = Math.round(angle / DEGREE) * DEGREE
-      }
-      drag.transform = { ...t, angle }
+      const angle = Math.atan2(p.y - t.cy, p.x - t.cx) - drag.startAngle
+      drag.transform = { ...t, angle: this.snap(angle, drag.originals) }
     }
     this.draw()
   }
 
   private finishDrag(drag: Drag): void {
     this.drag = null
+    if (drag.fingers) {
+      for (const id of drag.fingers.keys()) if (id !== drag.pointerId) this.lateFingers.add(id)
+      this.lateFingers.add(drag.pointerId)
+    }
     const sel = this.selection!
     const page = this.ctx.doc.page(sel.pageId)
     this.ctx.setHidden(new Set())
@@ -552,12 +648,16 @@ export class SelectionController {
     return transformRect(t, padded).map((p) => this.ctx.toScreen(pageIndex, p.x, p.y))
   }
 
-  private rotateHandle(corners: Point[]): { base: Point; handle: Point } {
-    const [nw, ne, , sw] = corners as [Point, Point, Point, Point]
-    const base = { x: (nw.x + ne.x) / 2, y: (nw.y + ne.y) / 2 }
-    // "Up" for the frame: from the bottom edge towards the top edge.
-    const ux = nw.x - sw.x
-    const uy = nw.y - sw.y
+  private rotateHandle(
+    corners: Point[],
+    side = this.drag?.handleSide ?? this.handleSide(),
+  ): { base: Point; handle: Point } {
+    const [nw, ne, se, sw] = corners as [Point, Point, Point, Point]
+    const [a, b] = side === 'top' ? [nw, ne] : [sw, se]
+    const base = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }
+    // Away from the frame: up from the top edge, or down from the bottom edge.
+    const ux = side === 'top' ? nw.x - sw.x : sw.x - nw.x
+    const uy = side === 'top' ? nw.y - sw.y : sw.y - nw.y
     const len = Math.hypot(ux, uy) || 1
     return {
       base,
@@ -609,4 +709,30 @@ function commonTextRotation(objects: CanvasObject[]): number {
   return objects.every((o) => o.type === 'text' && o.rotation === first.rotation)
     ? first.rotation
     : 0
+}
+
+/** A filled round button with a turning arrow, so it reads as "rotate". */
+function drawRotateHandle(ctx: CanvasRenderingContext2D, x: number, y: number): void {
+  ctx.beginPath()
+  ctx.arc(x, y, ROTATE_RADIUS, 0, Math.PI * 2)
+  ctx.fillStyle = '#3e2d25'
+  ctx.fill()
+  ctx.lineWidth = 2
+  ctx.strokeStyle = '#fffcf7'
+  ctx.stroke()
+  const r = 6
+  const end = Math.PI * 1.65
+  ctx.beginPath()
+  ctx.arc(x, y, r, Math.PI * -0.35, end)
+  ctx.lineWidth = 1.75
+  ctx.lineCap = 'round'
+  ctx.stroke()
+  // Arrow head at the end of the arc.
+  const ex = x + r * Math.cos(end)
+  const ey = y + r * Math.sin(end)
+  ctx.beginPath()
+  ctx.moveTo(ex + 3.2, ey - 0.6)
+  ctx.lineTo(ex, ey)
+  ctx.lineTo(ex + 0.6, ey + 3.4)
+  ctx.stroke()
 }

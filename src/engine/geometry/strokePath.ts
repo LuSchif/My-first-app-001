@@ -2,8 +2,8 @@
  * The shape of a stroke. This is the only place the curve is defined, so live ink, saved strokes
  * and exports always match.
  *
- * 1. `smoothPoints` evens out hand and sensor jitter with a small [1 4 6 4 1] kernel. The ends
- *    stay where the pen touched down and lifted.
+ * 1. `smoothPoints` evens out hand and sensor jitter with a binomial kernel over seven samples.
+ *    The ends stay where the pen touched down and lifted.
  * 2. `traceStroke` draws a centripetal Catmull-Rom spline through the smoothed points, as cubic
  *    Bézier segments. Unlike curves that bend only at the samples, it spreads the curvature
  *    evenly, so fast handwriting with sparse samples still reads as round, not angular.
@@ -14,20 +14,23 @@ export interface PathSink {
   bezierCurveTo(c1x: number, c1y: number, c2x: number, c2y: number, x: number, y: number): void
 }
 
-const KERNEL = [1, 4, 6, 4, 1] as const
+const KERNEL = [1, 6, 15, 20, 15, 6, 1] as const
+const KERNEL_SUM = 64
+/** How many raw points on each side a smoothed point depends on. */
+export const SMOOTH_RADIUS = 3
 
-/** The smoothed position of point `i`, from raw points `i - 2` to `i + 2`. */
+/** The smoothed position of point `i`, from raw points `i - 3` to `i + 3`. */
 export function smoothedAt(raw: readonly number[], i: number): [number, number] {
   const n = raw.length / 2
   if (i <= 0 || i >= n - 1) return [raw[i * 2]!, raw[i * 2 + 1]!]
   let x = 0
   let y = 0
-  for (let k = 0; k < 5; k++) {
-    const j = Math.min(n - 1, Math.max(0, i + k - 2))
+  for (let k = 0; k < KERNEL.length; k++) {
+    const j = Math.min(n - 1, Math.max(0, i + k - SMOOTH_RADIUS))
     x += raw[j * 2]! * KERNEL[k]!
     y += raw[j * 2 + 1]! * KERNEL[k]!
   }
-  return [x / 16, y / 16]
+  return [x / KERNEL_SUM, y / KERNEL_SUM]
 }
 
 export function smoothPoints(raw: readonly number[]): number[] {
