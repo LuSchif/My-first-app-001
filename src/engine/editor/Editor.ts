@@ -21,7 +21,7 @@ import { smoothedAt, smoothPoints, traceSegments } from '../geometry/strokePath.
 import { invalidateTextLayouts } from '../render/text.ts'
 import type { EditorContext } from './context.ts'
 import { hitsObject } from './selection.ts'
-import { SelectionController, type SelectionInfo } from './SelectionController.ts'
+import { SelectionController, type LassoMode, type SelectionInfo } from './SelectionController.ts'
 import { DEFAULT_TEXT_STYLE, TextController } from './TextController.ts'
 
 export type ToolId = 'pen' | 'highlighter' | 'broom' | 'lasso' | 'text'
@@ -39,6 +39,7 @@ export interface EditorState {
   /** Style for new text boxes, or of the box being edited. */
   textStyle: TextStyle
   editingText: boolean
+  lassoMode: LassoMode
   selection: SelectionInfo | null
   hasClipboard: boolean
 }
@@ -47,6 +48,8 @@ const HIGHLIGHTER_OPACITY = 0.45
 /** Space kept free above the first page for the floating toolbar. */
 const TOP_INSET = 84
 const SIDE_MARGIN = 24
+/** Room kept free above the keyboard for the text format bar. */
+const FORMAT_BAR_SPACE = 84
 const TWO_FINGER_TAP_MS = 280
 const TAP_SLOP_PX = 12
 
@@ -108,6 +111,8 @@ export class Editor {
   private readonly text: TextController
   private hidden: ReadonlySet<Id> = new Set()
   private textTap: { pointerId: number; x: number; y: number } | null = null
+  /** Screen pixels at the bottom hidden by the keyboard and format bar while typing. */
+  private bottomInset = 0
 
   private camera: Camera = { offsetX: 0, offsetY: TOP_INSET, zoom: 1 }
   private view: View = { width: 0, height: 0, dpr: 1 }
@@ -147,6 +152,7 @@ export class Editor {
       pageCount: doc.notebook.pageIds.length,
       textStyle: DEFAULT_TEXT_STYLE,
       editingText: false,
+      lassoMode: 'freehand',
       selection: null,
       hasClipboard: false,
     }
@@ -213,6 +219,12 @@ export class Editor {
       this.listen(document, type, (e) => e.preventDefault())
     }
     this.listen(window, 'keydown', (e) => this.onKeyDown(e))
+    // The on-screen keyboard shrinks the visual viewport; keep the text being typed in view.
+    const vv = window.visualViewport
+    if (vv) {
+      this.listen(vv as unknown as HTMLElement, 'resize', () => this.updateBottomInset())
+      this.listen(vv as unknown as HTMLElement, 'scroll', () => this.updateBottomInset())
+    }
 
     const observer = new ResizeObserver(() => this.resize())
     observer.observe(host)
@@ -247,6 +259,15 @@ export class Editor {
 
   finishText(): void {
     this.text.finish()
+  }
+
+  setLassoMode(mode: LassoMode): void {
+    this.selection.mode = mode
+    this.update({ lassoMode: mode })
+  }
+
+  flipSelection(axis: 'horizontal' | 'vertical'): void {
+    this.selection.flip(axis)
   }
 
   deleteSelection(): void {
@@ -402,17 +423,35 @@ export class Editor {
         this.requestRender()
       },
       requestRender: () => this.requestRender(),
+      scrollBy: (dy) => this.setCamera({ ...this.camera, offsetY: this.camera.offsetY + dy }),
+      visibleArea: () => ({ top: TOP_INSET, bottom: this.view.height - this.bottomInset }),
       changed: () => this.syncControllers(),
     }
   }
 
   private syncControllers(): void {
+    if (this.text.isEditing !== this._state.editingText) {
+      queueMicrotask(() => this.updateBottomInset())
+    }
     this.update({
       selection: this.selection.info(),
       hasClipboard: this.selection.hasClipboard,
       editingText: this.text.isEditing,
       textStyle: this.text.style ?? this._state.textStyle,
     })
+  }
+
+  private updateBottomInset(): void {
+    let inset = 0
+    if (this.text.isEditing) {
+      const vv = window.visualViewport
+      const visibleBottom = vv ? vv.offsetTop + vv.height - this.hostRect.top : this.view.height
+      inset = Math.max(0, this.view.height - visibleBottom) + FORMAT_BAR_SPACE
+    }
+    if (inset === this.bottomInset && !this.text.isEditing) return
+    this.bottomInset = inset
+    this.setCamera(this.camera)
+    this.text.ensureVisible()
   }
 
   // ---------- Camera and rendering ----------
@@ -432,7 +471,8 @@ export class Editor {
         ? (width - pagesWidth) / 2
         : Math.min(SIDE_MARGIN, Math.max(width - pagesWidth - SIDE_MARGIN, c.offsetX))
     const pagesHeight = contentHeight(this.doc.notebook.pageIds.length) * zoom
-    const minY = Math.min(TOP_INSET, height - pagesHeight - TOP_INSET)
+    // While typing, the last page may scroll up above the keyboard.
+    const minY = Math.min(TOP_INSET, height - pagesHeight - TOP_INSET - this.bottomInset)
     const offsetY = Math.min(TOP_INSET, Math.max(minY, c.offsetY))
     return { zoom, offsetX, offsetY }
   }

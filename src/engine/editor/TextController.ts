@@ -185,6 +185,7 @@ export class TextController {
     this.textarea.setSelectionRange(end, end)
     this.ctx.requestRender()
     this.ctx.changed()
+    this.ensureVisible()
   }
 
   private onInput(): void {
@@ -192,6 +193,25 @@ export class TextController {
     if (!e) return
     e.draft = { ...e.draft, text: this.textarea.value }
     this.position()
+    this.ensureVisible()
+  }
+
+  /**
+   * Scrolls the page so the text box sits between the toolbar and the keyboard. When the box is
+   * taller than that space, its end stays visible, since that is where typing happens.
+   */
+  ensureVisible(): void {
+    if (!this.editing) return
+    const area = this.ctx.visibleArea()
+    const box = this.textarea.getBoundingClientRect()
+    const host = this.ctx.host.getBoundingClientRect()
+    const margin = 20
+    const top = box.top - host.top - margin
+    const bottom = box.bottom - host.top + margin
+    let dy = 0
+    if (bottom > area.bottom) dy = area.bottom - bottom
+    if (top + dy < area.top && bottom - top <= area.bottom - area.top) dy = area.top - top
+    if (Math.abs(dy) > 1) this.ctx.scrollBy(dy)
   }
 
   /** A style change that alters the height should not make a rotated box jump sideways. */

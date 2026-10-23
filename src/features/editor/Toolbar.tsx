@@ -10,6 +10,7 @@ import {
   PenLine,
   Redo2,
   Trash2,
+  SquareDashed,
   Type,
   Undo2,
 } from 'lucide-react'
@@ -27,6 +28,7 @@ import {
   Slider,
   SwatchGrid,
 } from '../../design/index.ts'
+import { useVisualViewportBottom } from '../../lib/useVisualViewport.ts'
 import type { Autosave } from '../../storage/Autosave.ts'
 import { PasteButton, SelectionMenu } from './SelectionMenu.tsx'
 import { TextFormatControls } from './TextFormatControls.tsx'
@@ -103,7 +105,12 @@ export function Toolbar({
           aria-label="Tools"
           className="pointer-events-auto flex items-center gap-1 rounded-panel bg-surface-raised/95 p-1.5 shadow-raised backdrop-blur"
         >
-          {toolButton('lasso', 'Lasso', <Lasso {...ICON} />)}
+          {toolButton(
+            'lasso',
+            state.lassoMode === 'rect' ? 'Rectangle lasso' : 'Lasso',
+            state.lassoMode === 'rect' ? <SquareDashed {...ICON} /> : <Lasso {...ICON} />,
+            <LassoSettings editor={editor} state={state} />,
+          )}
           {toolButton(
             'pen',
             'Pen',
@@ -166,18 +173,59 @@ export function Toolbar({
           </Popover>
         </div>
       </div>
-      {state.editingText ? (
-        <div className="pointer-events-auto absolute top-[calc(76px+env(safe-area-inset-top))] left-1/2 z-10 max-w-[calc(100%-24px)] -translate-x-1/2 rounded-panel bg-surface-raised/95 p-1.5 shadow-raised backdrop-blur">
-          <TextFormatControls
-            editor={editor}
-            style={state.textStyle}
-            onDone={() => editor.finishText()}
-          />
-        </div>
-      ) : null}
+      {state.editingText ? <FormatBar editor={editor} state={state} /> : null}
       <SelectionMenu editor={editor} state={state} />
       <PasteButton editor={editor} state={state} />
     </>
+  )
+}
+
+/** Text formatting while typing, right above the on-screen keyboard. */
+function FormatBar({ editor, state }: { editor: Editor; state: EditorState }) {
+  const bottom = useVisualViewportBottom()
+  return (
+    <div
+      className="pointer-events-auto fixed inset-x-0 z-20 mx-auto w-fit max-w-[calc(100%-24px)] rounded-panel bg-surface-raised/95 p-1.5 shadow-overlay backdrop-blur"
+      style={{ top: bottom - 68 - 12 }}
+    >
+      <TextFormatControls
+        editor={editor}
+        style={state.textStyle}
+        onDone={() => editor.finishText()}
+      />
+    </div>
+  )
+}
+
+function LassoSettings({ editor, state }: { editor: Editor; state: EditorState }) {
+  const modes = [
+    ['freehand', 'Freehand', 'Draw a loop around what you want', <Lasso key="f" size={20} />],
+    ['rect', 'Rectangle', 'Drag a box over what you want', <SquareDashed key="r" size={20} />],
+  ] as const
+  return (
+    <div role="group" aria-label="Lasso shape" className="grid gap-1.5">
+      {modes.map(([mode, label, hint, icon]) => (
+        <button
+          key={mode}
+          type="button"
+          aria-pressed={state.lassoMode === mode}
+          onClick={() => editor.setLassoMode(mode)}
+          className={cn(
+            'flex min-h-11 items-center gap-3 rounded-control px-3 py-2 text-left ring-1 ring-line',
+            'aria-pressed:bg-ink aria-pressed:text-ink-inverse aria-pressed:ring-ink',
+          )}
+        >
+          {icon}
+          <span>
+            <span className="block text-sm font-semibold">{label}</span>
+            <span className="block text-xs opacity-75">{hint}</span>
+          </span>
+        </button>
+      ))}
+      <p className="pt-1 text-xs text-ink-muted">
+        Touching part of a stroke is enough to select it.
+      </p>
+    </div>
   )
 }
 

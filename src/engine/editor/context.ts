@@ -22,6 +22,10 @@ export interface EditorContext {
   /** Objects the scene should skip because a controller draws them itself. */
   setHidden(ids: ReadonlySet<Id>): void
   requestRender(): void
+  /** Scrolls the pages vertically by `dy` screen pixels. */
+  scrollBy(dy: number): void
+  /** The part of the screen not covered by toolbars or the on-screen keyboard. */
+  visibleArea(): { top: number; bottom: number }
   /** A controller's state changed in a way the UI shows. */
   changed(): void
 }

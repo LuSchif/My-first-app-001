@@ -2,13 +2,14 @@ import { setPageObjects } from '../commands/commands.ts'
 import type { Point } from '../geometry/camera.ts'
 import type { Rect } from '../geometry/rect.ts'
 import { newId } from '../model/ids.ts'
-import type { CanvasObject, Id, TextObject } from '../model/types.ts'
+import type { CanvasObject, Id } from '../model/types.ts'
 import { pageOrigin } from '../render/layout.ts'
 import { paintObject } from '../render/objects.ts'
 import { applyCamera } from '../render/SceneRenderer.ts'
 import type { EditorContext } from './context.ts'
 import {
   boundsOf,
+  flipObject,
   hitsObject,
   IDENTITY,
   lassoCatches,
@@ -53,10 +54,14 @@ interface Drag {
   startAngle: number
 }
 
+export type LassoMode = 'freehand' | 'rect'
+
 interface Lasso {
   pointerId: number
   pageIndex: number
-  /** Page coordinates. */
+  /** Where the drag began, in page coordinates; the rectangle lasso spans from here. */
+  start: Point
+  /** The loop in page coordinates. */
   points: number[]
   screenLength: number
   lastScreen: Point
@@ -66,11 +71,13 @@ interface Lasso {
 let clipboard: { objects: CanvasObject[]; sourcePageId: Id } | null = null
 
 /**
- * The lasso tool: draw a loop around objects or tap one to select it, then drag to move, pull a
- * corner to resize, or the round handle to rotate. Copy, cut, duplicate and delete act on the
- * selection. Only the active layer is selectable, like the broom.
+ * The lasso tool: draw a loop (or a rectangle) touching objects, or tap one, to select it. Then
+ * drag to move, pull a corner to resize, or the round handle to rotate freely. Copy, cut,
+ * duplicate, flip and delete act on the selection. Only the active layer is selectable, like the
+ * broom.
  */
 export class SelectionController {
+  mode: LassoMode = 'freehand'
   private readonly ctx: EditorContext
   private selection: Selection | null = null
   private drag: Drag | null = null
@@ -130,6 +137,7 @@ export class SelectionController {
     this.lasso = {
       pointerId: e.pointerId,
       pageIndex: hit.index,
+      start: { x: hit.x, y: hit.y },
       points: [hit.x, hit.y],
       screenLength: 0,
       lastScreen: screen,
@@ -154,7 +162,12 @@ export class SelectionController {
         )
         lasso.lastScreen = screen
         const local = this.toLocal(lasso.pageIndex, screen)
-        lasso.points.push(local.x, local.y)
+        if (this.mode === 'rect') {
+          const a = lasso.start
+          lasso.points = [a.x, a.y, local.x, a.y, local.x, local.y, a.x, local.y]
+        } else {
+          lasso.points.push(local.x, local.y)
+        }
       }
       this.draw()
       return true
@@ -208,6 +221,19 @@ export class SelectionController {
     this.ctx.history.execute(setPageObjects('Delete', page.id, page.objects, after))
     this.draw()
     this.ctx.changed()
+  }
+
+  /** Mirrors the selection in place, around its center. */
+  flip(axis: 'horizontal' | 'vertical'): void {
+    const sel = this.selection
+    const page = sel && this.ctx.doc.page(sel.pageId)
+    if (!sel || !page) return
+    const cx = (sel.bounds.minX + sel.bounds.maxX) / 2
+    const cy = (sel.bounds.minY + sel.bounds.maxY) / 2
+    const ids = new Set(sel.ids)
+    const after = page.objects.map((o) => (ids.has(o.id) ? flipObject(o, axis, cx, cy) : o))
+    const label = axis === 'horizontal' ? 'Flip horizontally' : 'Flip vertically'
+    this.ctx.history.execute(setPageObjects(label, page.id, page.objects, after))
   }
 
   copy(): void {
@@ -341,6 +367,25 @@ export class SelectionController {
       ctx.strokeStyle = '#3e2d25'
       ctx.stroke()
     }
+
+    // While rotating, show the angle next to the handle.
+    if (this.drag?.mode === 'rotate') {
+      let degrees = Math.round((t.angle * 180) / Math.PI) % 360
+      if (degrees > 180) degrees -= 360
+      if (degrees <= -180) degrees += 360
+      const label = `${degrees}°`
+      ctx.font = '600 13px "Plus Jakarta Sans Variable", system-ui, sans-serif'
+      const w = ctx.measureText(label).width + 16
+      const x = rotate.handle.x + 18
+      const y = rotate.handle.y - 14
+      ctx.fillStyle = '#3e2d25'
+      ctx.beginPath()
+      ctx.roundRect(x, y, w, 28, 14)
+      ctx.fill()
+      ctx.fillStyle = '#f7f2ea'
+      ctx.textBaseline = 'middle'
+      ctx.fillText(label, x + 8, y + 14)
+    }
   }
 
   // ---------- Internals ----------
@@ -410,11 +455,7 @@ export class SelectionController {
       const dist = Math.hypot(p.x - t.cx, p.y - t.cy)
       drag.transform = { ...t, scale: Math.max(0.05, dist / drag.startDist) }
     } else {
-      let angle = Math.atan2(p.y - t.cy, p.x - t.cx) - drag.startAngle
-      // Snap to right angles when close, for straightening.
-      const quarter = Math.PI / 2
-      const snapped = Math.round(angle / quarter) * quarter
-      if (Math.abs(angle - snapped) < 0.06) angle = snapped
+      const angle = Math.atan2(p.y - t.cy, p.x - t.cx) - drag.startAngle
       drag.transform = { ...t, angle }
     }
     this.draw()
@@ -503,8 +544,4 @@ export class SelectionController {
       screen.y <= y + height + pad
     )
   }
-}
-
-export function isText(object: CanvasObject | undefined): object is TextObject {
-  return object?.type === 'text'
 }

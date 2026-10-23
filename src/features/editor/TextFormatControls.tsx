@@ -52,7 +52,7 @@ export function TextFormatControls({
   return (
     // Buttons here must not take focus from the text field, or the keyboard would close.
     <div
-      className="flex flex-wrap items-center gap-1"
+      className="flex flex-wrap items-center gap-0.5"
       onMouseDown={(e) => {
         if ((e.target as HTMLElement).closest('[data-keep-focus]')) e.preventDefault()
       }}
@@ -143,39 +143,41 @@ export function TextFormatControls({
         </PopoverContent>
       </Popover>
 
-      <Divider />
-      <Toggle
-        label="Align left"
-        active={style.align === 'left'}
-        onClick={() => set({ align: 'left' })}
-      >
-        <AlignLeft {...ICON} />
-      </Toggle>
-      <Toggle
-        label="Align center"
-        active={style.align === 'center'}
-        onClick={() => set({ align: 'center' })}
-      >
-        <AlignCenter {...ICON} />
-      </Toggle>
-      <Toggle
-        label="Align right"
-        active={style.align === 'right'}
-        onClick={() => set({ align: 'right' })}
-      >
-        <AlignRight {...ICON} />
-      </Toggle>
-
       <Popover>
         <PopoverTrigger asChild>
           <button
             type="button"
-            className="h-11 rounded-control px-3 text-sm font-semibold tabular-nums hover:bg-hover"
+            aria-label="Alignment and spacing"
+            className="flex h-11 items-center gap-1 rounded-control px-2.5 hover:bg-hover"
           >
-            Spacing {style.lineHeight.toFixed(1)}
+            <AlignIcon align={style.align} />
+            <ChevronDown size={14} />
           </button>
         </PopoverTrigger>
-        <PopoverContent className="grid gap-4">
+        <PopoverContent className="grid w-72 gap-4">
+          <div role="group" aria-label="Alignment" className="flex gap-1">
+            <Toggle
+              label="Align left"
+              active={style.align === 'left'}
+              onClick={() => set({ align: 'left' })}
+            >
+              <AlignLeft {...ICON} />
+            </Toggle>
+            <Toggle
+              label="Align center"
+              active={style.align === 'center'}
+              onClick={() => set({ align: 'center' })}
+            >
+              <AlignCenter {...ICON} />
+            </Toggle>
+            <Toggle
+              label="Align right"
+              active={style.align === 'right'}
+              onClick={() => set({ align: 'right' })}
+            >
+              <AlignRight {...ICON} />
+            </Toggle>
+          </div>
           <Slider
             label="Line spacing"
             value={style.lineHeight}
@@ -198,6 +200,12 @@ export function TextFormatControls({
       ) : null}
     </div>
   )
+}
+
+function AlignIcon({ align }: { align: TextStyle['align'] }) {
+  if (align === 'center') return <AlignCenter {...ICON} />
+  if (align === 'right') return <AlignRight {...ICON} />
+  return <AlignLeft {...ICON} />
 }
 
 function Toggle({

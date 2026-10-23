@@ -1,4 +1,13 @@
-import { ClipboardPaste, Copy, CopyPlus, Scissors, TextCursorInput, Trash2 } from 'lucide-react'
+import {
+  ClipboardPaste,
+  Copy,
+  CopyPlus,
+  FlipHorizontal2,
+  FlipVertical2,
+  Scissors,
+  TextCursorInput,
+  Trash2,
+} from 'lucide-react'
 import type { Editor, EditorState } from '../../engine/editor/Editor.ts'
 import { Button } from '../../design/index.ts'
 
@@ -17,7 +26,7 @@ export function SelectionMenu({ editor, state }: { editor: Editor; state: Editor
     <div
       role="toolbar"
       aria-label={`${sel.count} selected`}
-      className="absolute z-10 flex -translate-x-1/2 items-center gap-0.5 rounded-panel bg-ink p-1 text-ink-inverse shadow-overlay"
+      className="absolute z-10 flex w-max -translate-x-1/2 items-center gap-0.5 rounded-panel bg-ink p-1 text-ink-inverse shadow-overlay"
       style={{
         top: Math.max(72, top),
         left: `clamp(12rem, ${left}px, calc(100% - 12rem))`,
@@ -37,6 +46,17 @@ export function SelectionMenu({ editor, state }: { editor: Editor; state: Editor
       <MenuButton label="Duplicate" onClick={() => editor.duplicateSelection()}>
         <CopyPlus size={18} />
       </MenuButton>
+      {/* Lucide names these icons by their axis line, the opposite of the action. */}
+      <MenuButton
+        label="Flip horizontally"
+        iconOnly
+        onClick={() => editor.flipSelection('horizontal')}
+      >
+        <FlipVertical2 size={18} />
+      </MenuButton>
+      <MenuButton label="Flip vertically" iconOnly onClick={() => editor.flipSelection('vertical')}>
+        <FlipHorizontal2 size={18} />
+      </MenuButton>
       <MenuButton label="Delete" onClick={() => editor.deleteSelection()}>
         <Trash2 size={18} />
       </MenuButton>
@@ -47,20 +67,25 @@ export function SelectionMenu({ editor, state }: { editor: Editor; state: Editor
 function MenuButton({
   label,
   onClick,
+  iconOnly,
   children,
 }: {
   label: string
   onClick: () => void
+  /** Shows only the icon; the label stays available as the accessible name and tooltip. */
+  iconOnly?: boolean
   children: React.ReactNode
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
+      aria-label={iconOnly ? label : undefined}
+      title={iconOnly ? label : undefined}
       className="flex h-11 items-center gap-1.5 rounded-control px-3 text-sm font-semibold hover:bg-white/10 active:bg-white/15"
     >
       {children}
-      {label}
+      {iconOnly ? null : label}
     </button>
   )
 }

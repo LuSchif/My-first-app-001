@@ -2,7 +2,7 @@ import { strokeTouchesCircle } from '../geometry/erase.ts'
 import { union, type Rect } from '../geometry/rect.ts'
 import type { CanvasObject, TextObject } from '../model/types.ts'
 import { objectBounds } from '../render/objects.ts'
-import { layoutText, textCenter, textContains } from '../render/text.ts'
+import { layoutText, textCenter, textContains, textCorners } from '../render/text.ts'
 
 type Polygon = readonly number[]
 
@@ -20,20 +20,71 @@ export function pointInPolygon(x: number, y: number, poly: Polygon): boolean {
 }
 
 /**
- * Whether the lasso catches an object: most of a stroke's points, or the middle of a text box.
- * "Most" rather than "all" forgives a lasso that clips the tail of a letter.
+ * Whether the lasso catches an object. Touching is enough: any part of a stroke inside the loop,
+ * or any part of a text box (a corner, its middle, or a loop drawn inside the box).
  */
 export function lassoCatches(object: CanvasObject, poly: Polygon): boolean {
   if (object.type === 'text') {
     const c = textCenter(object)
-    return pointInPolygon(c.x, c.y, poly)
+    if (pointInPolygon(c.x, c.y, poly)) return true
+    if (textCorners(object).some((p) => pointInPolygon(p.x, p.y, poly))) return true
+    return poly.length >= 2 && textContains(object, poly[0]!, poly[1]!)
   }
-  const n = object.points.length / 2
-  let inside = 0
-  for (let i = 0; i < n; i++) {
-    if (pointInPolygon(object.points[i * 2]!, object.points[i * 2 + 1]!, poly)) inside++
+  const pts = object.points
+  for (let i = 0; i < pts.length; i += 2) {
+    if (pointInPolygon(pts[i]!, pts[i + 1]!, poly)) return true
   }
-  return inside / n >= 0.5
+  // A thin loop can pass between two samples of a long straight segment.
+  for (let i = 0; i + 3 < pts.length; i += 2) {
+    if (segmentCrossesPolygon(pts[i]!, pts[i + 1]!, pts[i + 2]!, pts[i + 3]!, poly)) return true
+  }
+  return false
+}
+
+function segmentCrossesPolygon(
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+  poly: Polygon,
+): boolean {
+  const n = poly.length / 2
+  for (let i = 0, j = n - 1; i < n; j = i++) {
+    if (
+      segmentsIntersect(
+        ax,
+        ay,
+        bx,
+        by,
+        poly[j * 2]!,
+        poly[j * 2 + 1]!,
+        poly[i * 2]!,
+        poly[i * 2 + 1]!,
+      )
+    ) {
+      return true
+    }
+  }
+  return false
+}
+
+function segmentsIntersect(
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+  cx: number,
+  cy: number,
+  dx: number,
+  dy: number,
+): boolean {
+  const cross = (px: number, py: number, qx: number, qy: number, rx: number, ry: number) =>
+    (qx - px) * (ry - py) - (qy - py) * (rx - px)
+  const d1 = cross(cx, cy, dx, dy, ax, ay)
+  const d2 = cross(cx, cy, dx, dy, bx, by)
+  const d3 = cross(ax, ay, bx, by, cx, cy)
+  const d4 = cross(ax, ay, bx, by, dx, dy)
+  return d1 * d2 < 0 && d3 * d4 < 0
 }
 
 /** Whether a tap at (x, y) with the given tolerance lands on the object. */
@@ -88,6 +139,35 @@ export function transformObject(object: CanvasObject, t: Transform): CanvasObjec
   }
   const { height } = layoutText(resized)
   return { ...resized, x: c.x - resized.width / 2, y: c.y - height / 2 }
+}
+
+/**
+ * Mirrors an object across a vertical (horizontal flip) or horizontal line through (cx, cy).
+ * Text boxes move to their mirrored place but their text stays readable.
+ */
+export function flipObject(
+  object: CanvasObject,
+  axis: 'horizontal' | 'vertical',
+  cx: number,
+  cy: number,
+): CanvasObject {
+  const fx = (x: number) => (axis === 'horizontal' ? 2 * cx - x : x)
+  const fy = (y: number) => (axis === 'vertical' ? 2 * cy - y : y)
+  if (object.type === 'stroke') {
+    const points: number[] = []
+    for (let i = 0; i < object.points.length; i += 2) {
+      points.push(fx(object.points[i]!), fy(object.points[i + 1]!))
+    }
+    return { ...object, points }
+  }
+  const c = textCenter(object)
+  const { height } = layoutText(object)
+  return {
+    ...object,
+    x: fx(c.x) - object.width / 2,
+    y: fy(c.y) - height / 2,
+    rotation: normalizeAngle(-object.rotation),
+  }
 }
 
 /** The selection frame corners after a transform, for drawing the rotated outline. */
