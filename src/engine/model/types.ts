@@ -52,6 +52,8 @@ export interface Page {
   notebookId: Id
   schemaVersion: number
   paper: PaperKind
+  /** Paper color; the default paper white when absent. */
+  background?: string
   /** Drawing order within each layer: later objects are drawn on top. */
   objects: CanvasObject[]
   updatedAt: number

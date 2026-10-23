@@ -87,6 +87,12 @@ function segmentsIntersect(
   return d1 * d2 < 0 && d3 * d4 < 0
 }
 
+/** The same object in another color: the ink of a stroke, the text of a text box. */
+export function recolor(object: CanvasObject, color: string): CanvasObject {
+  if (object.type === 'stroke') return { ...object, color }
+  return { ...object, style: { ...object.style, color } }
+}
+
 /** Whether a tap at (x, y) with the given tolerance lands on the object. */
 export function hitsObject(object: CanvasObject, x: number, y: number, slop: number): boolean {
   if (object.type === 'text') return textContains(object, x, y, slop)

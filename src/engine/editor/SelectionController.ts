@@ -13,6 +13,7 @@ import {
   hitsObject,
   IDENTITY,
   lassoCatches,
+  recolor,
   transformObject,
   transformRect,
   type Transform,
@@ -21,7 +22,11 @@ import {
 /** Screen-pixel sizes, so handles stay easy to hit at any zoom. */
 const HANDLE_RADIUS = 9
 const HANDLE_HIT = 26
-const ROTATE_OFFSET = 34
+const ROTATE_OFFSET = 44
+/** With snapping on, rotation settles on multiples of this when within SNAP_WITHIN. */
+const SNAP_STEP = Math.PI / 12
+const SNAP_WITHIN = (4 * Math.PI) / 180
+const DEGREE = Math.PI / 180
 const FRAME_PAD = 6
 const TAP_PX = 6
 const PASTE_OFFSET = 16
@@ -32,6 +37,8 @@ export interface SelectionInfo {
   rect: { x: number; y: number; width: number; height: number }
   /** The single selected text box, if that is all that is selected. */
   textId: Id | null
+  /** Whether the corner handles for resizing are shown. */
+  scaling: boolean
 }
 
 type Handle = 'nw' | 'ne' | 'se' | 'sw' | 'rotate'
@@ -78,6 +85,13 @@ let clipboard: { objects: CanvasObject[]; sourcePageId: Id } | null = null
  */
 export class SelectionController {
   mode: LassoMode = 'freehand'
+  /** Rotation snaps to 15° steps (0, 15, 30, 45, 90, 180 …) when close. */
+  snapRotation = false
+  /**
+   * Resizing is opt-in: a selection only moves and rotates until "Scale" is turned on, so a drag
+   * on a small selection never grabs a corner by accident.
+   */
+  private scaling = false
   private readonly ctx: EditorContext
   private selection: Selection | null = null
   private drag: Drag | null = null
@@ -112,6 +126,7 @@ export class SelectionController {
       count: sel.ids.length,
       rect: { x: a.x, y: a.y, width: b.x - a.x, height: b.y - a.y },
       textId: only?.type === 'text' ? only.id : null,
+      scaling: this.scaling,
     }
   }
 
@@ -121,13 +136,18 @@ export class SelectionController {
     const screen = this.ctx.screenPos(e)
     const sel = this.selection
     if (sel) {
+      // Corners first when resizing is on; otherwise anything inside the frame moves it.
       const handle = this.handleAt(screen)
-      if (handle) {
-        this.startDrag(e, handle === 'rotate' ? 'rotate' : 'scale', screen)
+      if (handle && handle !== 'rotate') {
+        this.startDrag(e, 'scale', screen)
         return
       }
       if (this.insideFrame(screen)) {
         this.startDrag(e, 'move', screen)
+        return
+      }
+      if (handle === 'rotate') {
+        this.startDrag(e, 'rotate', screen)
         return
       }
       this.clear()
@@ -191,6 +211,12 @@ export class SelectionController {
 
   // ---------- Commands ----------
 
+  setScaling(on: boolean): void {
+    this.scaling = on
+    this.draw()
+    this.ctx.changed()
+  }
+
   clear(): void {
     if (!this.selection && !this.lasso) return
     this.selection = null
@@ -203,12 +229,24 @@ export class SelectionController {
 
   /** Selects specific objects, e.g. after pasting. */
   select(pageId: Id, ids: Id[]): void {
+    if (this.selection?.pageId !== pageId || this.selection.ids.join() !== ids.join()) {
+      this.scaling = false
+    }
     const page = this.ctx.doc.page(pageId)
     const objects = page?.objects.filter((o) => ids.includes(o.id)) ?? []
     const bounds = boundsOf(objects)
     this.selection = bounds ? { pageId, ids: objects.map((o) => o.id), bounds } : null
     this.draw()
     this.ctx.changed()
+  }
+
+  recolor(color: string): void {
+    const sel = this.selection
+    const page = sel && this.ctx.doc.page(sel.pageId)
+    if (!sel || !page) return
+    const ids = new Set(sel.ids)
+    const after = page.objects.map((o) => (ids.has(o.id) ? recolor(o, color) : o))
+    this.ctx.history.execute(setPageObjects('Color', page.id, page.objects, after))
   }
 
   deleteSelection(): void {
@@ -358,7 +396,7 @@ export class SelectionController {
     ctx.lineTo(rotate.handle.x, rotate.handle.y)
     ctx.lineWidth = 1.5
     ctx.stroke()
-    for (const p of [...corners, rotate.handle]) {
+    for (const p of this.scaling ? [...corners, rotate.handle] : [rotate.handle]) {
       ctx.beginPath()
       ctx.arc(p.x, p.y, HANDLE_RADIUS, 0, Math.PI * 2)
       ctx.fillStyle = '#fffcf7'
@@ -455,7 +493,10 @@ export class SelectionController {
       const dist = Math.hypot(p.x - t.cx, p.y - t.cy)
       drag.transform = { ...t, scale: Math.max(0.05, dist / drag.startDist) }
     } else {
-      const angle = Math.atan2(p.y - t.cy, p.x - t.cx) - drag.startAngle
+      let angle = Math.atan2(p.y - t.cy, p.x - t.cx) - drag.startAngle
+      const snapped = Math.round(angle / SNAP_STEP) * SNAP_STEP
+      if (this.snapRotation && Math.abs(angle - snapped) < SNAP_WITHIN) angle = snapped
+      else angle = Math.round(angle / DEGREE) * DEGREE
       drag.transform = { ...t, angle }
     }
     this.draw()
@@ -526,10 +567,10 @@ export class SelectionController {
       cy: 0,
     })
     const near = (p: Point) => Math.hypot(p.x - screen.x, p.y - screen.y) <= HANDLE_HIT
-    if (near(this.rotateHandle(corners).handle)) return 'rotate'
     const names: Handle[] = ['nw', 'ne', 'se', 'sw']
-    const i = corners.findIndex(near)
-    return i >= 0 ? names[i]! : null
+    const i = this.scaling ? corners.findIndex(near) : -1
+    if (i >= 0) return names[i]!
+    return near(this.rotateHandle(corners).handle) ? 'rotate' : null
   }
 
   private insideFrame(screen: Point): boolean {

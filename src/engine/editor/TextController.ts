@@ -105,6 +105,13 @@ export class TextController {
     this.begin(pageId, object, object)
   }
 
+  /** Focuses the text field again if something else took focus while it is being edited. */
+  refocus(): void {
+    if (this.editing && document.activeElement !== this.textarea) {
+      this.textarea.focus({ preventScroll: true })
+    }
+  }
+
   setStyle(patch: Partial<TextStyle>): void {
     const e = this.editing
     if (!e) return

@@ -1,4 +1,10 @@
-import { compound, insertPages, removePage, setPageObjects } from '../commands/commands.ts'
+import {
+  compound,
+  insertPages,
+  removePage,
+  setPageBackground,
+  setPageObjects,
+} from '../commands/commands.ts'
 import type { History } from '../commands/History.ts'
 import type { NotebookDocument } from '../document/NotebookDocument.ts'
 import { eraseFromPoints, strokeTouchesCircle } from '../geometry/erase.ts'
@@ -18,9 +24,11 @@ import { contentHeight, PAGE_PITCH, pageIndexAt, pageOrigin } from '../render/la
 import { enterPage, renderScene, type View } from '../render/SceneRenderer.ts'
 import { paintStroke, setInkStyle, strokeBounds } from '../render/strokes.ts'
 import { smoothedAt, smoothPoints, traceSegments } from '../geometry/strokePath.ts'
+import { drawBroom } from '../render/broomGlyph.ts'
+import { objectBounds, paintObject } from '../render/objects.ts'
 import { invalidateTextLayouts } from '../render/text.ts'
 import type { EditorContext } from './context.ts'
-import { hitsObject } from './selection.ts'
+import { hitsObject, recolor } from './selection.ts'
 import { SelectionController, type LassoMode, type SelectionInfo } from './SelectionController.ts'
 import { DEFAULT_TEXT_STYLE, TextController } from './TextController.ts'
 
@@ -40,6 +48,9 @@ export interface EditorState {
   textStyle: TextStyle
   editingText: boolean
   lassoMode: LassoMode
+  snapRotation: boolean
+  /** The five most recently used colors, newest first. */
+  recentColors: string[]
   selection: SelectionInfo | null
   hasClipboard: boolean
 }
@@ -48,6 +59,9 @@ const HIGHLIGHTER_OPACITY = 0.45
 /** Space kept free above the first page for the floating toolbar. */
 const TOP_INSET = 84
 const SIDE_MARGIN = 24
+const DEFAULT_RECENT_COLORS = ['#3e2d25', '#4a80c0', '#c4473a', '#5f9a4a', '#f2cf4a']
+const RECENT_LIMIT = 5
+
 /** Room kept free above the keyboard for the text format bar. */
 const FORMAT_BAR_SPACE = 84
 const TWO_FINGER_TAP_MS = 280
@@ -153,6 +167,8 @@ export class Editor {
       textStyle: DEFAULT_TEXT_STYLE,
       editingText: false,
       lassoMode: 'freehand',
+      snapRotation: false,
+      recentColors: DEFAULT_RECENT_COLORS,
       selection: null,
       hasClipboard: false,
     }
@@ -204,6 +220,9 @@ export class Editor {
         { passive: false },
       )
     }
+    // iPadOS shows the keyboard only for a field focused during the touch itself; focusing again
+    // at touchend makes sure the keyboard opens for a newly created text box.
+    this.listen(host, 'touchend', () => this.text.refocus())
     // Text drawn before the web fonts arrive used fallback metrics; lay it out again.
     if (document.fonts) {
       this.listen(document.fonts as unknown as HTMLElement, 'loadingdone', () => {
@@ -253,6 +272,7 @@ export class Editor {
 
   /** Changes the box being edited, and the style for the next new box. */
   setTextStyle(patch: Partial<TextStyle>): void {
+    if (patch.color) this.rememberColor(patch.color)
     this.text.setStyle(patch)
     this.update({ textStyle: { ...(this.text.style ?? this._state.textStyle), ...patch } })
   }
@@ -268,6 +288,15 @@ export class Editor {
 
   flipSelection(axis: 'horizontal' | 'vertical'): void {
     this.selection.flip(axis)
+  }
+
+  setSelectionScaling(on: boolean): void {
+    this.selection.setScaling(on)
+  }
+
+  setSnapRotation(on: boolean): void {
+    this.selection.snapRotation = on
+    this.update({ snapRotation: on })
   }
 
   deleteSelection(): void {
@@ -302,11 +331,117 @@ export class Editor {
     this.text.edit(page.id, object)
   }
 
+  setRecentColors(colors: string[]): void {
+    if (colors.length > 0) this.update({ recentColors: colors.slice(0, RECENT_LIMIT) })
+  }
+
+  /**
+   * Uses a color where it makes sense right now: on the selection, the text being typed, the
+   * highlighter, or otherwise the pen.
+   */
+  applyColor(color: string): void {
+    this.rememberColor(color)
+    const tool = this._state.tool
+    if (this._state.selection) this.selection.recolor(color)
+    else if (this.text.isEditing || tool === 'text') this.setTextStyle({ color })
+    else if (tool === 'highlighter') this.setHighlighter({ color })
+    else {
+      this.setPen({ color })
+      if (tool !== 'pen') this.setTool('pen')
+    }
+  }
+
+  /** Shows what dropping a color at this point would change. */
+  previewColorDrop(clientX: number, clientY: number, color: string): void {
+    this.clearTip()
+    const target = this.colorTarget(clientX, clientY)
+    if (!target) return
+    const { dpr, width, height } = this.view
+    this.inkLayer.style.opacity = '1'
+    this.inkLayer.style.mixBlendMode = 'normal'
+    this.tip.save()
+    enterPage(this.tip, this.camera, dpr, target.pageIndex)
+    const zoom = this.camera.zoom
+    if (target.object) {
+      paintObject(this.tip, recolor(target.object, color))
+      const b = objectBounds(target.object)
+      const pad = 6 / zoom
+      this.tip.lineWidth = 2 / zoom
+      this.tip.setLineDash([6 / zoom, 4 / zoom])
+      this.tip.strokeStyle = '#795a46'
+      this.tip.strokeRect(
+        b.minX - pad,
+        b.minY - pad,
+        b.maxX - b.minX + pad * 2,
+        b.maxY - b.minY + pad * 2,
+      )
+    } else {
+      this.tip.globalAlpha = 0.45
+      this.tip.fillStyle = color
+      this.tip.fillRect(0, 0, PAGE_SIZE.width, PAGE_SIZE.height)
+      this.tip.globalAlpha = 1
+      this.tip.lineWidth = 3 / zoom
+      this.tip.strokeStyle = '#795a46'
+      this.tip.strokeRect(0, 0, PAGE_SIZE.width, PAGE_SIZE.height)
+    }
+    this.tip.restore()
+    this.tipDirty = { x: 0, y: 0, w: width * dpr, h: height * dpr }
+  }
+
+  endColorPreview(): void {
+    this.clearTip()
+  }
+
+  /** Dropped on ink or text, the color recolors it; dropped on paper, it colors the page. */
+  dropColor(clientX: number, clientY: number, color: string): void {
+    this.clearTip()
+    const target = this.colorTarget(clientX, clientY)
+    if (!target) return
+    this.rememberColor(color)
+    const page = target.page
+    if (target.object) {
+      const id = target.object.id
+      const after = page.objects.map((o) => (o.id === id ? recolor(o, color) : o))
+      this.history.execute(setPageObjects('Color', page.id, page.objects, after))
+    } else {
+      this.history.execute(setPageBackground(page.id, page.background, color))
+    }
+  }
+
+  private colorTarget(clientX: number, clientY: number) {
+    this.hostRect = this.host.getBoundingClientRect()
+    const world = this.toWorld(this.screenPos({ clientX, clientY }))
+    const pageIndex = pageIndexAt(world.x, world.y, this.doc.notebook.pageIds.length)
+    const page = this.doc.pageList[pageIndex]
+    if (!page) return null
+    const o = pageOrigin(pageIndex)
+    const x = world.x - o.x
+    const y = world.y - o.y
+    const layer = this.activeLayer()
+    const slop = 8 / this.camera.zoom
+    const object =
+      layer && !layer.locked && layer.visible
+        ? [...page.objects]
+            .reverse()
+            .find((obj) => obj.layerId === layer.id && hitsObject(obj, x, y, slop))
+        : undefined
+    return { page, pageIndex, object }
+  }
+
+  private rememberColor(color: string): void {
+    const current = this._state.recentColors
+    if (current[0] === color) return
+    const next = [color, ...current.filter((c) => c !== color)].slice(0, RECENT_LIMIT)
+    this.update({ recentColors: next })
+  }
+
   setPen(patch: Partial<EditorState['pen']>): void {
+    if (patch.color) this.rememberColor(patch.color)
     this.update({ pen: { ...this._state.pen, ...patch } })
   }
 
   setHighlighter(patch: Partial<EditorState['highlighter']>): void {
+    if (patch.color) this.rememberColor(patch.color)
     this.update({ highlighter: { ...this._state.highlighter, ...patch } })
   }
 
@@ -340,6 +475,7 @@ export class Editor {
     const copy = {
       ...createPage(this.doc.notebook.id, source.paper),
       objects: source.objects.map((o) => ({ ...o, id: newId() })),
+      ...(source.background ? { background: source.background } : {}),
     }
     const index = this._state.pageIndex + 1
     this.history.execute(insertPages('Duplicate page', index, [copy]))
@@ -566,6 +702,12 @@ export class Editor {
         this.panning = true
         this.gesture = null
         this.updateGesture()
+        // With the text tool, a one-finger tap still places text: the finger brings up the
+        // keyboard, while a pencil tap brings up iPadOS's handwriting (Scribble) bar.
+        this.textTap =
+          this._state.tool === 'text' && this.touches.size === 1
+            ? { pointerId: e.pointerId, ...this.screenPos(e) }
+            : null
         return
       }
     }
@@ -627,7 +769,8 @@ export class Editor {
     if (this.textTap?.pointerId === e.pointerId) {
       const p = this.screenPos(e)
       if (Math.hypot(p.x - this.textTap.x, p.y - this.textTap.y) > TAP_SLOP_PX) this.textTap = null
-      return
+      // A finger keeps panning while it decides between tap and scroll.
+      if (e.pointerType !== 'touch') return
     }
     const s = this.session
     if (s && e.pointerId === s.pointerId) {
@@ -1084,26 +1227,33 @@ export class Editor {
     this.history.record(compound('Erase', commands))
   }
 
+  /** The broom itself marks where it sweeps; a ring shows the reach when it is larger. */
   private drawBroomCursor(screen: Point): void {
     this.clearTip()
     const { dpr } = this.view
     const r = (this._state.broom.size / 2) * this.camera.zoom
+    const icon = 30
     this.inkLayer.style.opacity = '1'
     this.inkLayer.style.mixBlendMode = 'normal'
     this.tip.setTransform(dpr, 0, 0, dpr, 0, 0)
-    this.tip.beginPath()
-    this.tip.arc(screen.x, screen.y, r, 0, Math.PI * 2)
-    this.tip.fillStyle = 'rgba(185, 139, 101, 0.12)'
-    this.tip.fill()
-    this.tip.lineWidth = 1.5
-    this.tip.strokeStyle = 'rgba(62, 45, 37, 0.55)'
-    this.tip.stroke()
-    const pad = 4
+    if (r > icon / 3) {
+      this.tip.beginPath()
+      this.tip.arc(screen.x, screen.y, r, 0, Math.PI * 2)
+      this.tip.fillStyle = 'rgba(185, 139, 101, 0.1)'
+      this.tip.fill()
+      this.tip.lineWidth = 1.25
+      this.tip.setLineDash([4, 4])
+      this.tip.strokeStyle = 'rgba(62, 45, 37, 0.45)'
+      this.tip.stroke()
+      this.tip.setLineDash([])
+    }
+    drawBroom(this.tip, screen.x, screen.y, icon)
+    const reach = Math.max(r, icon) + 6
     this.tipDirty = {
-      x: Math.floor((screen.x - r - pad) * dpr),
-      y: Math.floor((screen.y - r - pad) * dpr),
-      w: Math.ceil((r + pad) * 2 * dpr),
-      h: Math.ceil((r + pad) * 2 * dpr),
+      x: Math.floor((screen.x - reach) * dpr),
+      y: Math.floor((screen.y - reach) * dpr),
+      w: Math.ceil(reach * 2 * dpr),
+      h: Math.ceil(reach * 2 * dpr),
     }
   }
 

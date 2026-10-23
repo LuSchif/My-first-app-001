@@ -49,6 +49,18 @@ export class NotebookDocument {
     this.emit({ type: 'page', pageId })
   }
 
+  setBackground(pageId: Id, background: string | undefined): void {
+    const page = this.pages.get(pageId)
+    if (!page) return
+    const next = { ...page, updatedAt: Date.now() }
+    if (background) next.background = background
+    else delete next.background
+    this.pages.set(pageId, next)
+    this.dirtyPages.add(pageId)
+    this.notebookDirty = true
+    this.emit({ type: 'page', pageId })
+  }
+
   /** Replaces the page order; pages listed here that are not loaded yet must be added first. */
   setPageIds(pageIds: Id[]): void {
     this._notebook = { ...this._notebook, pageIds }

@@ -53,3 +53,19 @@ function linear(name: string, angle: number, from: string, to: string) {
     } satisfies Fill,
   }
 }
+
+/** The everyday colors; anything else comes from the wheel. */
+export const PRIMARY_COLORS: readonly [string, string][] = [
+  ['Espresso', '#3e2d25'],
+  ['Black', '#1f1d1b'],
+  ['Grey', '#86817a'],
+  ['Red', '#c4473a'],
+  ['Orange', '#ee9a52'],
+  ['Yellow', '#f2cf4a'],
+  ['Green', '#5f9a4a'],
+  ['Teal', '#3d9687'],
+  ['Blue', '#4a80c0'],
+  ['Navy', '#1c3a60'],
+  ['Purple', '#8063b4'],
+  ['Pink', '#e787a8'],
+]

@@ -41,6 +41,13 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
 - **Text and tables**: rendered on the canvas at rest; edited through a DOM overlay positioned
   with the same transform, so typing feels native.
 
+## Colors
+
+- Pen and text use twelve standard colors plus a color wheel; folders and covers use the full
+  palette in `src/design/palette.ts`.
+- The editor keeps the five most recent colors (stored per device). Dragging one onto ink or
+  text recolors it; dropping it on empty paper sets the page color (`Page.background`).
+
 ## Data safety
 
 - Autosave writes per page, shortly after each change and on `pagehide`.

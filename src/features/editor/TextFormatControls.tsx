@@ -16,12 +16,12 @@ import { FONT_LABELS, FONT_STACKS } from '../../engine/render/text.ts'
 import { cn } from '../../lib/cn.ts'
 import {
   Button,
+  ColorPicker,
   IconButton,
   Popover,
   PopoverContent,
   PopoverTrigger,
   Slider,
-  SwatchGrid,
 } from '../../design/index.ts'
 
 const SIZES = [8, 10, 12, 14, 16, 18, 20, 24, 28, 32, 40, 48, 64, 80, 96]
@@ -131,7 +131,7 @@ export function TextFormatControls({
           </button>
         </PopoverTrigger>
         <PopoverContent className="grid w-80 gap-4">
-          <SwatchGrid value={style.color} onChange={(color) => set({ color })} />
+          <ColorPicker value={style.color} onChange={(color) => set({ color })} />
           <Slider
             label="Opacity"
             value={Math.round(style.opacity * 100)}

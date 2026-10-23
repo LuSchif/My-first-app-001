@@ -4,6 +4,7 @@ import {
   CopyPlus,
   FlipHorizontal2,
   FlipVertical2,
+  Scaling,
   Scissors,
   TextCursorInput,
   Trash2,
@@ -43,6 +44,13 @@ export function SelectionMenu({ editor, state }: { editor: Editor; state: Editor
       <MenuButton label="Cut" onClick={() => editor.cutSelection()}>
         <Scissors size={18} />
       </MenuButton>
+      <MenuButton
+        label="Scale"
+        pressed={sel.scaling}
+        onClick={() => editor.setSelectionScaling(!sel.scaling)}
+      >
+        <Scaling size={18} />
+      </MenuButton>
       <MenuButton label="Duplicate" onClick={() => editor.duplicateSelection()}>
         <CopyPlus size={18} />
       </MenuButton>
@@ -68,10 +76,13 @@ function MenuButton({
   label,
   onClick,
   iconOnly,
+  pressed,
   children,
 }: {
   label: string
   onClick: () => void
+  /** For on/off options such as Scale. */
+  pressed?: boolean
   /** Shows only the icon; the label stays available as the accessible name and tooltip. */
   iconOnly?: boolean
   children: React.ReactNode
@@ -81,8 +92,9 @@ function MenuButton({
       type="button"
       onClick={onClick}
       aria-label={iconOnly ? label : undefined}
+      aria-pressed={pressed}
       title={iconOnly ? label : undefined}
-      className="flex h-11 items-center gap-1.5 rounded-control px-3 text-sm font-semibold hover:bg-white/10 active:bg-white/15"
+      className="flex h-11 items-center gap-1.5 rounded-control px-3 text-sm font-semibold hover:bg-white/10 active:bg-white/15 aria-pressed:bg-cream aria-pressed:text-ink"
     >
       {children}
       {iconOnly ? null : label}

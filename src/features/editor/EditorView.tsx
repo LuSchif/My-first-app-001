@@ -61,8 +61,19 @@ function EditorSession({ doc, history, autosave }: Loaded) {
 
   useEffect(() => {
     const instance = new Editor(hostRef.current!, doc, history)
+    instance.setRecentColors(loadRecentColors())
+    // Recent colors belong to this device, not to a notebook.
+    let saved = instance.state.recentColors
+    const stop = instance.subscribe(() => {
+      if (instance.state.recentColors === saved) return
+      saved = instance.state.recentColors
+      saveRecentColors(saved)
+    })
     setEditor(instance)
-    return () => instance.dispose()
+    return () => {
+      stop()
+      instance.dispose()
+    }
   }, [doc, history])
 
   // Save right away when the app goes to the background; iPadOS may close it at any time.
@@ -98,4 +109,23 @@ function EditorSession({ doc, history, autosave }: Loaded) {
       ) : null}
     </div>
   )
+}
+
+const RECENT_COLORS_KEY = 'broomit.recentColors'
+
+function loadRecentColors(): string[] {
+  try {
+    const value: unknown = JSON.parse(localStorage.getItem(RECENT_COLORS_KEY) ?? '[]')
+    return Array.isArray(value) ? value.filter((c): c is string => typeof c === 'string') : []
+  } catch {
+    return []
+  }
+}
+
+function saveRecentColors(colors: string[]): void {
+  try {
+    localStorage.setItem(RECENT_COLORS_KEY, JSON.stringify(colors))
+  } catch {
+    // Private browsing or full storage: recent colors are a convenience and may be lost.
+  }
 }

@@ -25,6 +25,18 @@ export function setPageObjects(
   }
 }
 
+export function setPageBackground(
+  pageId: Id,
+  before: string | undefined,
+  after: string | undefined,
+): Command {
+  return {
+    label: 'Page color',
+    apply: (doc) => doc.setBackground(pageId, after),
+    revert: (doc) => doc.setBackground(pageId, before),
+  }
+}
+
 /** Inserts new pages at `index` in the page order. */
 export function insertPages(label: string, index: number, pages: Page[]): Command {
   let before: Id[] = []

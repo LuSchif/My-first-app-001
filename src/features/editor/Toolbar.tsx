@@ -20,16 +20,18 @@ import { cn } from '../../lib/cn.ts'
 import {
   BroomIcon,
   Button,
+  ColorPicker,
   ColorSwatch,
   IconButton,
   Popover,
   PopoverContent,
   PopoverTrigger,
   Slider,
-  SwatchGrid,
+  Switch,
 } from '../../design/index.ts'
 import { useVisualViewportBottom } from '../../lib/useVisualViewport.ts'
 import type { Autosave } from '../../storage/Autosave.ts'
+import { RecentColors } from './RecentColors.tsx'
 import { PasteButton, SelectionMenu } from './SelectionMenu.tsx'
 import { TextFormatControls } from './TextFormatControls.tsx'
 
@@ -175,6 +177,7 @@ export function Toolbar({
       </div>
       {state.editingText ? <FormatBar editor={editor} state={state} /> : null}
       <SelectionMenu editor={editor} state={state} />
+      <RecentColors editor={editor} state={state} />
       <PasteButton editor={editor} state={state} />
     </>
   )
@@ -225,6 +228,14 @@ function LassoSettings({ editor, state }: { editor: Editor; state: EditorState }
       <p className="pt-1 text-xs text-ink-muted">
         Touching part of a stroke is enough to select it.
       </p>
+      <div className="mt-1 border-t border-line pt-2">
+        <Switch
+          label="Snap rotation"
+          hint="Settle on 15° steps such as 30°, 45°, 90° and 180°"
+          checked={state.snapRotation}
+          onChange={(on) => editor.setSnapRotation(on)}
+        />
+      </div>
     </div>
   )
 }
@@ -260,7 +271,7 @@ function PenSettings({ editor, state }: { editor: Editor; state: EditorState }) 
         onChange={(v) => editor.setPen({ opacity: v / 100 })}
         format={(v) => `${v}%`}
       />
-      <SwatchGrid value={pen.color} onChange={(color) => editor.setPen({ color })} />
+      <ColorPicker value={pen.color} onChange={(color) => editor.setPen({ color })} />
     </>
   )
 }

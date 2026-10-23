@@ -69,7 +69,7 @@ export function renderScene(
     ctx.shadowColor = 'rgba(62, 45, 37, 0.14)'
     ctx.shadowBlur = 18 * dpr
     ctx.shadowOffsetY = 3 * dpr
-    ctx.fillStyle = PAPER_STYLE.paper
+    ctx.fillStyle = page.background ?? PAPER_STYLE.paper
     ctx.fillRect(o.x, o.y, PAGE_SIZE.width, PAGE_SIZE.height)
     ctx.restore()
 
