@@ -2,7 +2,8 @@ import { setPageObjects } from '../commands/commands.ts'
 import type { Point } from '../geometry/camera.ts'
 import type { Rect } from '../geometry/rect.ts'
 import { newId } from '../model/ids.ts'
-import type { CanvasObject, Id, Outline } from '../model/types.ts'
+import { isBox } from '../geometry/box.ts'
+import type { BoxObject, CanvasObject, Id, Outline } from '../model/types.ts'
 import { pageOrigin } from '../render/layout.ts'
 import { paintObject } from '../render/objects.ts'
 import { applyCamera } from '../render/SceneRenderer.ts'
@@ -40,6 +41,8 @@ export interface SelectionInfo {
   rect: { x: number; y: number; width: number; height: number }
   /** The single selected text box, if that is all that is selected. */
   textId: Id | null
+  /** The kind of the single selected picture, table or chart, if that is all that is selected. */
+  boxKind: BoxObject['type'] | null
   /** Whether the corner handles for resizing are shown. */
   scaling: boolean
   /** Color of the first selected object, for the color menu. */
@@ -150,6 +153,7 @@ export class SelectionController {
       count: sel.ids.length,
       rect: { x: a.x, y: a.y, width: b.x - a.x, height: b.y - a.y },
       textId: only?.type === 'text' ? only.id : null,
+      boxKind: only && isBox(only) ? only.type : null,
       scaling: this.scaling,
       color: objects[0] ? colorOf(objects[0]) : null,
       handleBelow: this.handleSide() === 'bottom',
@@ -286,6 +290,23 @@ export class SelectionController {
     const ids = new Set(sel.ids)
     const after = page.objects.map((o) => (ids.has(o.id) ? recolor(o, color) : o))
     this.ctx.history.execute(setPageObjects('Color', page.id, page.objects, after))
+  }
+
+  /** The selected object, when exactly one is selected. */
+  single(): CanvasObject | null {
+    const objects = this.selectedObjects()
+    return objects.length === 1 ? objects[0]! : null
+  }
+
+  /** Replaces the single selected object with a changed version of it (same id). */
+  replaceSingle(next: CanvasObject, label: string): void {
+    const sel = this.selection
+    const page = sel && this.ctx.doc.page(sel.pageId)
+    if (!sel || !page || sel.ids.length !== 1 || sel.ids[0] !== next.id) return
+    const after = page.objects.map((o) => (o.id === next.id ? next : o))
+    this.ctx.history.execute(setPageObjects(label, page.id, page.objects, after))
+    // The frame follows the new size.
+    this.select(sel.pageId, sel.ids)
   }
 
   /** Adds, changes or removes the contour around every selected object. */

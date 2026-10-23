@@ -4,7 +4,7 @@ import type { Rect } from './rect.ts'
 /** Pictures, tables and charts share this geometry: a rectangle turned around its center. */
 
 export function isBox(object: CanvasObject): object is BoxObject {
-  return object.type === 'image'
+  return object.type === 'image' || object.type === 'table'
 }
 
 export function boxCenter(box: BoxFrame): { x: number; y: number } {

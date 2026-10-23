@@ -1,10 +1,10 @@
-import { PaintBucket, Shapes, X } from 'lucide-react'
+import { PaintBucket, Shapes, Table2, X } from 'lucide-react'
 import type { Editor, EditorState } from '../../engine/editor/Editor.ts'
 
 const CHIP_HEIGHT = 48
 const GAP = 12
 
-/** Offers Auto shape or Auto fill right above what was just drawn. */
+/** Offers Auto shape, Auto fill or Auto table right above what was just drawn. */
 export function SuggestionChip({ editor, state }: { editor: Editor; state: EditorState }) {
   const s = state.suggestion
   if (!s || state.selection) return null
@@ -21,7 +21,13 @@ export function SuggestionChip({ editor, state }: { editor: Editor; state: Edito
         onClick={() => editor.acceptSuggestion()}
         className="flex h-10 items-center gap-2 rounded-control px-3 text-sm font-semibold hover:bg-white/10 active:bg-white/15"
       >
-        {s.kind === 'fill' ? <PaintBucket size={18} /> : <Shapes size={18} />}
+        {s.kind === 'fill' ? (
+          <PaintBucket size={18} />
+        ) : s.kind === 'table' ? (
+          <Table2 size={18} />
+        ) : (
+          <Shapes size={18} />
+        )}
         {s.label}
       </button>
       <button

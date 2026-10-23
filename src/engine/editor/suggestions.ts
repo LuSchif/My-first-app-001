@@ -10,7 +10,9 @@ import {
   type Region,
   type Shape,
 } from '../geometry/shapes.ts'
+import { detectTable } from '../geometry/tableDetect.ts'
 import { withPoints } from '../model/factory.ts'
+import { DEFAULT_TABLE_STYLE, tableFromGrid } from '../model/table.ts'
 import type { CanvasObject, FillObject, Id, StrokeObject } from '../model/types.ts'
 
 /** Strokes smaller than this (in points) are handwriting, not shapes. */
@@ -22,6 +24,32 @@ export type Suggestion =
   /** The first stroke becomes the shape; the others (sides drawn separately) are removed. */
   | { kind: 'shape'; strokeIds: Id[]; shape: Shape }
   | { kind: 'fill'; region: Region; color: string; opacity: number; removeIds: Id[] }
+  /** Hand-drawn grid lines become a table with the same spacing. */
+  | { kind: 'table'; strokeIds: Id[]; xs: number[]; ys: number[]; color: string; width: number }
+
+/** The strokes a suggestion changes or relies on. */
+export function suggestionIds(s: Suggestion): Id[] {
+  if (s.kind === 'fill') return [...s.region.sourceIds, ...s.removeIds]
+  return s.strokeIds
+}
+
+/** The page area a suggestion is about, for placing the offer next to it. */
+export function suggestionBounds(s: Suggestion): Rect {
+  if (s.kind === 'fill') return boundsOfPoints(s.region.points)
+  if (s.kind === 'shape') return boundsOfPoints(s.shape.points)
+  return {
+    minX: s.xs[0]!,
+    minY: s.ys[0]!,
+    maxX: s.xs[s.xs.length - 1]!,
+    maxY: s.ys[s.ys.length - 1]!,
+  }
+}
+
+export function suggestionLabel(s: Suggestion): string {
+  if (s.kind === 'fill') return 'Auto fill'
+  if (s.kind === 'shape') return `Auto shape · ${s.shape.label}`
+  return `Auto table · ${s.ys.length - 1} × ${s.xs.length - 1}`
+}
 
 /** Strokes shorter than this rarely outline an area; skipping them keeps the search fast. */
 const MIN_OUTLINE_SIZE = 12
@@ -84,6 +112,24 @@ export function suggestFor(
 
   const sb = boundsOfPoints(pts)
   const reach = Math.max(sb.maxX - sb.minX, sb.maxY - sb.minY) + 120
+
+  // Straight lines that complete a grid offer a table.
+  const table = detectTable(
+    outlineSources(objects, stroke.layerId, around(cx, cy, reach + 200)),
+    stroke.id,
+  )
+  if (table) {
+    const ids = objects.filter((o) => table.ids.includes(o.id)).map((o) => o.id)
+    return {
+      kind: 'table',
+      strokeIds: ids,
+      xs: table.xs,
+      ys: table.ys,
+      color: stroke.color,
+      width: stroke.width,
+    }
+  }
+
   const region = regionAt(
     outlineSources(objects, stroke.layerId, around(cx, cy, reach), stroke.id),
     cx,
@@ -153,6 +199,20 @@ export function applySuggestion(
   layerId: Id,
   newId: () => Id,
 ): CanvasObject[] {
+  if (suggestion.kind === 'table') {
+    const { xs, ys, color, width, strokeIds } = suggestion
+    const table = tableFromGrid(newId(), layerId, xs, ys, {
+      ...DEFAULT_TABLE_STYLE,
+      lineColor: color,
+      textColor: color,
+      lineWidth: width,
+    })
+    // The table takes the place of its first line in the drawing order.
+    const at = objects.findIndex((o) => strokeIds.includes(o.id))
+    const kept = objects.filter((o) => !strokeIds.includes(o.id))
+    kept.splice(Math.max(0, Math.min(at, kept.length)), 0, table)
+    return kept
+  }
   if (suggestion.kind === 'shape') {
     const { shape, strokeIds } = suggestion
     const [keep, ...drop] = strokeIds

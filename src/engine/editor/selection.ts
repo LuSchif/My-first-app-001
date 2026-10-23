@@ -113,7 +113,8 @@ export function withOutline(object: CanvasObject, outline: Outline | null): Canv
 /** The same object in another color: the ink of a stroke or fill, the text of a text box. */
 export function recolor(object: CanvasObject, color: string): CanvasObject {
   if (object.type === 'text') return { ...object, style: { ...object.style, color } }
-  // Pictures keep their own colors.
+  // A table takes the color for its lines; pictures keep their own colors.
+  if (object.type === 'table') return { ...object, style: { ...object.style, lineColor: color } }
   if (isBox(object)) return object
   return { ...object, color }
 }
@@ -164,13 +165,25 @@ function transformShape(object: CanvasObject, t: Transform): CanvasObject {
     const c = transformPoint(t, object.x + object.width / 2, object.y + object.height / 2)
     const width = object.width * t.scale
     const height = object.height * t.scale
-    return {
-      ...object,
+    const frame = {
       x: c.x - width / 2,
       y: c.y - height / 2,
       width,
       height,
       rotation: normalizeAngle(object.rotation + t.angle),
+    }
+    if (object.type !== 'table' || t.scale === 1) return { ...object, ...frame }
+    // A table grows as a whole: its spacing, lines and text.
+    return {
+      ...object,
+      ...frame,
+      columns: object.columns.map((w) => w * t.scale),
+      rows: object.rows.map((h) => h * t.scale),
+      style: {
+        ...object.style,
+        lineWidth: object.style.lineWidth * t.scale,
+        fontSize: object.style.fontSize * t.scale,
+      },
     }
   }
   if (object.type !== 'text') {
@@ -208,16 +221,21 @@ export function flipObject(
 ): CanvasObject {
   const fx = (x: number) => (axis === 'horizontal' ? 2 * cx - x : x)
   const fy = (y: number) => (axis === 'vertical' ? 2 * cy - y : y)
-  if (object.type === 'image') {
-    // A picture is mirrored in place, and moves to its mirrored position.
+  if (isBox(object)) {
+    // A box moves to its mirrored position; a picture is also mirrored in place, while a
+    // table stays readable.
     const c = boxCenter(object)
-    return {
+    const moved = {
       ...object,
       x: fx(c.x) - object.width / 2,
       y: fy(c.y) - object.height / 2,
       rotation: normalizeAngle(-object.rotation),
-      flipX: axis === 'horizontal' ? !object.flipX : object.flipX,
-      flipY: axis === 'vertical' ? !object.flipY : object.flipY,
+    }
+    if (moved.type !== 'image') return moved
+    return {
+      ...moved,
+      flipX: axis === 'horizontal' ? !moved.flipX : moved.flipX,
+      flipY: axis === 'vertical' ? !moved.flipY : moved.flipY,
     }
   }
   if (object.type !== 'text') {

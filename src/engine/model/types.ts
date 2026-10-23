@@ -64,7 +64,7 @@ export interface Page {
 export type CanvasObject = StrokeObject | TextObject | FillObject | BoxObject
 
 /** Objects that sit in a rectangle on the page: pictures, tables and charts. */
-export type BoxObject = ImageObject
+export type BoxObject = ImageObject | TableObject
 
 /**
  * A rectangle on the page: (x, y) is its top-left corner before rotation, and rotation (in
@@ -89,6 +89,35 @@ export interface ImageObject extends BoxFrame {
   flipX?: boolean
   flipY?: boolean
   outline?: Outline
+}
+
+/**
+ * A table. Column widths and row heights are in points and add up to the frame's width and
+ * height; they keep the spacing of a hand-drawn table it was made from.
+ */
+export interface TableObject extends BoxFrame {
+  id: Id
+  type: 'table'
+  layerId: Id
+  columns: number[]
+  rows: number[]
+  /** Cell text by row, then column. */
+  cells: string[][]
+  style: TableStyle
+  outline?: Outline
+}
+
+export interface TableStyle {
+  lineColor: string
+  /** In points. */
+  lineWidth: number
+  /** The first row is a header: filled, with bold text. */
+  header: boolean
+  headerFill: string
+  textColor: string
+  /** In points. */
+  fontSize: number
+  font: FontFamily
 }
 
 /** Image data for pictures, stored once and referred to by id. */

@@ -3,6 +3,7 @@ import { boundsOfPoints, type Rect } from '../geometry/rect.ts'
 import { traceStroke } from '../geometry/strokePath.ts'
 import type { CanvasObject, FillObject } from '../model/types.ts'
 import { paintImage } from './images.ts'
+import { paintTable } from './table.ts'
 import { paintStroke, strokeBounds } from './strokes.ts'
 import { paintText, textBounds } from './text.ts'
 
@@ -35,6 +36,7 @@ export function paintObject(ctx: CanvasRenderingContext2D, object: CanvasObject)
   if (object.type === 'stroke') paintStroke(ctx, object)
   else if (object.type === 'text') paintText(ctx, object)
   else if (object.type === 'image') paintImage(ctx, object)
+  else if (object.type === 'table') paintTable(ctx, object)
   else {
     ctx.globalAlpha = object.opacity
     ctx.fillStyle = object.color

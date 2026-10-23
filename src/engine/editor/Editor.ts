@@ -51,6 +51,9 @@ import {
   insertBelow,
   outlineSources,
   suggestFor,
+  suggestionBounds,
+  suggestionIds,
+  suggestionLabel,
   type Suggestion,
 } from './suggestions.ts'
 import {
@@ -89,7 +92,7 @@ export interface EditorState {
   /** Offer Auto shape and Auto fill after drawing. */
   suggest: boolean
   /** The offer currently shown, placed near what it would change. */
-  suggestion: { kind: 'shape' | 'fill'; label: string; rect: ScreenRect } | null
+  suggestion: { kind: 'shape' | 'fill' | 'table'; label: string; rect: ScreenRect } | null
   selection: SelectionInfo | null
   /** The stroke being edited with the path tool. */
   pathEdit: PathEditInfo | null
@@ -457,6 +460,16 @@ export class Editor {
     this.update({ snapRotation: on })
   }
 
+  /** The selected object, when exactly one is selected (e.g. a table to edit). */
+  selectedObject(): CanvasObject | null {
+    return this.selection.single()
+  }
+
+  /** Replaces the single selected object with a changed version, as one undo step. */
+  updateSelectedObject(next: CanvasObject, label: string): void {
+    this.selection.replaceSingle(next, label)
+  }
+
   /** Adds, changes or removes the contour around the selection. */
   setSelectionOutline(outline: Outline | null): void {
     if (outline) this.rememberColor(outline.color)
@@ -521,7 +534,7 @@ export class Editor {
     this.dismissSuggestion()
     if (!pending || !page) return
     const after = applySuggestion(page.objects, pending.suggestion, pending.layerId, newId)
-    const label = pending.suggestion.kind === 'shape' ? 'Auto shape' : 'Auto fill'
+    const label = suggestionLabel(pending.suggestion).split(' · ')[0]!
     this.history.execute(setPageObjects(label, page.id, page.objects, after))
   }
 
@@ -557,7 +570,7 @@ export class Editor {
     if (!pending) return
     const page = this.doc.page(pending.pageId)
     const s = pending.suggestion
-    const needed = s.kind === 'shape' ? s.strokeIds : [...s.region.sourceIds, ...s.removeIds]
+    const needed = suggestionIds(s)
     if (!page || !needed.every((id) => page.objects.some((o) => o.id === id))) {
       this.dismissSuggestion()
     }
@@ -575,12 +588,11 @@ export class Editor {
     const index = this.doc.notebook.pageIds.indexOf(pending.pageId)
     const page = this.doc.page(pending.pageId)
     const s = pending.suggestion
-    const points = page ? (s.kind === 'fill' ? s.region.points : s.shape.points) : null
-    if (index < 0 || !points) {
+    if (index < 0 || !page) {
       this.dismissSuggestion()
       return
     }
-    const b = boundsOfPoints(points)
+    const b = suggestionBounds(s)
     const o = pageOrigin(index)
     const { zoom, offsetX, offsetY } = this.camera
     const rect = {
@@ -589,8 +601,7 @@ export class Editor {
       width: (b.maxX - b.minX) * zoom,
       height: (b.maxY - b.minY) * zoom,
     }
-    const label = s.kind === 'shape' ? `Auto shape · ${s.shape.label}` : 'Auto fill'
-    this.update({ suggestion: { kind: s.kind, label, rect } })
+    this.update({ suggestion: { kind: s.kind, label: suggestionLabel(s), rect } })
   }
 
   setRecentColors(colors: string[]): void {

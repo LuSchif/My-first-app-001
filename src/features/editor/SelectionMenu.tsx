@@ -6,7 +6,10 @@ import {
   FlipVertical2,
   Layers,
   Scaling,
+  BetweenHorizontalEnd,
+  BetweenVerticalEnd,
   Scissors,
+  Table2,
   SquareRoundCorner,
   TextCursorInput,
   Trash2,
@@ -23,7 +26,9 @@ import {
   Switch,
   useClosePopover,
 } from '../../design/index.ts'
+import { addColumn, addRow } from '../../engine/model/table.ts'
 import type { Outline } from '../../engine/model/types.ts'
+import { TableEditor } from './TableEditor.tsx'
 import { useState } from 'react'
 
 const MENU_HEIGHT = 56
@@ -43,7 +48,7 @@ export function SelectionMenu({ editor, state }: { editor: Editor; state: Editor
     <div
       role="toolbar"
       aria-label={`${sel.count} selected`}
-      className="absolute z-10 flex w-max -translate-x-1/2 items-center gap-0.5 rounded-panel bg-ink p-1 text-ink-inverse shadow-overlay"
+      className="absolute z-10 flex w-max max-w-[calc(100vw-24px)] -translate-x-1/2 flex-wrap items-center justify-center gap-0.5 rounded-panel bg-ink p-1 text-ink-inverse shadow-overlay"
       style={{
         top: Math.max(72, top),
         left: `clamp(12rem, ${left}px, calc(100% - 12rem))`,
@@ -54,6 +59,7 @@ export function SelectionMenu({ editor, state }: { editor: Editor; state: Editor
           <TextCursorInput size={18} />
         </MenuButton>
       ) : null}
+      {sel.boxKind === 'table' ? <TableActions editor={editor} /> : null}
       <MenuButton label="Copy" onClick={() => editor.copySelection()}>
         <Copy size={18} />
       </MenuButton>
@@ -146,6 +152,35 @@ export function SelectionMenu({ editor, state }: { editor: Editor; state: Editor
         <Trash2 size={18} />
       </MenuButton>
     </div>
+  )
+}
+
+/** Editing a selected table, and growing it with the spacing it already has. */
+function TableActions({ editor }: { editor: Editor }) {
+  const [editing, setEditing] = useState(false)
+  const table = editor.selectedObject()
+  if (table?.type !== 'table') return null
+  return (
+    <>
+      <MenuButton label="Edit table" onClick={() => setEditing(true)}>
+        <Table2 size={18} />
+      </MenuButton>
+      <MenuButton
+        label="Add column"
+        iconOnly
+        onClick={() => editor.updateSelectedObject(addColumn(table), 'Add column')}
+      >
+        <BetweenVerticalEnd size={18} />
+      </MenuButton>
+      <MenuButton
+        label="Add row"
+        iconOnly
+        onClick={() => editor.updateSelectedObject(addRow(table), 'Add row')}
+      >
+        <BetweenHorizontalEnd size={18} />
+      </MenuButton>
+      <TableEditor editor={editor} table={table} open={editing} onOpenChange={setEditing} />
+    </>
   )
 }
 

@@ -432,7 +432,7 @@ function cornersOf(pts: Pt[], diag: number): Pt[] {
   return corners
 }
 
-function simplify(pts: Pt[], eps: number): Pt[] {
+export function simplify(pts: Pt[], eps: number): Pt[] {
   if (pts.length < 3) return pts
   const a = pts[0]!
   const b = pts[pts.length - 1]!
