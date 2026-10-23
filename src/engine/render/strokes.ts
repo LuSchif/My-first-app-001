@@ -10,7 +10,7 @@ export function strokePath(stroke: StrokeObject): Path2D {
   let path = paths.get(stroke)
   if (!path) {
     path = new Path2D()
-    traceStroke(path, stroke.points)
+    traceStroke(path, stroke.points, { closed: stroke.closed, straight: stroke.straight })
     paths.set(stroke, path)
   }
   return path

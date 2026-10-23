@@ -36,7 +36,18 @@ export function smoothPoints(raw: readonly number[]): number[] {
   return out
 }
 
-export function traceStroke(sink: PathSink, points: readonly number[]): void {
+export interface TraceOptions {
+  /** Connects the last point back to the first. */
+  closed?: boolean
+  /** Straight lines between the points (polygons) instead of a smooth curve. */
+  straight?: boolean
+}
+
+export function traceStroke(
+  sink: PathSink & { closePath?: () => void },
+  points: readonly number[],
+  options: TraceOptions = {},
+): void {
   const n = points.length / 2
   if (n === 0) return
   sink.moveTo(points[0]!, points[1]!)
@@ -45,7 +56,31 @@ export function traceStroke(sink: PathSink, points: readonly number[]): void {
     sink.lineTo(points[0]! + 0.001, points[1]!)
     return
   }
-  traceSegments(sink, points, 0, n - 1)
+  if (options.straight) {
+    for (let i = 1; i < n; i++) sink.lineTo(points[i * 2]!, points[i * 2 + 1]!)
+  } else if (options.closed) {
+    traceClosedSegments(sink, points)
+  } else {
+    traceSegments(sink, points, 0, n - 1)
+  }
+  if (options.closed) sink.closePath?.()
+}
+
+/** A smooth loop: every segment, including last-to-first, uses its wrapped-around neighbours. */
+function traceClosedSegments(sink: PathSink, points: readonly number[]): void {
+  const n = points.length / 2
+  const at = (i: number) => {
+    const k = ((i % n) + n) % n
+    return [points[k * 2]!, points[k * 2 + 1]!] as const
+  }
+  for (let i = 0; i < n; i++) {
+    const [x0, y0] = at(i - 1)
+    const [x1, y1] = at(i)
+    const [x2, y2] = at(i + 1)
+    const [x3, y3] = at(i + 2)
+    const [c1x, c1y, c2x, c2y] = catmullRomControls(x0, y0, x1, y1, x2, y2, x3, y3)
+    sink.bezierCurveTo(c1x, c1y, c2x, c2y, x2, y2)
+  }
 }
 
 /**

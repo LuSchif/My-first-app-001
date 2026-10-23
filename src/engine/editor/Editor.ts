@@ -23,12 +23,22 @@ import {
 import { contentHeight, PAGE_PITCH, pageIndexAt, pageOrigin } from '../render/layout.ts'
 import { enterPage, renderScene, type View } from '../render/SceneRenderer.ts'
 import { paintStroke, setInkStyle, strokeBounds } from '../render/strokes.ts'
-import { smoothedAt, smoothPoints, traceSegments } from '../geometry/strokePath.ts'
+import { regionAt } from '../geometry/shapes.ts'
+import { smoothedAt, smoothPoints, traceSegments, traceStroke } from '../geometry/strokePath.ts'
+import { boundsOfPoints } from '../geometry/rect.ts'
 import { drawBroom } from '../render/broomGlyph.ts'
 import { objectBounds, paintObject } from '../render/objects.ts'
 import { invalidateTextLayouts } from '../render/text.ts'
 import type { EditorContext } from './context.ts'
 import { hitsObject, recolor } from './selection.ts'
+import {
+  applySuggestion,
+  fillFor,
+  insertBelow,
+  outlineSources,
+  suggestFor,
+  type Suggestion,
+} from './suggestions.ts'
 import { SelectionController, type LassoMode, type SelectionInfo } from './SelectionController.ts'
 import { DEFAULT_TEXT_STYLE, TextController } from './TextController.ts'
 
@@ -51,6 +61,10 @@ export interface EditorState {
   snapRotation: boolean
   /** The five most recently used colors, newest first. */
   recentColors: string[]
+  /** Offer Auto shape and Auto fill after drawing. */
+  suggest: boolean
+  /** The offer currently shown, placed near what it would change. */
+  suggestion: { kind: 'shape' | 'fill'; label: string; rect: ScreenRect } | null
   selection: SelectionInfo | null
   hasClipboard: boolean
 }
@@ -96,6 +110,13 @@ interface EraseSession {
 
 type Session = InkSession | EraseSession
 
+interface ScreenRect {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
 interface DeviceRect {
   x: number
   y: number
@@ -127,6 +148,7 @@ export class Editor {
   private textTap: { pointerId: number; x: number; y: number } | null = null
   /** Screen pixels at the bottom hidden by the keyboard and format bar while typing. */
   private bottomInset = 0
+  private pending: { pageId: Id; layerId: Id; suggestion: Suggestion } | null = null
 
   private camera: Camera = { offsetX: 0, offsetY: TOP_INSET, zoom: 1 }
   private view: View = { width: 0, height: 0, dpr: 1 }
@@ -169,6 +191,8 @@ export class Editor {
       lassoMode: 'freehand',
       snapRotation: false,
       recentColors: DEFAULT_RECENT_COLORS,
+      suggest: true,
+      suggestion: null,
       selection: null,
       hasClipboard: false,
     }
@@ -265,6 +289,7 @@ export class Editor {
   }
 
   setTool(tool: ToolId): void {
+    this.dismissSuggestion()
     if (tool !== 'text') this.text.finish()
     if (tool !== 'lasso') this.selection.clear()
     this.update({ tool })
@@ -288,6 +313,11 @@ export class Editor {
 
   flipSelection(axis: 'horizontal' | 'vertical'): void {
     this.selection.flip(axis)
+  }
+
+  recolorSelection(color: string): void {
+    this.rememberColor(color)
+    this.selection.recolor(color)
   }
 
   setSelectionScaling(on: boolean): void {
@@ -331,6 +361,72 @@ export class Editor {
     this.text.edit(page.id, object)
   }
 
+  setSuggest(on: boolean): void {
+    if (!on) this.dismissSuggestion()
+    this.update({ suggest: on })
+  }
+
+  /** Turns the drawn stroke into the recognized shape, or fills the colored-in area. */
+  acceptSuggestion(): void {
+    const pending = this.pending
+    const page = pending && this.doc.page(pending.pageId)
+    this.dismissSuggestion()
+    if (!pending || !page) return
+    const after = applySuggestion(page.objects, pending.suggestion, pending.layerId, newId)
+    const label = pending.suggestion.kind === 'shape' ? 'Auto shape' : 'Auto fill'
+    this.history.execute(setPageObjects(label, page.id, page.objects, after))
+  }
+
+  dismissSuggestion(): void {
+    if (!this.pending && !this._state.suggestion) return
+    this.pending = null
+    this.update({ suggestion: null })
+  }
+
+  /** Drops an offer whose strokes changed or disappeared (e.g. erased). */
+  private checkSuggestion(): void {
+    const pending = this.pending
+    if (!pending) return
+    const page = this.doc.page(pending.pageId)
+    const s = pending.suggestion
+    const needed = s.kind === 'shape' ? [s.strokeId] : [...s.region.sourceIds, ...s.removeIds]
+    if (!page || !needed.every((id) => page.objects.some((o) => o.id === id))) {
+      this.dismissSuggestion()
+    }
+  }
+
+  private offer(pageId: Id, layerId: Id, suggestion: Suggestion): void {
+    this.pending = { pageId, layerId, suggestion }
+    this.placeSuggestion()
+  }
+
+  /** Keeps the offer next to what it changes as the page moves. */
+  private placeSuggestion(): void {
+    const pending = this.pending
+    if (!pending) return
+    const index = this.doc.notebook.pageIds.indexOf(pending.pageId)
+    const page = this.doc.page(pending.pageId)
+    const s = pending.suggestion
+    const drawn = s.kind === 'shape' ? page?.objects.find((o) => o.id === s.strokeId) : undefined
+    const points =
+      s.kind === 'fill' ? s.region.points : drawn?.type === 'stroke' ? drawn.points : null
+    if (index < 0 || !points) {
+      this.dismissSuggestion()
+      return
+    }
+    const b = boundsOfPoints(points)
+    const o = pageOrigin(index)
+    const { zoom, offsetX, offsetY } = this.camera
+    const rect = {
+      x: (b.minX + o.x) * zoom + offsetX,
+      y: (b.minY + o.y) * zoom + offsetY,
+      width: (b.maxX - b.minX) * zoom,
+      height: (b.maxY - b.minY) * zoom,
+    }
+    const label = s.kind === 'shape' ? `Auto shape · ${s.shape.label}` : 'Auto fill'
+    this.update({ suggestion: { kind: s.kind, label, rect } })
+  }
+
   setRecentColors(colors: string[]): void {
     if (colors.length > 0) this.update({ recentColors: colors.slice(0, RECENT_LIMIT) })
   }
@@ -362,7 +458,18 @@ export class Editor {
     this.tip.save()
     enterPage(this.tip, this.camera, dpr, target.pageIndex)
     const zoom = this.camera.zoom
-    if (target.object) {
+    if (target.region) {
+      const path = new Path2D()
+      traceStroke(path, target.region.points, { closed: true, straight: !target.region.smooth })
+      this.tip.globalAlpha = 0.85
+      this.tip.fillStyle = color
+      this.tip.fill(path)
+      this.tip.globalAlpha = 1
+      this.tip.lineWidth = 2 / zoom
+      this.tip.setLineDash([6 / zoom, 4 / zoom])
+      this.tip.strokeStyle = '#795a46'
+      this.tip.stroke(path)
+    } else if (target.object) {
       paintObject(this.tip, recolor(target.object, color))
       const b = objectBounds(target.object)
       const pad = 6 / zoom
@@ -392,14 +499,21 @@ export class Editor {
     this.clearTip()
   }
 
-  /** Dropped on ink or text, the color recolors it; dropped on paper, it colors the page. */
+  /**
+   * Dropped on ink, text or a filled area, the color recolors it; inside a closed outline, it
+   * fills that area; on empty paper, it colors the page.
+   */
   dropColor(clientX: number, clientY: number, color: string): void {
     this.clearTip()
     const target = this.colorTarget(clientX, clientY)
     if (!target) return
     this.rememberColor(color)
     const page = target.page
-    if (target.object) {
+    if (target.region && target.layerId) {
+      const fill = fillFor(target.region, color, 1, target.layerId, newId())
+      const after = insertBelow(page.objects, fill, target.region.sourceIds)
+      this.history.execute(setPageObjects('Fill', page.id, page.objects, after))
+    } else if (target.object) {
       const id = target.object.id
       const after = page.objects.map((o) => (o.id === id ? recolor(o, color) : o))
       this.history.execute(setPageObjects('Color', page.id, page.objects, after))
@@ -419,13 +533,16 @@ export class Editor {
     const y = world.y - o.y
     const layer = this.activeLayer()
     const slop = 8 / this.camera.zoom
-    const object =
-      layer && !layer.locked && layer.visible
-        ? [...page.objects]
-            .reverse()
-            .find((obj) => obj.layerId === layer.id && hitsObject(obj, x, y, slop))
-        : undefined
-    return { page, pageIndex, object }
+    const usable = layer && !layer.locked && layer.visible ? layer : undefined
+    const object = usable
+      ? [...page.objects]
+          .reverse()
+          .find((obj) => obj.layerId === usable.id && hitsObject(obj, x, y, slop))
+      : undefined
+    // Inside a closed outline (and not on a stroke or an existing fill): fill that area.
+    const region =
+      usable && !object ? regionAt(outlineSources(page.objects, usable.id), x, y) : null
+    return { page, pageIndex, object, region, layerId: usable?.id }
   }
 
   private rememberColor(color: string): void {
@@ -452,12 +569,14 @@ export class Editor {
   undo(): void {
     if (this.session || this.selection.busy) return
     this.text.finish()
+    this.dismissSuggestion()
     this.history.undo()
   }
 
   redo(): void {
     if (this.session || this.selection.busy) return
     this.text.finish()
+    this.dismissSuggestion()
     this.history.redo()
   }
 
@@ -527,6 +646,7 @@ export class Editor {
     // The editor already painted its own new stroke; everything else needs a redraw.
     if (!this.paintedByEditor) this.requestRender()
     this.selection.onDocumentChange()
+    this.checkSuggestion()
   }
 
   /** Shares what the selection and text controllers need, without exposing the whole editor. */
@@ -622,7 +742,8 @@ export class Editor {
     )
     if (pageIndex !== this._state.pageIndex) this.update({ pageIndex })
     this.requestRender()
-    // Frames, handles and the text field follow the page.
+    // Frames, handles, offers and the text field follow the page.
+    if (this.pending) this.placeSuggestion()
     if (this.selection.active) {
       this.selection.draw()
       this.syncControllers()
@@ -691,6 +812,18 @@ export class Editor {
     this.momentum = null
     if (e.pointerType === 'pen') this.penSeen = true
 
+    // A finger on a selection's frame or rotate handle moves or rotates it instead of panning.
+    if (
+      e.pointerType === 'touch' &&
+      this.touches.size === 0 &&
+      this._state.tool === 'lasso' &&
+      !this.selection.busy &&
+      this.selection.grabs(this.screenPos(e))
+    ) {
+      this.host.setPointerCapture(e.pointerId)
+      this.selection.pointerDown(e)
+      return
+    }
     if (e.pointerType === 'touch') {
       this.touches.set(e.pointerId, this.screenPos(e))
       this.host.setPointerCapture(e.pointerId)
@@ -725,6 +858,8 @@ export class Editor {
     }
     if (this.selection.busy || this.textTap) return
 
+    // An offer is meant for the stroke just drawn; the next action moves on.
+    this.dismissSuggestion()
     const tool = this._state.tool
     if (tool === 'lasso') {
       this.host.setPointerCapture(e.pointerId)
@@ -1128,6 +1263,10 @@ export class Editor {
       this.paintedByEditor = onTop
       this.history.execute(setPageObjects('Draw', page.id, page.objects, [...page.objects, stroke]))
       this.paintedByEditor = false
+      if (this._state.suggest) {
+        const suggestion = suggestFor(this.doc.page(page.id)?.objects ?? [], stroke)
+        if (suggestion) this.offer(page.id, stroke.layerId, suggestion)
+      }
     }
     this.clearArea(this.wet, s.wetDirty)
     this.clearTip()
@@ -1188,6 +1327,16 @@ export class Editor {
       let changed = false
       const next: CanvasObject[] = []
       for (const object of page.objects) {
+        // A filled area goes as a whole when the broom touches it.
+        if (
+          object.type === 'fill' &&
+          object.layerId === layerId &&
+          intersects(objectBounds(object), probe) &&
+          (hitsObject(object, cx, cy, 0) || strokeTouchesCircle(object.points, cx, cy, radius))
+        ) {
+          changed = true
+          continue
+        }
         // The broom sweeps ink; text boxes are removed with the lasso.
         if (
           object.type !== 'stroke' ||

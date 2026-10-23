@@ -10,7 +10,7 @@ import {
   Trash2,
 } from 'lucide-react'
 import type { Editor, EditorState } from '../../engine/editor/Editor.ts'
-import { Button } from '../../design/index.ts'
+import { Button, ColorPicker, Popover, PopoverContent, PopoverTrigger } from '../../design/index.ts'
 
 const MENU_HEIGHT = 56
 const GAP = 14
@@ -44,6 +44,27 @@ export function SelectionMenu({ editor, state }: { editor: Editor; state: Editor
       <MenuButton label="Cut" onClick={() => editor.cutSelection()}>
         <Scissors size={18} />
       </MenuButton>
+      <Popover>
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            aria-label="Color"
+            className="flex h-11 items-center gap-1.5 rounded-control px-3 text-sm font-semibold hover:bg-white/10 active:bg-white/15"
+          >
+            <span
+              className="size-[18px] rounded-full ring-2 ring-white/80"
+              style={{ background: sel.color ?? '#3e2d25' }}
+            />
+            Color
+          </button>
+        </PopoverTrigger>
+        <PopoverContent className="w-80">
+          <ColorPicker
+            value={sel.color ?? '#3e2d25'}
+            onChange={(color) => editor.recolorSelection(color)}
+          />
+        </PopoverContent>
+      </Popover>
       <MenuButton
         label="Scale"
         pressed={sel.scaling}

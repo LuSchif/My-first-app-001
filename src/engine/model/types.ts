@@ -59,7 +59,7 @@ export interface Page {
   updatedAt: number
 }
 
-export type CanvasObject = StrokeObject | TextObject
+export type CanvasObject = StrokeObject | TextObject | FillObject
 
 export type InkTool = 'pen' | 'highlighter'
 
@@ -74,6 +74,23 @@ export interface StrokeObject {
   opacity: number
   /** Flat list of page coordinates in points: x0, y0, x1, y1, … */
   points: number[]
+  /** The last point connects back to the first (shapes made with Auto shape). */
+  closed?: boolean
+  /** Straight lines between the points instead of a smooth curve (polygons). */
+  straight?: boolean
+}
+
+/** A filled area, e.g. the inside of a drawn circle. Drawn below its outline. */
+export interface FillObject {
+  id: Id
+  type: 'fill'
+  layerId: Id
+  color: string
+  opacity: number
+  /** Outline of the area in page coordinates: x0, y0, x1, y1, … */
+  points: number[]
+  /** Whether the outline is a smooth curve through the points or straight edges. */
+  smooth: boolean
 }
 
 export type FontFamily = 'sans' | 'serif' | 'hand' | 'mono'

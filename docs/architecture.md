@@ -48,6 +48,15 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
 - The editor keeps the five most recent colors (stored per device). Dragging one onto ink or
   text recolors it; dropping it on empty paper sets the page color (`Page.background`).
 
+## Shapes and fills
+
+- `engine/geometry/shapes.ts` finds closed outlines (a stroke whose ends meet or that crosses
+  itself, or several strokes joined end to end) and recognizes circles, ellipses, triangles,
+  rectangles, other quadrilaterals, pentagons and U-shaped curves. A robustness test draws each
+  kind 70 times with random shaky lines.
+- After drawing, the editor offers Auto shape (strokes from 36 pt) or Auto fill (when a stroke
+  colors in a closed outline). Fills are `FillObject`s placed directly below their outline.
+
 ## Data safety
 
 - Autosave writes per page, shortly after each change and on `pagehide`.

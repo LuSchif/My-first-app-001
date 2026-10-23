@@ -33,6 +33,7 @@ import { useVisualViewportBottom } from '../../lib/useVisualViewport.ts'
 import type { Autosave } from '../../storage/Autosave.ts'
 import { RecentColors } from './RecentColors.tsx'
 import { PasteButton, SelectionMenu } from './SelectionMenu.tsx'
+import { SuggestionChip } from './SuggestionChip.tsx'
 import { TextFormatControls } from './TextFormatControls.tsx'
 
 const HIGHLIGHTER_COLORS = [
@@ -178,6 +179,7 @@ export function Toolbar({
       {state.editingText ? <FormatBar editor={editor} state={state} /> : null}
       <SelectionMenu editor={editor} state={state} />
       <RecentColors editor={editor} state={state} />
+      <SuggestionChip editor={editor} state={state} />
       <PasteButton editor={editor} state={state} />
     </>
   )
@@ -231,7 +233,7 @@ function LassoSettings({ editor, state }: { editor: Editor; state: EditorState }
       <div className="mt-1 border-t border-line pt-2">
         <Switch
           label="Snap rotation"
-          hint="Settle on 15° steps such as 30°, 45°, 90° and 180°"
+          hint="Rotate in 45° steps: 0°, 45°, 90°, 135°, 180° …"
           checked={state.snapRotation}
           onChange={(on) => editor.setSnapRotation(on)}
         />
@@ -272,6 +274,14 @@ function PenSettings({ editor, state }: { editor: Editor; state: EditorState }) 
         format={(v) => `${v}%`}
       />
       <ColorPicker value={pen.color} onChange={(color) => editor.setPen({ color })} />
+      <div className="border-t border-line pt-2">
+        <Switch
+          label="Shape and fill suggestions"
+          hint="Offer Auto shape for drawn shapes and Auto fill when coloring one in"
+          checked={state.suggest}
+          onChange={(on) => editor.setSuggest(on)}
+        />
+      </div>
     </>
   )
 }

@@ -23,9 +23,8 @@ import {
 const HANDLE_RADIUS = 9
 const HANDLE_HIT = 26
 const ROTATE_OFFSET = 44
-/** With snapping on, rotation settles on multiples of this when within SNAP_WITHIN. */
-const SNAP_STEP = Math.PI / 12
-const SNAP_WITHIN = (4 * Math.PI) / 180
+/** With snapping on, rotation moves in steps of 45°: 0, 45, 90, 135, 180 … */
+const SNAP_STEP = Math.PI / 4
 const DEGREE = Math.PI / 180
 const FRAME_PAD = 6
 const TAP_PX = 6
@@ -39,6 +38,8 @@ export interface SelectionInfo {
   textId: Id | null
   /** Whether the corner handles for resizing are shown. */
   scaling: boolean
+  /** Color of the first selected object, for the color menu. */
+  color: string | null
 }
 
 type Handle = 'nw' | 'ne' | 'se' | 'sw' | 'rotate'
@@ -85,7 +86,7 @@ let clipboard: { objects: CanvasObject[]; sourcePageId: Id } | null = null
  */
 export class SelectionController {
   mode: LassoMode = 'freehand'
-  /** Rotation snaps to 15° steps (0, 15, 30, 45, 90, 180 …) when close. */
+  /** Rotation moves in 45° steps (0, 45, 90, 135, 180 …) instead of single degrees. */
   snapRotation = false
   /**
    * Resizing is opt-in: a selection only moves and rotates until "Scale" is turned on, so a drag
@@ -127,6 +128,7 @@ export class SelectionController {
       rect: { x: a.x, y: a.y, width: b.x - a.x, height: b.y - a.y },
       textId: only?.type === 'text' ? only.id : null,
       scaling: this.scaling,
+      color: objects[0] ? colorOf(objects[0]) : null,
     }
   }
 
@@ -494,9 +496,14 @@ export class SelectionController {
       drag.transform = { ...t, scale: Math.max(0.05, dist / drag.startDist) }
     } else {
       let angle = Math.atan2(p.y - t.cy, p.x - t.cx) - drag.startAngle
-      const snapped = Math.round(angle / SNAP_STEP) * SNAP_STEP
-      if (this.snapRotation && Math.abs(angle - snapped) < SNAP_WITHIN) angle = snapped
-      else angle = Math.round(angle / DEGREE) * DEGREE
+      if (this.snapRotation) {
+        // Text boxes know their own angle, so they snap to absolute angles; ink snaps in steps
+        // from where it started.
+        const base = commonTextRotation(drag.originals)
+        angle = Math.round((base + angle) / SNAP_STEP) * SNAP_STEP - base
+      } else {
+        angle = Math.round(angle / DEGREE) * DEGREE
+      }
       drag.transform = { ...t, angle }
     }
     this.draw()
@@ -573,6 +580,11 @@ export class SelectionController {
     return near(this.rotateHandle(corners).handle) ? 'rotate' : null
   }
 
+  /** Whether a pointer at this spot would move, rotate or resize the selection. */
+  grabs(screen: Point): boolean {
+    return this.selection !== null && (this.handleAt(screen) !== null || this.insideFrame(screen))
+  }
+
   private insideFrame(screen: Point): boolean {
     const info = this.info()
     if (!info) return false
@@ -585,4 +597,16 @@ export class SelectionController {
       screen.y <= y + height + pad
     )
   }
+}
+
+function colorOf(object: CanvasObject): string {
+  return object.type === 'text' ? object.style.color : object.color
+}
+
+function commonTextRotation(objects: CanvasObject[]): number {
+  const first = objects[0]
+  if (first?.type !== 'text') return 0
+  return objects.every((o) => o.type === 'text' && o.rotation === first.rotation)
+    ? first.rotation
+    : 0
 }

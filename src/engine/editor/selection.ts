@@ -34,6 +34,10 @@ export function lassoCatches(object: CanvasObject, poly: Polygon): boolean {
   for (let i = 0; i < pts.length; i += 2) {
     if (pointInPolygon(pts[i]!, pts[i + 1]!, poly)) return true
   }
+  // A loop drawn inside a filled area catches that area.
+  if (object.type === 'fill' && poly.length >= 2 && pointInPolygon(poly[0]!, poly[1]!, pts)) {
+    return true
+  }
   // A thin loop can pass between two samples of a long straight segment.
   for (let i = 0; i + 3 < pts.length; i += 2) {
     if (segmentCrossesPolygon(pts[i]!, pts[i + 1]!, pts[i + 2]!, pts[i + 3]!, poly)) return true
@@ -87,15 +91,16 @@ function segmentsIntersect(
   return d1 * d2 < 0 && d3 * d4 < 0
 }
 
-/** The same object in another color: the ink of a stroke, the text of a text box. */
+/** The same object in another color: the ink of a stroke or fill, the text of a text box. */
 export function recolor(object: CanvasObject, color: string): CanvasObject {
-  if (object.type === 'stroke') return { ...object, color }
-  return { ...object, style: { ...object.style, color } }
+  if (object.type === 'text') return { ...object, style: { ...object.style, color } }
+  return { ...object, color }
 }
 
 /** Whether a tap at (x, y) with the given tolerance lands on the object. */
 export function hitsObject(object: CanvasObject, x: number, y: number, slop: number): boolean {
   if (object.type === 'text') return textContains(object, x, y, slop)
+  if (object.type === 'fill') return pointInPolygon(x, y, object.points)
   return strokeTouchesCircle(object.points, x, y, object.width / 2 + slop)
 }
 
@@ -127,12 +132,13 @@ export function transformPoint(t: Transform, x: number, y: number): { x: number;
 
 /** Applies a transform permanently: strokes get new points, text boxes a new frame and size. */
 export function transformObject(object: CanvasObject, t: Transform): CanvasObject {
-  if (object.type === 'stroke') {
+  if (object.type !== 'text') {
     const points: number[] = []
     for (let i = 0; i < object.points.length; i += 2) {
       const p = transformPoint(t, object.points[i]!, object.points[i + 1]!)
       points.push(p.x, p.y)
     }
+    if (object.type === 'fill') return { ...object, points }
     return { ...object, points, width: object.width * t.scale }
   }
   const center = textCenter(object)
@@ -159,7 +165,7 @@ export function flipObject(
 ): CanvasObject {
   const fx = (x: number) => (axis === 'horizontal' ? 2 * cx - x : x)
   const fy = (y: number) => (axis === 'vertical' ? 2 * cy - y : y)
-  if (object.type === 'stroke') {
+  if (object.type !== 'text') {
     const points: number[] = []
     for (let i = 0; i < object.points.length; i += 2) {
       points.push(fx(object.points[i]!), fy(object.points[i + 1]!))
