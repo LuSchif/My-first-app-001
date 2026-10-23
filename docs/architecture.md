@@ -51,14 +51,16 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
 
 ## Roadmap
 
-| Package | Scope                                                                   | Status      |
-| ------- | ----------------------------------------------------------------------- | ----------- |
-| 0       | Ink spike (`spikes/ink-test.html`): validate writing feel on iPad       | Done        |
-| 1a      | Project setup: Vite, TypeScript, Tailwind, oxlint, Prettier, Vitest, CI | Done        |
-| 1b      | Design system: tokens, typefaces, base components, broom icon           | Done        |
-| 1c      | Document model, Dexie storage, command system                           |             |
-| 2a–2b   | Dashboard, folders, folder preview animation, folder view               |             |
-| 3       | Notebook creation dialog with cover designer and paper carousel         |             |
-| 4a–4c   | Engine: camera, pages, paper, fineliner, highlighter, undo, autosave    |             |
-| 5a–5d   | Broom, lasso and transforms, text boxes, layer basics, PWA, backup      | MVP         |
-| 6–10    | Full layers, text, tables, charts, colour drag and drop, PDF, polish    | Version 1.0 |
+The editor was moved ahead of the dashboard (packages 2–3) so the tools can be tried early.
+
+| Package | Scope                                                                     | Status      |
+| ------- | ------------------------------------------------------------------------- | ----------- |
+| 0       | Ink spike (`spikes/ink-test.html`): validate writing feel on iPad         | Done        |
+| 1a      | Project setup: Vite, TypeScript, Tailwind, oxlint, Prettier, Vitest, CI   | Done        |
+| 1b      | Design system: tokens, typefaces, base components, broom icon             | Done        |
+| 1c      | Document model, Dexie storage, command system                             | Done        |
+| 2a–2b   | Dashboard, folders, folder preview animation, folder view                 |             |
+| 3       | Notebook creation dialog with cover designer and paper carousel           |             |
+| 4a–4c   | Engine: camera, pages, paper, fineliner, highlighter, undo, autosave      | Done        |
+| 5a–5d   | Broom (done), lasso and transforms, text boxes, layer basics, PWA, backup | MVP         |
+| 6–10    | Full layers, text, tables, charts, colour drag and drop, PDF, polish      | Version 1.0 |
