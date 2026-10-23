@@ -8,11 +8,22 @@ export interface SliderProps {
   max: number
   step?: number
   onChange: (value: number) => void
+  /** Called once when the user lets go, e.g. to record one undo step for the whole drag. */
+  onCommit?: (value: number) => void
   /** Shown next to the label, e.g. "2.5 pt". */
   format?: (value: number) => string
 }
 
-export function Slider({ label, value, min, max, step = 1, onChange, format }: SliderProps) {
+export function Slider({
+  label,
+  value,
+  min,
+  max,
+  step = 1,
+  onChange,
+  onCommit,
+  format,
+}: SliderProps) {
   const id = useId()
   return (
     <div className="grid gap-2">
@@ -29,6 +40,7 @@ export function Slider({ label, value, min, max, step = 1, onChange, format }: S
         max={max}
         step={step}
         onValueChange={([v]) => v !== undefined && onChange(v)}
+        onValueCommit={([v]) => v !== undefined && onCommit?.(v)}
         aria-labelledby={id}
       >
         <RadixSlider.Track className="relative h-1.5 grow rounded-full bg-surface-sunken">

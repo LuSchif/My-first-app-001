@@ -1,5 +1,5 @@
 import type { NotebookDocument } from '../document/NotebookDocument.ts'
-import type { CanvasObject, Id, Page } from '../model/types.ts'
+import type { CanvasObject, Id, LayerDef, Page } from '../model/types.ts'
 
 /** A reversible change to a document. */
 export interface Command {
@@ -34,6 +34,15 @@ export function setPageBackground(
     label: 'Page color',
     apply: (doc) => doc.setBackground(pageId, after),
     revert: (doc) => doc.setBackground(pageId, before),
+  }
+}
+
+/** Replaces the notebook's layer list (add, remove, reorder, rename, show, lock, opacity). */
+export function setLayers(label: string, before: LayerDef[], after: LayerDef[]): Command {
+  return {
+    label,
+    apply: (doc) => doc.updateNotebook({ layers: after }),
+    revert: (doc) => doc.updateNotebook({ layers: before }),
   }
 }
 

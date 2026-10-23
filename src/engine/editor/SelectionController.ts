@@ -125,6 +125,11 @@ export class SelectionController {
     return this.drag !== null || this.lasso !== null
   }
 
+  /** The selected objects' page and ids, if anything is selected. */
+  get current(): { pageId: Id; ids: Id[] } | null {
+    return this.selection ? { pageId: this.selection.pageId, ids: this.selection.ids } : null
+  }
+
   get hasClipboard(): boolean {
     return clipboard !== null
   }
@@ -273,6 +278,17 @@ export class SelectionController {
     const ids = new Set(sel.ids)
     const after = page.objects.map((o) => (ids.has(o.id) ? recolor(o, color) : o))
     this.ctx.history.execute(setPageObjects('Color', page.id, page.objects, after))
+  }
+
+  /** Moves the selected objects onto another layer, on top of what is already there. */
+  moveToLayer(layerId: Id): void {
+    const sel = this.selection
+    const page = sel && this.ctx.doc.page(sel.pageId)
+    if (!sel || !page) return
+    const ids = new Set(sel.ids)
+    const moved = page.objects.filter((o) => ids.has(o.id)).map((o) => ({ ...o, layerId }))
+    const after = [...page.objects.filter((o) => !ids.has(o.id)), ...moved]
+    this.ctx.history.execute(setPageObjects('Move to layer', page.id, page.objects, after))
   }
 
   deleteSelection(): void {

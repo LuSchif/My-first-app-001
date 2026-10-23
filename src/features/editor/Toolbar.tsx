@@ -3,10 +3,13 @@ import {
   ChevronLeft,
   CloudAlert,
   Copy,
+  EyeOff,
   FilePlus2,
   Highlighter,
   Lasso,
+  Layers,
   LoaderCircle,
+  Lock,
   PenLine,
   Redo2,
   Trash2,
@@ -31,6 +34,7 @@ import {
 } from '../../design/index.ts'
 import { useVisualViewportBottom } from '../../lib/useVisualViewport.ts'
 import type { Autosave } from '../../storage/Autosave.ts'
+import { LayersPanel } from './LayersPanel.tsx'
 import { RecentColors } from './RecentColors.tsx'
 import { PasteButton, SelectionMenu } from './SelectionMenu.tsx'
 import { SuggestionChip } from './SuggestionChip.tsx'
@@ -64,7 +68,8 @@ export function Toolbar({
     (fn) => editor.subscribe(fn),
     () => editor.state,
   )
-  const [panel, setPanel] = useState<ToolId | 'pages' | null>(null)
+  const [panel, setPanel] = useState<ToolId | 'pages' | 'layers' | null>(null)
+  const activeLayer = state.layers.find((l) => l.id === state.activeLayerId)
 
   // The first tap selects a tool; tapping the selected tool again opens its settings.
   const toolButton = (tool: ToolId, label: string, icon: ReactNode, settings?: ReactNode) =>
@@ -159,6 +164,31 @@ export function Toolbar({
         <div className="pointer-events-auto flex items-center gap-1 rounded-panel bg-surface-raised/95 p-1.5 shadow-raised backdrop-blur">
           <SaveStatus autosave={autosave} />
           <Popover
+            open={panel === 'layers'}
+            onOpenChange={(open) => setPanel(open ? 'layers' : null)}
+          >
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                aria-label={`Layers, active: ${activeLayer?.name ?? ''}`}
+                className="flex h-11 max-w-[14ch] items-center gap-1.5 rounded-control px-3 text-sm font-semibold hover:bg-hover"
+              >
+                <Layers size={18} className="shrink-0" />
+                {state.layers.length > 1 ? (
+                  <span className="truncate">{activeLayer?.name}</span>
+                ) : null}
+                {activeLayer && !activeLayer.visible ? (
+                  <EyeOff size={14} className="shrink-0 text-danger" />
+                ) : activeLayer?.locked ? (
+                  <Lock size={14} className="shrink-0 text-danger" />
+                ) : null}
+              </button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-80">
+              <LayersPanel editor={editor} state={state} />
+            </PopoverContent>
+          </Popover>
+          <Popover
             open={panel === 'pages'}
             onOpenChange={(open) => setPanel(open ? 'pages' : null)}
           >
@@ -181,6 +211,14 @@ export function Toolbar({
       <RecentColors editor={editor} state={state} />
       <SuggestionChip editor={editor} state={state} />
       <PasteButton editor={editor} state={state} />
+      {state.notice ? (
+        <div
+          role="status"
+          className="pointer-events-none absolute inset-x-0 bottom-[calc(84px+env(safe-area-inset-bottom))] z-20 mx-auto w-fit max-w-[calc(100%-24px)] rounded-panel bg-ink px-4 py-3 text-sm font-semibold text-ink-inverse shadow-overlay"
+        >
+          {state.notice}
+        </div>
+      ) : null}
     </>
   )
 }

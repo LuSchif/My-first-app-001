@@ -2,6 +2,7 @@ import {
   compound,
   insertPages,
   removePage,
+  setLayers,
   setPageBackground,
   setPageObjects,
 } from '../commands/commands.ts'
@@ -17,6 +18,7 @@ import {
   PAGE_SIZE,
   type CanvasObject,
   type Id,
+  type LayerDef,
   type StrokeObject,
   type TextStyle,
 } from '../model/types.ts'
@@ -46,6 +48,14 @@ import {
   suggestFor,
   type Suggestion,
 } from './suggestions.ts'
+import {
+  addLayer,
+  layerBlock,
+  moveLayer,
+  patchLayer,
+  removeLayer,
+  type LayerPatch,
+} from './layers.ts'
 import { SelectionController, type LassoMode, type SelectionInfo } from './SelectionController.ts'
 import { DEFAULT_TEXT_STYLE, TextController } from './TextController.ts'
 
@@ -74,6 +84,12 @@ export interface EditorState {
   suggestion: { kind: 'shape' | 'fill'; label: string; rect: ScreenRect } | null
   selection: SelectionInfo | null
   hasClipboard: boolean
+  /** The notebook's layers, bottom to top. */
+  layers: LayerDef[]
+  /** The layer new ink, text and selections belong to. */
+  activeLayerId: Id
+  /** A short message, e.g. why the pen does nothing on a hidden layer. */
+  notice: string | null
 }
 
 const HIGHLIGHTER_OPACITY = 0.45
@@ -169,6 +185,9 @@ export class Editor {
   private bottomInset = 0
   private pending: { pageId: Id; layerId: Id; suggestion: Suggestion } | null = null
   private suggestTimer: ReturnType<typeof setTimeout> | null = null
+  private noticeTimer: ReturnType<typeof setTimeout> | null = null
+  /** Layers before an opacity drag started, so the whole drag is one undo step. */
+  private opacityBefore: LayerDef[] | null = null
 
   private camera: Camera = { offsetX: 0, offsetY: TOP_INSET, zoom: 1 }
   private view: View = { width: 0, height: 0, dpr: 1 }
@@ -215,6 +234,9 @@ export class Editor {
       suggestion: null,
       selection: null,
       hasClipboard: false,
+      layers: doc.notebook.layers,
+      activeLayerId: doc.notebook.layers[doc.notebook.layers.length - 1]?.id ?? '',
+      notice: null,
     }
 
     // The canvases are positioned inside the host; keep the host's own positioning if it has one.
@@ -346,6 +368,66 @@ export class Editor {
 
   setSelectionScaling(on: boolean): void {
     this.selection.setScaling(on)
+  }
+
+  // ---------- Layers ----------
+
+  setActiveLayer(id: Id): void {
+    if (id === this._state.activeLayerId) return
+    this.text.finish()
+    this.selection.clear()
+    this.dismissSuggestion()
+    this.update({ activeLayerId: id })
+  }
+
+  addLayer(): void {
+    const { command, id } = addLayer(this.doc, this._state.activeLayerId)
+    this.history.execute(command)
+    this.setActiveLayer(id)
+  }
+
+  deleteLayer(id: Id): void {
+    const command = removeLayer(this.doc, id)
+    if (!command) return
+    if (id === this._state.activeLayerId) {
+      const layers = this.doc.notebook.layers
+      const index = layers.findIndex((l) => l.id === id)
+      this.setActiveLayer((layers[index - 1] ?? layers[index + 1])!.id)
+    }
+    this.history.execute(command)
+  }
+
+  moveLayer(id: Id, step: 1 | -1): void {
+    const command = moveLayer(this.doc, id, step)
+    if (command) this.history.execute(command)
+  }
+
+  /** Renames, shows, hides or locks a layer as one undoable step. */
+  updateLayer(id: Id, patch: LayerPatch): void {
+    const before = this.doc.notebook.layers
+    this.history.execute(setLayers('Layer', before, patchLayer(before, id, patch)))
+  }
+
+  /** Shows a new layer opacity while its slider moves; `commit` records it for undo. */
+  setLayerOpacity(id: Id, opacity: number, commit: boolean): void {
+    this.opacityBefore ??= this.doc.notebook.layers
+    const after = patchLayer(this.doc.notebook.layers, id, { opacity })
+    if (!commit) {
+      this.doc.updateNotebook({ layers: after })
+      return
+    }
+    const before = this.opacityBefore
+    this.opacityBefore = null
+    this.history.execute(setLayers('Layer opacity', before, after))
+  }
+
+  /** Moves the selection onto another layer and keeps it selected there. */
+  moveSelectionToLayer(id: Id): void {
+    const sel = this.selection.current
+    if (!sel) return
+    this.selection.moveToLayer(id)
+    this.update({ activeLayerId: id })
+    this.selection.select(sel.pageId, sel.ids)
   }
 
   setSnapRotation(on: boolean): void {
@@ -659,6 +741,7 @@ export class Editor {
 
   dispose(): void {
     this.text.finish()
+    if (this.noticeTimer) clearTimeout(this.noticeTimer)
     this.cleanups.forEach((fn) => fn())
     this.sceneCanvas.remove()
     this.inkLayer.remove()
@@ -682,6 +765,7 @@ export class Editor {
   }
 
   private onDocumentChange(): void {
+    this.syncLayers()
     const pageCount = this.doc.notebook.pageIds.length
     if (pageCount !== this._state.pageCount) {
       this.update({ pageCount })
@@ -691,6 +775,37 @@ export class Editor {
     if (!this.paintedByEditor) this.requestRender()
     this.selection.onDocumentChange()
     this.checkSuggestion()
+  }
+
+  private syncLayers(): void {
+    const layers = this.doc.notebook.layers
+    if (layers === this._state.layers) return
+    const active = layers.find((l) => l.id === this._state.activeLayerId)
+    const activeLayerId = active ? active.id : (layers[layers.length - 1]?.id ?? '')
+    if (activeLayerId !== this._state.activeLayerId || layerBlock(active)) {
+      this.text.finish()
+      this.selection.clear()
+    }
+    this.update({ layers, activeLayerId })
+  }
+
+  private showNotice(notice: string): void {
+    if (this.noticeTimer) clearTimeout(this.noticeTimer)
+    this.noticeTimer = setTimeout(() => this.update({ notice: null }), 2600)
+    this.update({ notice })
+  }
+
+  /** Explains, instead of doing nothing, why the active layer cannot be changed. */
+  private blockedByLayer(): boolean {
+    const layer = this.activeLayer()
+    const block = layerBlock(layer)
+    if (!block || !layer) return false
+    this.showNotice(
+      block === 'hidden'
+        ? `${layer.name} is hidden. Show it in Layers to work on it.`
+        : `${layer.name} is locked. Unlock it in Layers to work on it.`,
+    )
+    return true
   }
 
   /** Shares what the selection and text controllers need, without exposing the whole editor. */
@@ -910,6 +1025,7 @@ export class Editor {
 
     // An offer is meant for the stroke just drawn; the next action moves on.
     this.dismissSuggestion()
+    if (this.blockedByLayer()) return
     const tool = this._state.tool
     if (tool === 'lasso') {
       this.host.setPointerCapture(e.pointerId)
@@ -938,7 +1054,7 @@ export class Editor {
     const index = pageIndexAt(w.x, w.y, this.doc.notebook.pageIds.length)
     const page = this.doc.pageList[index]
     const layer = this.activeLayer()
-    if (!page || !layer || layer.locked || !layer.visible) return
+    if (!page || !layer || this.blockedByLayer()) return
     const o = pageOrigin(index)
     const x = w.x - o.x
     const y = w.y - o.y
@@ -1147,9 +1263,9 @@ export class Editor {
 
   // ---------- Ink ----------
 
-  private activeLayer() {
+  private activeLayer(): LayerDef | undefined {
     const layers = this.doc.notebook.layers
-    return layers[layers.length - 1]
+    return layers.find((l) => l.id === this._state.activeLayerId) ?? layers[layers.length - 1]
   }
 
   private beginInk(e: PointerEvent): void {
@@ -1190,7 +1306,7 @@ export class Editor {
     this.session = session
     this.host.setPointerCapture(e.pointerId)
     // The ink layers show the stroke exactly as it will look once finished.
-    this.inkLayer.style.opacity = String(session.stroke.opacity)
+    this.inkLayer.style.opacity = String(session.stroke.opacity * layer.opacity)
     this.inkLayer.style.mixBlendMode = highlighter ? 'multiply' : 'normal'
 
     this.addInkSample(session, e)
@@ -1355,7 +1471,8 @@ export class Editor {
         ? { ...s.stroke, points, closed: snapped.closed, straight: snapped.straight }
         : { ...s.stroke, points }
       const layers = this.doc.notebook.layers.filter((l) => l.visible)
-      const onTop = layers[layers.length - 1]?.id === stroke.layerId
+      const top = layers[layers.length - 1]
+      const onTop = top?.id === stroke.layerId && top.opacity >= 1
       // Paint the finished stroke straight onto the scene, so there is no frame without it.
       if (onTop) {
         this.scene.save()

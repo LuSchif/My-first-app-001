@@ -4,13 +4,21 @@ import {
   CopyPlus,
   FlipHorizontal2,
   FlipVertical2,
+  Layers,
   Scaling,
   Scissors,
   TextCursorInput,
   Trash2,
 } from 'lucide-react'
 import type { Editor, EditorState } from '../../engine/editor/Editor.ts'
-import { Button, ColorPicker, Popover, PopoverContent, PopoverTrigger } from '../../design/index.ts'
+import {
+  Button,
+  ColorPicker,
+  Popover,
+  PopoverClose,
+  PopoverContent,
+  PopoverTrigger,
+} from '../../design/index.ts'
 
 const MENU_HEIGHT = 56
 const GAP = 14
@@ -67,6 +75,35 @@ export function SelectionMenu({ editor, state }: { editor: Editor; state: Editor
           />
         </PopoverContent>
       </Popover>
+      {state.layers.length > 1 ? (
+        <Popover>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              className="flex h-11 items-center gap-1.5 rounded-control px-3 text-sm font-semibold hover:bg-white/10 active:bg-white/15"
+            >
+              <Layers size={18} />
+              Layer
+            </button>
+          </PopoverTrigger>
+          <PopoverContent className="grid w-64 gap-1">
+            <p className="px-1 pb-1 text-sm font-semibold">Move to layer</p>
+            {[...state.layers].reverse().map((layer) => (
+              <PopoverClose key={layer.id} asChild>
+                <Button
+                  variant={layer.id === state.activeLayerId ? 'primary' : 'ghost'}
+                  className="justify-start"
+                  disabled={layer.id === state.activeLayerId || layer.locked}
+                  onClick={() => editor.moveSelectionToLayer(layer.id)}
+                >
+                  <span className="truncate">{layer.name}</span>
+                  {layer.locked ? <span className="text-xs font-normal">(locked)</span> : null}
+                </Button>
+              </PopoverClose>
+            ))}
+          </PopoverContent>
+        </Popover>
+      ) : null}
       <MenuButton
         label="Scale"
         pressed={sel.scaling}
