@@ -11,6 +11,7 @@ This document records the decisions agreed before implementation. Change it when
 | UI language    | English, with strings kept ready for translation                                                            |
 | Pages          | Fixed A4 pages (595 × 842 pt), scrolled vertically                                                          |
 | Layers         | Defined per notebook (name, order, visibility, lock); content stored per page                               |
+| UI kit         | Plus Jakarta Sans, Lucide icons plus own broom icon, Radix primitives; reference page `design.html`         |
 | Stack          | React, TypeScript (strict), Vite, Tailwind CSS v4, Zustand, Dexie (IndexedDB)                               |
 | Ink            | Constant-width strokes (width set by the user, not by pressure); 1€ input filter; quadratic midpoint curves |
 | Rendering      | Own Canvas 2D engine; no Fabric.js or Konva                                                                 |
@@ -52,9 +53,9 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
 
 | Package | Scope                                                                   | Status      |
 | ------- | ----------------------------------------------------------------------- | ----------- |
-| 0       | Ink spike (`spikes/ink-test.html`): validate writing feel on iPad       | In review   |
+| 0       | Ink spike (`spikes/ink-test.html`): validate writing feel on iPad       | Done        |
 | 1a      | Project setup: Vite, TypeScript, Tailwind, oxlint, Prettier, Vitest, CI | Done        |
-| 1b      | Design system: tokens, typefaces, base components, broom icon           |             |
+| 1b      | Design system: tokens, typefaces, base components, broom icon           | Done        |
 | 1c      | Document model, Dexie storage, command system                           |             |
 | 2a–2b   | Dashboard, folders, folder preview animation, folder view               |             |
 | 3       | Notebook creation dialog with cover designer and paper carousel         |             |

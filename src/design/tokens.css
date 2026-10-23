@@ -1,10 +1,12 @@
 /*
  * Broomit design tokens.
- * Every UI color, radius and shadow comes from here so the whole app stays consistent.
- * Tailwind exposes each token as a utility, e.g. bg-cream, text-espresso, rounded-card.
- * Typefaces are chosen in work package 1b; until then the system UI font is used.
+ * Every UI color, radius, shadow and timing comes from here so the whole app stays consistent.
+ * Tailwind exposes each token as a utility, e.g. bg-surface, text-ink-muted, rounded-card.
+ * Components use the semantic tokens (surface, ink, line, accent); the brand colors are the
+ * raw palette those are built from.
  */
 @theme {
+  /* Brand palette */
   --color-cream: #f7f2ea;
   --color-sand: #e8d9c5;
   --color-beige: #d8c1a5;
@@ -12,12 +14,61 @@
   --color-mocha: #795a46;
   --color-espresso: #3e2d25;
 
-  --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  /* Surfaces, from the app background up to floating panels */
+  --color-surface: #f7f2ea;
+  --color-surface-raised: #fffcf7;
+  --color-surface-sunken: #efe6d9;
+  --color-paper: #fffdf8;
+
+  /* Text and icons. ink-muted keeps 4.5:1 contrast on every surface. */
+  --color-ink: #3e2d25;
+  --color-ink-muted: #6f5241;
+  --color-ink-subtle: #a3896f;
+  --color-ink-inverse: #f7f2ea;
+
+  /* Lines and states */
+  --color-line: #e2d3bf;
+  --color-line-strong: #cdb597;
+  --color-accent: #b98b65;
+  --color-hover: rgb(62 45 37 / 0.06);
+  --color-pressed: rgb(62 45 37 / 0.1);
+  --color-danger: #a8432f;
+  --color-scrim: rgb(40 28 22 / 0.32);
+
+  --font-sans:
+    'Plus Jakarta Sans Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
 
   --radius-control: 0.75rem;
   --radius-card: 1.25rem;
+  --radius-panel: 1.5rem;
 
-  --shadow-soft: 0 1px 2px rgb(62 45 37 / 0.06), 0 4px 16px rgb(62 45 37 / 0.08);
+  --shadow-soft: 0 1px 2px rgb(62 45 37 / 0.06), 0 4px 16px rgb(62 45 37 / 0.06);
+  --shadow-raised: 0 1px 2px rgb(62 45 37 / 0.08), 0 12px 32px rgb(62 45 37 / 0.12);
+  --shadow-overlay: 0 2px 6px rgb(62 45 37 / 0.08), 0 24px 64px rgb(62 45 37 / 0.2);
 
   --ease-gentle: cubic-bezier(0.22, 1, 0.36, 1);
+
+  --animate-pop-in: pop-in 180ms var(--ease-gentle);
+  --animate-fade-in: fade-in 180ms var(--ease-gentle);
+
+  @keyframes pop-in {
+    from {
+      opacity: 0;
+      transform: translateY(4px) scale(0.97);
+    }
+  }
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    transition-duration: 1ms !important;
+  }
 }
