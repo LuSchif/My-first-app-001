@@ -11,7 +11,7 @@ import { PAGE_SIZE, type CanvasObject, type Id, type StrokeObject } from '../mod
 import { contentHeight, PAGE_PITCH, pageIndexAt, pageOrigin } from '../render/layout.ts'
 import { enterPage, renderScene, type View } from '../render/SceneRenderer.ts'
 import { paintStroke, setInkStyle, strokeBounds } from '../render/strokes.ts'
-import { traceStroke } from '../geometry/strokePath.ts'
+import { smoothedAt, smoothPoints, traceSegments } from '../geometry/strokePath.ts'
 
 export type ToolId = 'pen' | 'highlighter' | 'broom'
 export type BroomMode = 'precise' | 'stroke'
@@ -42,11 +42,12 @@ interface InkSession {
   pageId: Id
   stroke: Omit<StrokeObject, 'points'>
   sampler: StrokeSampler
-  /** Smoothed points in page coordinates. */
+  /** Filtered pen points in page coordinates, before curve smoothing. */
   local: number[]
-  /** Index of the last point whose curve segment is final and drawn on the wet layer. */
-  drawnTo: number
-  drawnEnd: Point
+  /** Smoothed points that can no longer change (see smoothedAt). */
+  smooth: number[]
+  /** Curve segments already drawn on the wet layer. */
+  drawnSegments: number
   wetDirty: DeviceRect | null
   predicted: Point | null
 }
@@ -581,8 +582,8 @@ export class Editor {
       },
       sampler: new StrokeSampler(),
       local: [],
-      drawnTo: 0,
-      drawnEnd: { x: 0, y: 0 },
+      smooth: [],
+      drawnSegments: 0,
       wetDirty: null,
       predicted: null,
     }
@@ -593,8 +594,6 @@ export class Editor {
     this.inkLayer.style.mixBlendMode = highlighter ? 'multiply' : 'normal'
 
     this.addInkSample(session, e)
-    const first = session.local
-    session.drawnEnd = { x: first[0]!, y: first[1]! }
     this.drawInk(session)
     this.lastFrameAt = 0
     requestAnimationFrame((t) => this.trackFrames(t))
@@ -624,48 +623,52 @@ export class Editor {
 
   /** Draws the stroke in progress inside the input event, so new samples reach the next frame. */
   private drawInk(s: InkSession): void {
-    const pts = s.local
-    const n = pts.length / 2
+    const raw = s.local
+    const n = raw.length / 2
     const { dpr } = this.view
 
-    // Settled part: the curve up to the midpoint of the last two points never changes again.
-    if (n - 2 > s.drawnTo) {
+    // A smoothed point is final once the two raw points after it exist.
+    while (s.smooth.length / 2 <= n - 3) {
+      s.smooth.push(...smoothedAt(raw, s.smooth.length / 2))
+    }
+    // A curve segment is final once the two smoothed points after its start are final.
+    const settled = s.smooth.length / 2 - 2
+    if (settled > s.drawnSegments) {
+      const from = s.drawnSegments
       const path = new Path2D()
-      path.moveTo(s.drawnEnd.x, s.drawnEnd.y)
-      const covered = [s.drawnEnd.x, s.drawnEnd.y]
-      for (let i = s.drawnTo + 1; i <= n - 2; i++) {
-        const x0 = pts[i * 2]!
-        const y0 = pts[i * 2 + 1]!
-        const mx = (x0 + pts[i * 2 + 2]!) / 2
-        const my = (y0 + pts[i * 2 + 3]!) / 2
-        path.quadraticCurveTo(x0, y0, mx, my)
-        covered.push(x0, y0, mx, my)
-        s.drawnEnd = { x: mx, y: my }
-      }
-      s.drawnTo = n - 2
+      path.moveTo(s.smooth[from * 2]!, s.smooth[from * 2 + 1]!)
+      traceSegments(path, s.smooth, from, settled)
       this.wet.save()
       enterPage(this.wet, this.camera, dpr, s.pageIndex)
       setInkStyle(this.wet, s.stroke)
       this.wet.stroke(path)
       this.wet.restore()
+      const covered = s.smooth.slice(Math.max(0, from - 1) * 2, (settled + 2) * 2)
       s.wetDirty = unionDevice(s.wetDirty, this.deviceRect(covered, s.pageIndex, s.stroke.width))
+      s.drawnSegments = settled
     }
 
     // Unsettled end: on to the latest point, the pen tip, and one display frame beyond it.
-    const end = [s.drawnEnd.x, s.drawnEnd.y, ...pts.slice((s.drawnTo + 1) * 2)]
+    const extended = [...raw]
     if (s.sampler.tip) {
       const t = this.toPageLocal(s.sampler.tip, s.pageIndex)
-      end.push(t.x, t.y)
+      extended.push(t.x, t.y)
     }
     const ahead = s.predicted ?? this.predictLocal(s)
-    if (ahead) end.push(ahead.x, ahead.y)
+    if (ahead) extended.push(ahead.x, ahead.y)
+    const start = Math.max(0, s.drawnSegments - 1)
+    const end: number[] = []
+    for (let i = start; i < extended.length / 2; i++) end.push(...smoothedAt(extended, i))
 
     this.clearTip()
     this.tip.save()
     enterPage(this.tip, this.camera, dpr, s.pageIndex)
     setInkStyle(this.tip, s.stroke)
     const path = new Path2D()
-    traceStroke(path, end)
+    const first = s.drawnSegments - start
+    path.moveTo(end[first * 2]!, end[first * 2 + 1]!)
+    if (end.length / 2 - 1 > first) traceSegments(path, end, first, end.length / 2 - 1)
+    else path.lineTo(end[first * 2]! + 0.001, end[first * 2 + 1]!)
     this.tip.stroke(path)
     this.tip.restore()
     this.tipDirty = this.deviceRect(end, s.pageIndex, s.stroke.width)
@@ -692,11 +695,12 @@ export class Editor {
   }
 
   private finishInk(s: InkSession): void {
-    const points: number[] = []
+    const raw: number[] = []
     for (const p of s.sampler.finalPoints()) {
       const local = this.toPageLocal(p, s.pageIndex)
-      points.push(local.x, local.y)
+      raw.push(local.x, local.y)
     }
+    const points = smoothPoints(raw)
     const page = this.doc.page(s.pageId)
     if (page && points.length >= 2) {
       const stroke: StrokeObject = { ...s.stroke, points }
