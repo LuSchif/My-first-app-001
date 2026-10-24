@@ -14,6 +14,8 @@ export interface ScreenSample {
   y: number
   /** Event time stamp in ms. */
   t: number
+  /** Pen pressure from 0 to 1; 0.5 when the device does not report it. */
+  p: number
 }
 
 /**
@@ -36,7 +38,7 @@ export class StrokeSampler {
   private lastTime = -Infinity
 
   /** Returns true when a new smoothed point was added. */
-  add(x: number, y: number, timeStamp: number): boolean {
+  add(x: number, y: number, timeStamp: number, pressure = 0.5): boolean {
     this.received++
     if (timeStamp < this.lastStamp) {
       this.filtered++
@@ -51,11 +53,11 @@ export class StrokeSampler {
     this.lastStamp = timeStamp
     this.lastTime = t
 
-    this.tip = { x, y, t }
+    this.tip = { x, y, t, p: pressure }
     this.raw.push(this.tip)
     if (this.raw.length > 32) this.raw.shift()
 
-    const p = { x: this.fx.filter(x, dt), y: this.fy.filter(y, dt), t }
+    const p = { x: this.fx.filter(x, dt), y: this.fy.filter(y, dt), t, p: pressure }
     const n = this.points.length
     const last = this.points[n - 1]
     if (last) {

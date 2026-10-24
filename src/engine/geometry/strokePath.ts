@@ -33,6 +33,17 @@ export function smoothedAt(raw: readonly number[], i: number): [number, number] 
   return [x / KERNEL_SUM, y / KERNEL_SUM]
 }
 
+/** The same smoothing for a single value per point, e.g. the line width of a fountain pen. */
+export function smoothedValueAt(raw: readonly number[], i: number): number {
+  const n = raw.length
+  if (i <= 0 || i >= n - 1) return raw[i]!
+  let v = 0
+  for (let k = 0; k < KERNEL.length; k++) {
+    v += raw[Math.min(n - 1, Math.max(0, i + k - SMOOTH_RADIUS))]! * KERNEL[k]!
+  }
+  return v / KERNEL_SUM
+}
+
 export function smoothPoints(raw: readonly number[]): number[] {
   const out: number[] = []
   for (let i = 0; i < raw.length / 2; i++) out.push(...smoothedAt(raw, i))

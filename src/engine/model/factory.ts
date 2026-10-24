@@ -73,7 +73,11 @@ export function createNotebook(options: {
 }
 
 /** The same stroke along new points; a vector path no longer matches them and is dropped. */
-export function withPoints(stroke: StrokeObject, points: number[]): StrokeObject {
-  const { path: _path, ...rest } = stroke
-  return { ...rest, points }
+export function withPoints(
+  stroke: StrokeObject,
+  points: number[],
+  widths?: number[],
+): StrokeObject {
+  const { path: _path, widths: _widths, ...rest } = stroke
+  return widths ? { ...rest, points, widths } : { ...rest, points }
 }

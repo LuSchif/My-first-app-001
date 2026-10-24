@@ -1,4 +1,5 @@
 import { boundsOfPoints, type Rect } from '../geometry/rect.ts'
+import { flattenStroke, traceNib } from '../geometry/nib.ts'
 import { tracePath, traceStroke } from '../geometry/strokePath.ts'
 import type { StrokeObject } from '../model/types.ts'
 import { canvasGradient, rectOf } from './effects.ts'
@@ -7,6 +8,28 @@ import { outlinePad, outlineReach } from './outline.ts'
 // Objects are immutable, so derived data can be cached per object for its whole life.
 const paths = new WeakMap<StrokeObject, Path2D>()
 const bounds = new WeakMap<StrokeObject, Rect>()
+const flats = new WeakMap<StrokeObject, number[]>()
+const nibPaths = new WeakMap<StrokeObject, Map<number, Path2D>>()
+
+/** Whether the stroke has a line width per point (fountain pen) instead of one width. */
+function variable(stroke: StrokeObject): stroke is StrokeObject & { widths: number[] } {
+  return Boolean(stroke.widths && !stroke.path && stroke.widths.length === stroke.points.length / 2)
+}
+
+/** The filled shape of a variable-width stroke, widened by `grow` on each side. */
+function nibPath(stroke: StrokeObject & { widths: number[] }, grow: number): Path2D {
+  let byGrow = nibPaths.get(stroke)
+  if (!byGrow) nibPaths.set(stroke, (byGrow = new Map()))
+  let path = byGrow.get(grow)
+  if (!path) {
+    let flat = flats.get(stroke)
+    if (!flat) flats.set(stroke, (flat = flattenStroke(stroke.points, stroke.widths)))
+    path = new Path2D()
+    traceNib(path, flat, grow)
+    byGrow.set(grow, path)
+  }
+  return path
+}
 
 export function strokePath(stroke: StrokeObject): Path2D {
   let path = paths.get(stroke)
@@ -23,7 +46,10 @@ export function strokePath(stroke: StrokeObject): Path2D {
 export function strokeBounds(stroke: StrokeObject): Rect {
   let rect = bounds.get(stroke)
   if (!rect) {
-    rect = boundsOfPoints(stroke.points, stroke.width / 2 + outlinePad(stroke.outline))
+    const widest = variable(stroke)
+      ? stroke.widths.reduce((m, w) => Math.max(m, w), 0)
+      : stroke.width
+    rect = boundsOfPoints(stroke.points, widest / 2 + outlinePad(stroke.outline))
     bounds.set(stroke, rect)
   }
   return rect
@@ -49,6 +75,10 @@ export function dashPattern(stroke: Pick<StrokeObject, 'width' | 'dash'>): numbe
 }
 
 export function paintStroke(ctx: CanvasRenderingContext2D, stroke: StrokeObject): void {
+  if (variable(stroke)) {
+    paintNibStroke(ctx, stroke)
+    return
+  }
   setInkStyle(ctx, stroke)
   ctx.globalAlpha = stroke.opacity
   // Highlighter tints what is below instead of covering it, like a real marker.
@@ -73,4 +103,25 @@ export function paintStroke(ctx: CanvasRenderingContext2D, stroke: StrokeObject)
   ctx.globalAlpha = 1
   ctx.globalCompositeOperation = 'source-over'
   ctx.setLineDash([])
+}
+
+function paintNibStroke(
+  ctx: CanvasRenderingContext2D,
+  stroke: StrokeObject & { widths: number[] },
+): void {
+  ctx.globalAlpha = stroke.opacity
+  ctx.globalCompositeOperation = stroke.tool === 'highlighter' ? 'multiply' : 'source-over'
+  let shrink = 0
+  if (stroke.outline) {
+    const { outer, inner } = outlineReach(stroke.outline)
+    ctx.fillStyle = stroke.outline.color
+    ctx.fill(nibPath(stroke, outer))
+    shrink = inner
+  }
+  ctx.fillStyle = stroke.gradient
+    ? canvasGradient(ctx, stroke.gradient, rectOf(boundsOfPoints(stroke.points, 0)))
+    : stroke.color
+  ctx.fill(nibPath(stroke, -shrink))
+  ctx.globalAlpha = 1
+  ctx.globalCompositeOperation = 'source-over'
 }

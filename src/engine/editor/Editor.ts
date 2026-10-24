@@ -13,7 +13,8 @@ import {
 import type { History } from '../commands/History.ts'
 import { fillBaseColor, type Fill } from '../model/fill.ts'
 import type { NotebookDocument } from '../document/NotebookDocument.ts'
-import { eraseFromPoints, strokeTouchesCircle } from '../geometry/erase.ts'
+import { flattenStroke, nibWidthAt, traceNib } from '../geometry/nib.ts'
+import { eraseFromStroke, strokeTouchesCircle } from '../geometry/erase.ts'
 import { intersects } from '../geometry/rect.ts'
 import type { Camera, Point } from '../geometry/camera.ts'
 import { StrokeSampler } from '../input/StrokeSampler.ts'
@@ -40,6 +41,7 @@ import { perfectShape, recognizeShape, regionAt, type Shape } from '../geometry/
 import {
   SMOOTH_RADIUS,
   smoothedAt,
+  smoothedValueAt,
   smoothPoints,
   traceSegments,
   traceStroke,
@@ -78,13 +80,16 @@ import { SelectionController, type LassoMode, type SelectionInfo } from './Selec
 import { DEFAULT_TEXT_STYLE, TextController } from './TextController.ts'
 import { LaserPointer } from './LaserPointer.ts'
 import { PathController, type PathEditInfo } from './PathController.ts'
+import { DEFAULT_FEATURES, type Features } from './features.ts'
 
 export type ToolId = 'pen' | 'highlighter' | 'broom' | 'lasso' | 'text' | 'path' | 'laser'
 export type BroomMode = 'precise' | 'stroke'
+/** A ballpoint draws one width; a fountain pen's width follows direction and pressure. */
+export type PenNib = 'ballpoint' | 'fountain'
 
 export interface EditorState {
   tool: ToolId
-  pen: { color: string; width: number; opacity: number; dash: StrokeDash | null }
+  pen: { color: string; width: number; opacity: number; dash: StrokeDash | null; nib: PenNib }
   highlighter: { color: string; width: number }
   broom: { size: number; mode: BroomMode }
   laserColor: string
@@ -99,8 +104,8 @@ export interface EditorState {
   snapRotation: boolean
   /** The five most recently used colors, newest first. */
   recentColors: string[]
-  /** Offer Auto shape and Auto fill after drawing. */
-  suggest: boolean
+  /** What the control center has switched on. */
+  features: Features
   /** The offer currently shown, placed near what it would change. */
   suggestion: { kind: 'shape' | 'fill' | 'table'; label: string; rect: ScreenRect } | null
   selection: SelectionInfo | null
@@ -154,6 +159,11 @@ interface InkSession {
   sampler: StrokeSampler
   /** Filtered pen points in page coordinates, before curve smoothing. */
   local: number[]
+  /** Fountain pen only: pressure and line width of each point in `local`, and smoothed widths. */
+  nib: boolean
+  pressures: number[]
+  rawWidths: number[]
+  smoothWidths: number[]
   /** Smoothed points that can no longer change (see smoothedAt). */
   smooth: number[]
   /** Curve segments already drawn on the wet layer. */
@@ -276,7 +286,7 @@ export class Editor {
     this.history = history
     this._state = {
       tool: 'pen',
-      pen: { color: '#3e2d25', width: 2, opacity: 1, dash: null },
+      pen: { color: '#3e2d25', width: 2, opacity: 1, dash: null, nib: 'ballpoint' },
       highlighter: { color: '#f2cf4a', width: 14 },
       broom: { size: 16, mode: 'precise' },
       laserColor: '#e0533f',
@@ -289,7 +299,7 @@ export class Editor {
       lassoMode: 'freehand',
       snapRotation: false,
       recentColors: [],
-      suggest: true,
+      features: DEFAULT_FEATURES,
       suggestion: null,
       selection: null,
       pathEdit: null,
@@ -672,9 +682,9 @@ export class Editor {
     this.text.edit(page.id, object)
   }
 
-  setSuggest(on: boolean): void {
-    if (!on) this.dismissSuggestion()
-    this.update({ suggest: on })
+  setFeatures(patch: Partial<Features>): void {
+    if (patch.suggestions === false) this.dismissSuggestion()
+    this.update({ features: { ...this._state.features, ...patch } })
   }
 
   /** Turns the drawn stroke into the recognized shape, or fills the colored-in area. */
@@ -1627,6 +1637,7 @@ export class Editor {
     const tap = this.tap
     if (!tap || time - tap.start > TWO_FINGER_TAP_MS || tap.moved > TAP_SLOP_PX) return
     if (tap.maxTouches !== 2 && tap.maxTouches !== 3) return
+    if (!this._state.features.gestureUndo) return
     const last = this.lastGestureTap
     if (last && last.fingers === tap.maxTouches && time - last.time < DOUBLE_TAP_MS) {
       this.lastGestureTap = null
@@ -1679,6 +1690,7 @@ export class Editor {
 
     const highlighter = this._state.tool === 'highlighter'
     const settings = highlighter ? this._state.highlighter : this._state.pen
+    const fountain = !highlighter && this._state.pen.nib === 'fountain'
     const session: InkSession = {
       kind: 'ink',
       pointerId: e.pointerId,
@@ -1693,10 +1705,16 @@ export class Editor {
         color: settings.color,
         width: settings.width,
         opacity: highlighter ? HIGHLIGHTER_OPACITY : this._state.pen.opacity,
-        ...(!highlighter && this._state.pen.dash ? { dash: this._state.pen.dash } : {}),
+        ...(!highlighter && !fountain && this._state.pen.dash
+          ? { dash: this._state.pen.dash }
+          : {}),
       },
       sampler: new StrokeSampler(),
       local: [],
+      nib: fountain,
+      pressures: [],
+      rawWidths: [],
+      smoothWidths: [],
       smooth: [],
       drawnSegments: 0,
       wetDirty: null,
@@ -1720,10 +1738,25 @@ export class Editor {
 
   private addInkSample(s: InkSession, e: PointerEvent): void {
     const p = this.screenPos(e)
-    if (!s.sampler.add(p.x, p.y, e.timeStamp)) return
+    if (!s.sampler.add(p.x, p.y, e.timeStamp, this.pressureOf(e))) return
     const last = s.sampler.points[s.sampler.points.length - 1]!
     const local = this.toPageLocal(last, s.pageIndex)
     s.local.push(local.x, local.y)
+    if (!s.nib) return
+    s.pressures.push(last.p)
+    // The first widths look ahead to the third point (see nibWidthAt); after that they are final.
+    const n = s.local.length / 2
+    const from = n <= 3 ? 0 : s.rawWidths.length
+    s.rawWidths.length = from
+    for (let i = from; i < n; i++) {
+      s.rawWidths.push(nibWidthAt(s.local, s.pressures, s.stroke.width, i))
+    }
+  }
+
+  /** Pen pressure from 0 to 1; fingers and mice report none, so they draw at the base width. */
+  private pressureOf(e: PointerEvent): number {
+    if (!this._state.features.pressure || e.pointerType !== 'pen' || !(e.pressure > 0)) return 0.5
+    return e.pressure
   }
 
   private toPageLocal(p: Point, pageIndex: number): Point {
@@ -1748,6 +1781,10 @@ export class Editor {
 
   /** Draws the stroke in progress inside the input event, so new samples reach the next frame. */
   private drawInk(s: InkSession): void {
+    if (s.nib) {
+      this.drawNibInk(s)
+      return
+    }
     const raw = s.local
     const n = raw.length / 2
     const { dpr } = this.view
@@ -1811,6 +1848,77 @@ export class Editor {
       : this.deviceRect(end, s.pageIndex, s.stroke.width)
   }
 
+  /**
+   * `drawInk` for the fountain pen: the same settled and unsettled parts, filled as a line whose
+   * width changes along the way.
+   */
+  private drawNibInk(s: InkSession): void {
+    const raw = s.local
+    const n = raw.length / 2
+    const { dpr } = this.view
+    while (s.smooth.length / 2 <= n - 1 - SMOOTH_RADIUS) {
+      const i = s.smooth.length / 2
+      s.smooth.push(...smoothedAt(raw, i))
+      s.smoothWidths.push(smoothedValueAt(s.rawWidths, i))
+    }
+    const settled = s.smooth.length / 2 - 2
+    if (settled > s.drawnSegments) {
+      const from = s.drawnSegments
+      const flat = flattenStroke(s.smooth, s.smoothWidths, from, settled)
+      const path = new Path2D()
+      traceNib(path, flat)
+      this.wet.save()
+      enterPage(this.wet, this.camera, dpr, s.pageIndex)
+      this.wet.fillStyle = s.stroke.color
+      this.wet.fill(path)
+      this.wet.restore()
+      s.wetDirty = unionDevice(
+        s.wetDirty,
+        this.deviceRect(flat3to2(flat), s.pageIndex, widest(flat)),
+      )
+      s.drawnSegments = settled
+    }
+
+    // The unsettled end, through the pen tip and a little beyond, with widths for both.
+    const start = Math.max(0, s.drawnSegments - 1)
+    const offset = Math.max(0, start - SMOOTH_RADIUS)
+    const pts = raw.slice()
+    const prs = s.pressures.slice()
+    const tip = s.sampler.tip
+    if (tip) {
+      const t = this.toPageLocal(tip, s.pageIndex)
+      pts.push(t.x, t.y)
+      prs.push(tip.p)
+    }
+    const ahead = s.predicted ?? this.predictLocal(s)
+    if (ahead) {
+      pts.push(ahead.x, ahead.y)
+      prs.push(prs[prs.length - 1] ?? 0.5)
+    }
+    const widths = s.rawWidths.slice(offset)
+    for (let i = n; i < pts.length / 2; i++) {
+      widths.push(nibWidthAt(pts, prs, s.stroke.width, i))
+    }
+    const tail = pts.slice(offset * 2)
+    const end: number[] = []
+    const endWidths: number[] = []
+    for (let i = start - offset; i < tail.length / 2; i++) {
+      end.push(...smoothedAt(tail, i))
+      endWidths.push(smoothedValueAt(widths, i))
+    }
+    const first = s.drawnSegments - start
+    const flat = flattenStroke(end, endWidths, first, Math.max(first, end.length / 2 - 1))
+    this.clearTip()
+    this.tip.save()
+    enterPage(this.tip, this.camera, dpr, s.pageIndex)
+    this.tip.fillStyle = s.stroke.color
+    const path = new Path2D()
+    traceNib(path, flat)
+    this.tip.fill(path)
+    this.tip.restore()
+    this.tipDirty = this.deviceRect(flat3to2(flat), s.pageIndex, widest(flat))
+  }
+
   private predictLocal(s: InkSession): Point | null {
     const p = s.sampler.predict(this.frameInterval())
     return p ? this.toPageLocal(p, s.pageIndex) : null
@@ -1834,6 +1942,7 @@ export class Editor {
   /** Restarts the wait for the pen to rest; resting long enough draws the perfect shape. */
   private armHold(s: InkSession): void {
     if (s.holdTimer) clearTimeout(s.holdTimer)
+    if (!this._state.features.holdToShape) return
     s.holdTimer = setTimeout(() => this.snapToPerfect(s), HOLD_MS)
   }
 
@@ -1845,12 +1954,24 @@ export class Editor {
   }
 
   private drawnPoints(s: InkSession): number[] {
+    return smoothPoints(this.rawPoints(s))
+  }
+
+  private rawPoints(s: InkSession): number[] {
     const raw: number[] = []
     for (const p of s.sampler.finalPoints()) {
       const local = this.toPageLocal(p, s.pageIndex)
       raw.push(local.x, local.y)
     }
-    return smoothPoints(raw)
+    return raw
+  }
+
+  /** The fountain pen's width at each point of `drawnPoints`. */
+  private drawnWidths(s: InkSession): number[] {
+    const raw = this.rawPoints(s)
+    const pressures = s.sampler.finalPoints().map((p) => p.p)
+    const widths = pressures.map((_, i) => nibWidthAt(raw, pressures, s.stroke.width, i))
+    return widths.map((_, i) => smoothedValueAt(widths, i))
   }
 
   /**
@@ -1901,7 +2022,9 @@ export class Editor {
     if (page && points.length >= 2) {
       const stroke: StrokeObject = snapped
         ? { ...s.stroke, points, closed: snapped.closed, straight: snapped.straight }
-        : { ...s.stroke, points }
+        : s.nib
+          ? { ...s.stroke, points, widths: this.drawnWidths(s) }
+          : { ...s.stroke, points }
       const layers = this.doc.notebook.layers.filter((l) => l.visible)
       const top = layers[layers.length - 1]
       const onTop = top?.id === stroke.layerId && top.opacity >= 1 && !top.clip
@@ -1917,7 +2040,8 @@ export class Editor {
       this.rememberColor(stroke.color)
       this.paintedByEditor = false
       // A line made perfectly straight can still complete a table.
-      if (this._state.suggest) this.scheduleSuggestion(page.id, stroke, Boolean(snapped))
+      if (this._state.features.suggestions)
+        this.scheduleSuggestion(page.id, stroke, Boolean(snapped))
     }
     this.clearArea(this.wet, s.wetDirty)
     this.clearTip()
@@ -2004,13 +2128,15 @@ export class Editor {
           else next.push(object)
           continue
         }
-        const pieces = eraseFromPoints(object.points, cx, cy, reach)
+        const pieces = eraseFromStroke(object.points, object.widths, cx, cy, reach)
         if (!pieces) {
           next.push(object)
           continue
         }
         changed = true
-        for (const points of pieces) next.push({ ...withPoints(object, points), id: newId() })
+        for (const piece of pieces) {
+          next.push({ ...withPoints(object, piece.points, piece.widths), id: newId() })
+        }
       }
       if (!changed) continue
       if (!s.before.has(page.id)) s.before.set(page.id, page.objects)
@@ -2145,4 +2271,17 @@ function unionDevice(a: DeviceRect | null, b: DeviceRect): DeviceRect {
   const x = Math.min(a.x, b.x)
   const y = Math.min(a.y, b.y)
   return { x, y, w: Math.max(a.x + a.w, b.x + b.w) - x, h: Math.max(a.y + a.h, b.y + b.h) - y }
+}
+
+/** The x, y pairs of flattened x, y, width triples. */
+function flat3to2(flat: readonly number[]): number[] {
+  const out: number[] = []
+  for (let i = 0; i < flat.length; i += 3) out.push(flat[i]!, flat[i + 1]!)
+  return out
+}
+
+function widest(flat: readonly number[]): number {
+  let w = 0
+  for (let i = 2; i < flat.length; i += 3) w = Math.max(w, flat[i]!)
+  return w
 }

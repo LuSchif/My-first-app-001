@@ -188,11 +188,16 @@ export interface StrokeObject {
   layerId: Id
   tool: InkTool
   color: string
-  /** Line width in points; constant along the stroke. */
+  /** Line width in points; constant along the stroke unless `widths` is set. */
   width: number
   opacity: number
   /** Flat list of page coordinates in points: x0, y0, x1, y1, … */
   points: number[]
+  /**
+   * The line width at each point (fountain pen, pressure); when present it replaces `width`
+   * for drawing, and `width` stays the pen's base width.
+   */
+  widths?: number[]
   /** The last point connects back to the first (shapes made with Auto shape). */
   closed?: boolean
   /** Straight lines between the points instead of a smooth curve (polygons). */

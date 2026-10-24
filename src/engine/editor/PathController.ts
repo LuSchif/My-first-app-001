@@ -344,7 +344,8 @@ export class PathController {
   /** The stroke with the path as edited so far. */
   private current(): StrokeObject {
     const e = this.editing!
-    const { straight: _straight, ...rest } = e.stroke
+    // A vector path has one width along its whole length.
+    const { straight: _straight, widths: _widths, ...rest } = e.stroke
     return {
       ...rest,
       path: e.path,

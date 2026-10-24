@@ -221,6 +221,7 @@ function transformShape(object: CanvasObject, t: Transform): CanvasObject {
     }
     if (object.type === 'fill') return { ...object, points }
     const moved = { ...object, points, width: object.width * t.scale }
+    if (object.widths) moved.widths = object.widths.map((w) => w * t.scale)
     if (object.path) moved.path = mapPairs(object.path, (x, y) => transformPoint(t, x, y))
     return moved
   }

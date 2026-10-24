@@ -47,6 +47,7 @@ import { PagesOverview } from './PagesOverview.tsx'
 import { LayersPanel } from './LayersPanel.tsx'
 import { RecentColors } from './RecentColors.tsx'
 import { PathMenu } from './PathMenu.tsx'
+import { PenPreview } from './PenPreview.tsx'
 import { PasteButton, PasteMenu, SelectionMenu } from './SelectionMenu.tsx'
 import { SuggestionChip } from './SuggestionChip.tsx'
 import { TextFormatControls } from './TextFormatControls.tsx'
@@ -398,6 +399,11 @@ function LassoSettings({ editor, state }: { editor: Editor; state: EditorState }
   )
 }
 
+const NIBS = [
+  ['ballpoint', 'Ballpoint', 'Even line'],
+  ['fountain', 'Fountain pen', 'Thick and thin, by pressure'],
+] as const
+
 const LINE_STYLES = [
   [null, 'Solid'],
   ['dashed', 'Dashed'],
@@ -414,49 +420,58 @@ function PenSettings({ editor, state }: { editor: Editor; state: EditorState }) 
   const { pen } = state
   return (
     <>
-      <svg
-        aria-hidden="true"
-        className="h-10 w-full rounded-control bg-paper ring-1 ring-line"
-        viewBox="0 0 280 40"
-        preserveAspectRatio="none"
-      >
-        <path
-          d="M24 26 C 80 6, 130 34, 180 18 S 240 12, 256 16"
-          fill="none"
-          stroke={pen.color}
-          strokeOpacity={pen.opacity}
-          strokeWidth={Math.max(1, pen.width * 1.4)}
-          strokeLinecap="round"
-          strokeDasharray={dashArray(pen.dash, Math.max(1, pen.width * 1.4))}
-        />
-      </svg>
-      <div role="group" aria-label="Line style" className="grid grid-cols-3 gap-1.5">
-        {LINE_STYLES.map(([dash, label]) => (
+      <PenPreview
+        color={pen.color}
+        width={pen.width}
+        opacity={pen.opacity}
+        dash={pen.dash}
+        fountain={pen.nib === 'fountain'}
+      />
+      <div role="group" aria-label="Pen type" className="grid grid-cols-2 gap-1.5">
+        {NIBS.map(([nib, label, hint]) => (
           <button
-            key={label}
+            key={nib}
             type="button"
-            aria-pressed={pen.dash === dash}
+            aria-pressed={pen.nib === nib}
             onClick={() => {
-              editor.setPen({ dash })
+              editor.setPen({ nib })
             }}
-            className="flex min-h-11 flex-col items-center justify-center gap-1 rounded-control px-2 text-xs font-semibold ring-1 ring-line aria-pressed:bg-ink aria-pressed:text-ink-inverse aria-pressed:ring-ink"
+            className="flex min-h-11 flex-col items-start justify-center rounded-control px-3 py-1.5 text-left ring-1 ring-line aria-pressed:bg-ink aria-pressed:text-ink-inverse aria-pressed:ring-ink"
           >
-            <svg aria-hidden="true" width="44" height="6" viewBox="0 0 44 6">
-              <line
-                x1="3"
-                y1="3"
-                x2="41"
-                y2="3"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeDasharray={dashArray(dash, 2.5)}
-              />
-            </svg>
-            {label}
+            <span className="text-sm font-semibold">{label}</span>
+            <span className="text-xs opacity-75">{hint}</span>
           </button>
         ))}
       </div>
+      {pen.nib === 'fountain' ? null : (
+        <div role="group" aria-label="Line style" className="grid grid-cols-3 gap-1.5">
+          {LINE_STYLES.map(([dash, label]) => (
+            <button
+              key={label}
+              type="button"
+              aria-pressed={pen.dash === dash}
+              onClick={() => {
+                editor.setPen({ dash })
+              }}
+              className="flex min-h-11 flex-col items-center justify-center gap-1 rounded-control px-2 text-xs font-semibold ring-1 ring-line aria-pressed:bg-ink aria-pressed:text-ink-inverse aria-pressed:ring-ink"
+            >
+              <svg aria-hidden="true" width="44" height="6" viewBox="0 0 44 6">
+                <line
+                  x1="3"
+                  y1="3"
+                  x2="41"
+                  y2="3"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeDasharray={dashArray(dash, 2.5)}
+                />
+              </svg>
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
       <Slider
         label="Size"
         value={pen.width}
@@ -475,16 +490,6 @@ function PenSettings({ editor, state }: { editor: Editor; state: EditorState }) 
         format={(v) => `${v}%`}
       />
       <ColorPicker value={pen.color} onChange={(color) => editor.setPen({ color })} />
-      <div className="border-t border-line pt-2">
-        <Switch
-          label="Shape and fill suggestions"
-          hint="Offer Auto shape for drawn shapes and Auto fill when coloring one in"
-          checked={state.suggest}
-          onChange={(on) => {
-            editor.setSuggest(on)
-          }}
-        />
-      </div>
     </>
   )
 }
