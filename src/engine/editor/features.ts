@@ -13,6 +13,8 @@ export interface Features {
   pressure: boolean
   /** Dust flies off where the broom sweeps. */
   broomDust: boolean
+  /** A highlighter stroke over typed text becomes a neat text highlight. */
+  smartHighlight: boolean
   /** New text on ruled paper sits on the lines. */
   textAutoAlign: boolean
   /** The bar of recently used colors at the edge. */
@@ -31,6 +33,7 @@ export const DEFAULT_FEATURES: Features = {
   pressure: true,
   broomDust: true,
   textAutoAlign: true,
+  smartHighlight: true,
   recentColors: true,
   laser: true,
   tape: true,

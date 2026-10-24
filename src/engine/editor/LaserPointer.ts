@@ -3,8 +3,9 @@ import { drawBroom } from '../render/broomGlyph.ts'
 import type { EditorContext } from './context.ts'
 import type { FxPainter } from './FxLayer.ts'
 
-/** How long the trail stays visible behind the pointer. */
-const FADE_MS = 800
+/** The whole drawing stays this long after the pen last moved, then fades out together. */
+const HOLD_MS = 3000
+const FADE_MS = 450
 const CORE_PX = 4
 const GLOW_PX = 14
 const BROOM_PX = 34
@@ -19,8 +20,9 @@ interface TrailPoint {
 }
 
 /**
- * Points at things while presenting: a glowing line in the laser color that follows the pen and
- * fades away, led by a broom of the same color. It never changes the notebook.
+ * Points at things while presenting: a glowing line in the laser color, led by a broom of the
+ * same color. Everything drawn stays in full until the pen has rested for three seconds, then
+ * fades out at once. It never changes the notebook.
  *
  * It draws on the effects layer with plain strokes (a wide, faint one for the glow under a
  * narrow, bright one), never a canvas shadow: blurred shadows cost far too much per frame.
@@ -32,6 +34,8 @@ export class LaserPointer implements FxPainter {
   private trail: TrailPoint[] = []
   private pointerId: number | null = null
   private head: Point | null = null
+  /** When the pen last drew. */
+  private lastActive = 0
 
   constructor(ctx: EditorContext, request: () => void) {
     this.ctx = ctx
@@ -84,52 +88,37 @@ export class LaserPointer implements FxPainter {
       t: performance.now(),
       start,
     })
+    this.lastActive = performance.now()
   }
 
   paint(ctx: CanvasRenderingContext2D, now: number): boolean {
-    this.trail = this.trail.filter((p) => now - p.t < FADE_MS)
+    if (this.pointerId !== null) this.lastActive = now
+    const idle = now - this.lastActive - HOLD_MS
+    if (idle >= FADE_MS) this.trail = []
+    const fade = idle > 0 ? 1 - idle / FADE_MS : 1
     const c = this.ctx.camera()
     const sx = (p: TrailPoint) => p.x * c.zoom + c.offsetX
     const sy = (p: TrailPoint) => p.y * c.zoom + c.offsetY
-    // Flat ends: round ones would overlap where two pieces meet and show as darker beads.
-    ctx.lineCap = 'butt'
+    ctx.lineCap = 'round'
     ctx.lineJoin = 'round'
     ctx.strokeStyle = this.color
+    // One path for the whole drawing: glow below, bright core on top.
+    const path = new Path2D()
+    for (const p of this.trail) {
+      if (p.start) path.moveTo(sx(p), sy(p))
+      else path.lineTo(sx(p), sy(p))
+    }
+    if (this.head && this.trail.length) path.lineTo(this.head.x, this.head.y)
     for (const [width, alpha] of [
       [GLOW_PX, 0.22],
       [CORE_PX, 1],
     ] as const) {
+      ctx.globalAlpha = alpha * fade
       ctx.lineWidth = width
-      // Points close in age share one path, so a long trail is a handful of strokes.
-      for (let i = 1; i < this.trail.length;) {
-        const life = 1 - (now - this.trail[i]!.t) / FADE_MS
-        // Stays bright for most of its life, then fades quickly.
-        ctx.globalAlpha = Math.sqrt(Math.max(0, life)) * alpha
-        ctx.beginPath()
-        ctx.moveTo(sx(this.trail[i - 1]!), sy(this.trail[i - 1]!))
-        const until = this.trail[i]!.t + FADE_MS / 12
-        for (; i < this.trail.length && this.trail[i]!.t <= until; i++) {
-          const p = this.trail[i]!
-          if (p.start) ctx.moveTo(sx(p), sy(p))
-          else ctx.lineTo(sx(p), sy(p))
-        }
-        ctx.stroke()
-      }
+      ctx.stroke(path)
     }
     ctx.globalAlpha = 1
-    if (this.head) {
-      const last = this.trail[this.trail.length - 1]
-      // The line runs right up to the broom's head.
-      if (last) {
-        ctx.lineCap = 'round'
-        ctx.lineWidth = CORE_PX
-        ctx.beginPath()
-        ctx.moveTo(sx(last), sy(last))
-        ctx.lineTo(this.head.x, this.head.y)
-        ctx.stroke()
-      }
-      drawBroom(ctx, this.head.x, this.head.y, BROOM_PX, this.color)
-    }
+    if (this.head) drawBroom(ctx, this.head.x, this.head.y, BROOM_PX, this.color)
     return this.trail.length > 0 || this.head !== null
   }
 }

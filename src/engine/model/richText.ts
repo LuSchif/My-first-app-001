@@ -7,7 +7,15 @@ import type { SpanStyle, TextObject, TextSpan, TextStyle } from './types.ts'
  * repeat the box style.
  */
 
-export const SPAN_KEYS = ['font', 'size', 'color', 'bold', 'italic', 'underline'] as const
+export const SPAN_KEYS = [
+  'font',
+  'size',
+  'color',
+  'bold',
+  'italic',
+  'underline',
+  'highlight',
+] as const
 
 /** A stretch of text with one style. */
 export interface TextRun {

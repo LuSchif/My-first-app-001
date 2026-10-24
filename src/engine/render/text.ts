@@ -25,6 +25,8 @@ export function cssFont(style: TextStyle, size = style.size): string {
 
 /** A piece of a line in one style; `x` is measured from the line's start. */
 export interface TextFragment {
+  /** Where the fragment starts in the box's text. */
+  start: number
   text: string
   x: number
   width: number
@@ -195,7 +197,7 @@ export function layoutText(object: TextObject): TextLayout {
       const t = text.slice(p.start, p.end)
       const shown = last ? t.trimEnd() : t
       const width = measure(p, p.start + shown.length)
-      fragments.push({ text: shown, x, width, style: p.style })
+      fragments.push({ start: p.start, text: shown, x, width, style: p.style })
       x += last ? width : measure(p)
     })
     lines.push({
@@ -213,6 +215,72 @@ export function layoutText(object: TextObject): TextLayout {
   const layout = { lines, lineHeight, height: Math.max(lineHeight, top) }
   layouts.set(object, { generation: fontGeneration, layout })
   return layout
+}
+
+/** How strongly marked text shows its marker color (the highlighter's own opacity). */
+export const HIGHLIGHT_OPACITY = 0.45
+
+/** Marker color behind highlighted parts of a line, as one rounded band per color. */
+function paintHighlights(ctx: CanvasRenderingContext2D, line: TextLine, left: number): void {
+  let band: { color: string; x0: number; x1: number } | null = null
+  const flush = () => {
+    if (!band) return
+    const pad = line.height * 0.08
+    ctx.save()
+    ctx.globalAlpha *= HIGHLIGHT_OPACITY
+    ctx.globalCompositeOperation = 'multiply'
+    ctx.fillStyle = band.color
+    ctx.beginPath()
+    ctx.roundRect(
+      left + band.x0 - pad,
+      line.top + pad,
+      band.x1 - band.x0 + pad * 2,
+      line.height - pad * 2,
+      line.height * 0.18,
+    )
+    ctx.fill()
+    ctx.restore()
+    band = null
+  }
+  for (const f of line.fragments) {
+    const color = f.style.highlight
+    if (color && band?.color === color && Math.abs(band.x1 - f.x) < 1) band.x1 = f.x + f.width
+    else {
+      flush()
+      if (color && f.width > 0) band = { color, x0: f.x, x1: f.x + f.width }
+    }
+  }
+  flush()
+}
+
+/**
+ * Each character's place in the box, before rotation and from its top-left corner: the line
+ * it is on and where it starts and ends.
+ */
+export function charBoxes(
+  object: TextObject,
+): { index: number; line: number; x0: number; x1: number }[] {
+  const { lines } = layoutText(object)
+  const ctx = context()
+  const out: { index: number; line: number; x0: number; x1: number }[] = []
+  lines.forEach((line, li) => {
+    const align = object.style.align
+    const left =
+      align === 'center'
+        ? (object.width - line.width) / 2
+        : align === 'right'
+          ? object.width - line.width
+          : 0
+    for (const f of line.fragments) {
+      ctx.font = cssFont(f.style)
+      for (let i = 0; i < f.text.length; i++) {
+        const x0 = left + f.x + ctx.measureText(f.text.slice(0, i)).width
+        const x1 = left + f.x + ctx.measureText(f.text.slice(0, i + 1)).width
+        out.push({ index: f.start + i, line: li, x0, x1 })
+      }
+    }
+  })
+  return out
 }
 
 /** The width of the text's longest line when nothing wraps (lines end only at line breaks). */
@@ -290,6 +358,7 @@ export function paintText(ctx: CanvasRenderingContext2D, object: TextObject): vo
           ? object.width - line.width
           : 0
     const y = line.baseline
+    paintHighlights(ctx, line, left)
     for (const fragment of line.fragments) {
       const { style, text } = fragment
       const x = left + fragment.x

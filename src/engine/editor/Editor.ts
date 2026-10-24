@@ -85,6 +85,7 @@ import { LaserPointer } from './LaserPointer.ts'
 import { TapePeel } from './TapePeel.ts'
 import { PathController, type PathEditInfo } from './PathController.ts'
 import { DEFAULT_FEATURES, type Features } from './features.ts'
+import { highlightText } from './textHighlight.ts'
 
 export type ToolId =
   'pen' | 'highlighter' | 'broom' | 'lasso' | 'text' | 'path' | 'laser' | 'eyedropper' | 'tape'
@@ -114,7 +115,7 @@ export interface EditorState {
   features: Features
   /** The offer currently shown, placed near what it would change. */
   suggestion: {
-    kind: 'shape' | 'fill' | 'table' | 'clef'
+    kind: 'shape' | 'fill' | 'table' | 'clef' | 'arrow'
     label: string
     rect: ScreenRect
   } | null
@@ -2146,6 +2147,17 @@ export class Editor {
         : s.nib
           ? { ...s.stroke, points, widths: this.drawnWidths(s) }
           : { ...s.stroke, points }
+      // A highlighter stroke over typed text becomes a neat highlight of that text.
+      if (stroke.tool === 'highlighter' && this._state.features.smartHighlight) {
+        const marked = highlightText(page.objects, stroke, this.doc.notebook.layers)
+        if (marked) {
+          this.history.execute(setPageObjects('Highlight text', page.id, page.objects, marked))
+          this.rememberColor(stroke.color)
+          this.clearArea(this.wet, s.wetDirty)
+          this.clearTip()
+          return
+        }
+      }
       const layers = this.doc.notebook.layers.filter((l) => l.visible)
       const top = layers[layers.length - 1]
       const onTop = top?.id === stroke.layerId && top.opacity >= 1 && !top.clip

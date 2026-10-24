@@ -6,7 +6,13 @@
 
 export type StyledCss = Partial<
   Record<
-    'fontFamily' | 'fontSize' | 'fontWeight' | 'fontStyle' | 'textDecoration' | 'color',
+    | 'fontFamily'
+    | 'fontSize'
+    | 'fontWeight'
+    | 'fontStyle'
+    | 'textDecoration'
+    | 'color'
+    | 'backgroundColor',
     string
   >
 >

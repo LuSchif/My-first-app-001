@@ -17,7 +17,13 @@ import {
   styleAt,
   textRuns,
 } from '../model/richText.ts'
-import { FONT_STACKS, layoutText, naturalWidth, textCenter } from '../render/text.ts'
+import {
+  FONT_STACKS,
+  HIGHLIGHT_OPACITY,
+  layoutText,
+  naturalWidth,
+  textCenter,
+} from '../render/text.ts'
 import type { EditorContext } from './context.ts'
 
 /** Ruled lines on a page: the first one, the spacing, and the margin line on the left. */
@@ -367,6 +373,7 @@ export class TextController {
         fontStyle: run.style.italic ? 'italic' : 'normal',
         textDecoration: run.style.underline ? 'underline' : 'none',
         color: run.style.color,
+        backgroundColor: run.style.highlight ? highlightCss(run.style.highlight) : 'transparent',
       },
     }))
   }
@@ -509,4 +516,9 @@ function sameText(a: TextObject | null, b: TextObject): boolean {
 export function textLayerName(text: string): string {
   const line = text.trim().split('\n')[0]!.trim()
   return line.length > 24 ? `${line.slice(0, 23)}…` : line || 'Text'
+}
+
+/** A marker color as see-through CSS, as it looks on the page. */
+function highlightCss(color: string): string {
+  return `color-mix(in srgb, ${color} ${HIGHLIGHT_OPACITY * 100}%, transparent)`
 }

@@ -250,6 +250,8 @@ export interface TextStyle {
   align: 'left' | 'center' | 'right'
   /** Multiple of the font size. */
   lineHeight: number
+  /** A marker color behind the letters, like a highlighter pen. */
+  highlight?: string
 }
 
 /**
@@ -258,7 +260,7 @@ export interface TextStyle {
  */
 /** The parts of a text style that can differ inside one text box. */
 export type SpanStyle = Partial<
-  Pick<TextStyle, 'font' | 'size' | 'color' | 'bold' | 'italic' | 'underline'>
+  Pick<TextStyle, 'font' | 'size' | 'color' | 'bold' | 'italic' | 'underline' | 'highlight'>
 >
 
 /** Formatting for the characters from `start` up to (not including) `end`. */

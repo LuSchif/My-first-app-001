@@ -24,6 +24,7 @@ import {
   type Staves,
 } from '../geometry/clefs.ts'
 import { PAGE_SIZE } from '../model/types.ts'
+import { detectArrow, type CleanArrow } from '../geometry/arrows.ts'
 
 /** Strokes smaller than this (in points) are handwriting, not shapes. */
 const MIN_SHAPE_SIZE = 36
@@ -36,6 +37,8 @@ export type Suggestion =
   | { kind: 'fill'; region: Region; color: string; opacity: number; removeIds: Id[] }
   /** Hand-drawn grid lines become a table with the same spacing. */
   | { kind: 'table'; strokeIds: Id[]; xs: number[]; ys: number[]; color: string; width: number }
+  /** A hand-drawn arrow becomes a clean one: its shaft (straightened if nearly straight) and an even head. */
+  | { kind: 'arrow'; strokeIds: Id[]; arrow: CleanArrow }
   /** A hand-drawn clef on music paper becomes a clean one on its staff line. */
   | { kind: 'clef'; strokeIds: Id[]; clef: ClefKind; strokes: ClefStroke[] }
 
@@ -50,6 +53,7 @@ export function suggestionBounds(s: Suggestion): Rect {
   if (s.kind === 'fill') return boundsOfPoints(s.region.points)
   if (s.kind === 'shape') return boundsOfPoints(s.shape.points)
   if (s.kind === 'clef') return boundsOfPoints(s.strokes.flatMap((c) => c.points))
+  if (s.kind === 'arrow') return boundsOfPoints([...s.arrow.shaft, ...s.arrow.head])
   return {
     minX: s.xs[0]!,
     minY: s.ys[0]!,
@@ -62,6 +66,7 @@ export function suggestionLabel(s: Suggestion): string {
   if (s.kind === 'fill') return 'Auto fill'
   if (s.kind === 'shape') return `Auto shape · ${s.shape.label}`
   if (s.kind === 'clef') return `Clean clef · ${CLEF_LABEL[s.clef]}`
+  if (s.kind === 'arrow') return 'Auto arrow'
   return `Auto table · ${s.ys.length - 1} × ${s.xs.length - 1}`
 }
 
@@ -154,6 +159,9 @@ export function suggestFor(
   }
   if (tableOnly) return null
 
+  const arrow = arrowFor(objects, stroke)
+  if (arrow) return arrow
+
   const region = regionAt(
     outlineSources(objects, stroke.layerId, around(cx, cy, reach), stroke.id),
     cx,
@@ -194,6 +202,52 @@ export function suggestFor(
   return shape ? { kind: 'shape', strokeIds: [stroke.id], shape } : null
 }
 
+/**
+ * The newest strokes near `stroke` (itself first), at most `max`, drawn one after another with
+ * the pen on its layer: parts of one drawing, like an arrow's shaft and head.
+ */
+function recentNear(
+  objects: readonly CanvasObject[],
+  stroke: StrokeObject,
+  max: number,
+  margin: { x: number; y: number },
+): StrokeObject[] {
+  const recent: StrokeObject[] = []
+  let area = boundsOfPoints(stroke.points)
+  for (let i = objects.length - 1; i >= 0 && recent.length < max; i--) {
+    const o = objects[i]!
+    if (o.type !== 'stroke' || o.layerId !== stroke.layerId || o.tool !== 'pen') continue
+    const b = boundsOfPoints(o.points)
+    const near = {
+      minX: area.minX - margin.x,
+      minY: area.minY - margin.y,
+      maxX: area.maxX + margin.x,
+      maxY: area.maxY + margin.y,
+    }
+    if (o.id !== stroke.id && !intersects(b, near)) break
+    recent.push(o)
+    area = {
+      minX: Math.min(area.minX, b.minX),
+      minY: Math.min(area.minY, b.minY),
+      maxX: Math.max(area.maxX, b.maxX),
+      maxY: Math.max(area.maxY, b.maxY),
+    }
+  }
+  return recent[0]?.id === stroke.id ? recent : []
+}
+
+/** An arrow drawn with the latest stroke, alone or with up to two strokes before it. */
+function arrowFor(objects: readonly CanvasObject[], stroke: StrokeObject): Suggestion | null {
+  if (stroke.tool !== 'pen' || stroke.closed) return null
+  const recent = recentNear(objects, stroke, 3, { x: 4, y: 4 })
+  for (let k = recent.length; k >= 1; k--) {
+    const group = recent.slice(0, k).reverse()
+    const arrow = detectArrow(group)
+    if (arrow) return { kind: 'arrow', strokeIds: arrow.ids, arrow }
+  }
+  return null
+}
+
 /** The staves on music paper. */
 export const MUSIC_STAVES: Staves = (() => {
   const m = PAPER_STYLE.music
@@ -211,28 +265,8 @@ const CLEF_GROUP = 6
  */
 function clefFor(objects: readonly CanvasObject[], stroke: StrokeObject): Suggestion | null {
   const g = MUSIC_STAVES.gap
-  const recent: StrokeObject[] = []
-  let area = boundsOfPoints(stroke.points)
-  for (let i = objects.length - 1; i >= 0 && recent.length < CLEF_GROUP; i--) {
-    const o = objects[i]!
-    if (o.type !== 'stroke' || o.layerId !== stroke.layerId || o.tool !== 'pen') continue
-    const b = boundsOfPoints(o.points)
-    const near = {
-      minX: area.minX - 3 * g,
-      minY: area.minY - 4 * g,
-      maxX: area.maxX + 3 * g,
-      maxY: area.maxY + 4 * g,
-    }
-    if (o.id !== stroke.id && !intersects(b, near)) break
-    recent.push(o)
-    area = {
-      minX: Math.min(area.minX, b.minX),
-      minY: Math.min(area.minY, b.minY),
-      maxX: Math.max(area.maxX, b.maxX),
-      maxY: Math.max(area.maxY, b.maxY),
-    }
-  }
-  if (!recent.length || recent[0]!.id !== stroke.id) return null
+  const recent = recentNear(objects, stroke, CLEF_GROUP, { x: 3 * g, y: 4 * g })
+  if (!recent.length) return null
   for (let k = recent.length; k >= 1; k--) {
     const group = recent.slice(0, k).reverse()
     const found = detectClef(group, MUSIC_STAVES)
@@ -288,6 +322,27 @@ export function applySuggestion(
     const at = objects.findIndex((o) => strokeIds.includes(o.id))
     const kept = objects.filter((o) => !strokeIds.includes(o.id))
     kept.splice(Math.max(0, Math.min(at, kept.length)), 0, table)
+    return kept
+  }
+  if (suggestion.kind === 'arrow') {
+    const { strokeIds, arrow } = suggestion
+    const shaft = objects.find((o) => o.id === strokeIds[0])
+    if (shaft?.type !== 'stroke') return [...objects]
+    const { path: _path, closed: _closed, widths: _widths, dash, ...ink } = shaft
+    // A dashed shaft stays dashed; the head is always solid.
+    const clean: StrokeObject[] = [
+      {
+        ...ink,
+        ...(dash ? { dash } : {}),
+        id: newId(),
+        points: arrow.shaft,
+        straight: arrow.straight,
+      },
+      { ...ink, id: newId(), points: arrow.head, straight: true },
+    ]
+    const at = objects.findIndex((o) => strokeIds.includes(o.id))
+    const kept = objects.filter((o) => !strokeIds.includes(o.id))
+    kept.splice(Math.max(0, Math.min(at, kept.length)), 0, ...clean)
     return kept
   }
   if (suggestion.kind === 'clef') {

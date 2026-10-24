@@ -9,6 +9,7 @@ const GROUPS: { title: string; items: [keyof Features, string, string][] }[] = [
       ['suggestions', 'Suggestions', 'Auto shape, Auto fill, tables and clefs after drawing'],
       ['holdToShape', 'Hold for perfect shapes', 'Rest the pen after drawing a shape'],
       ['pressure', 'Pen pressure', 'Press harder for a wider fountain pen line'],
+      ['smartHighlight', 'Smart highlighting', 'Highlighter over typed text marks it neatly'],
       ['textAutoAlign', 'Auto align text', 'New text sits on the lines of ruled paper'],
     ],
   },
