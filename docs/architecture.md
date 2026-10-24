@@ -111,7 +111,7 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
   Home Screen, so Broomit is installed as a PWA, requests persistent storage and offers a backup
   export from the first release.
 - The service worker (`scripts/build-service-worker.mjs`, generated at build time) precaches the
-  whole app, so it starts offline. Pages load network first, hashed build files cache first.
+  whole app, so it starts offline. Pages load network first (always revalidated, since GitHub Pages lets browsers cache them for 10 minutes), hashed build files cache first.
 - A backup is one JSON file with all folders, notebooks and pages. Restoring adds and replaces
   by id and never deletes other notebooks.
 
