@@ -115,6 +115,8 @@ const HIGHLIGHTER_OPACITY = 0.45
 /** Space kept free above the first page for the floating toolbar. */
 const TOP_INSET = 84
 const SIDE_MARGIN = 24
+/** Room on the right for the recent colors bar. */
+const RIGHT_INSET = 76
 /** Resting the pen this long after drawing a shape turns it into the perfect shape. */
 const HOLD_MS = 550
 const HOLD_SLOP_PX = 4
@@ -1055,8 +1057,19 @@ export class Editor {
         this.requestRender()
       },
       requestRender: () => this.requestRender(),
-      scrollBy: (dy) => this.setCamera({ ...this.camera, offsetY: this.camera.offsetY + dy }),
-      visibleArea: () => ({ top: TOP_INSET, bottom: this.view.height - this.bottomInset }),
+      scrollBy: (dx, dy) =>
+        this.setCamera({
+          ...this.camera,
+          offsetX: this.camera.offsetX + dx,
+          offsetY: this.camera.offsetY + dy,
+        }),
+      zoomAt: (anchor, factor) => this.zoomAt(anchor, factor),
+      visibleArea: () => ({
+        left: SIDE_MARGIN,
+        right: this.view.width - RIGHT_INSET,
+        top: TOP_INSET,
+        bottom: this.view.height - this.bottomInset,
+      }),
       changed: () => this.syncControllers(),
     }
   }

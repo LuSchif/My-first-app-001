@@ -14,6 +14,8 @@ import type { EditorContext } from './context.ts'
 
 const DEFAULT_WIDTH = 260
 const MIN_WIDTH = 60
+/** Distance a text box keeps from the page's edges. */
+const PAGE_MARGIN = 16
 
 export const DEFAULT_TEXT_STYLE: TextStyle = {
   font: 'sans',
@@ -99,12 +101,13 @@ export class TextController {
   create(pageId: Id, x: number, y: number, style: TextStyle): void {
     const layer = this.ctx.activeLayer()
     if (!layer || layer.locked) return
-    const width = Math.max(MIN_WIDTH, Math.min(DEFAULT_WIDTH, PAGE_SIZE.width - x - 16))
+    const width = Math.min(DEFAULT_WIDTH, PAGE_SIZE.width - PAGE_MARGIN * 2)
     const draft: TextObject = {
       id: newId(),
       type: 'text',
       layerId: layer.id,
-      x,
+      // Near the right edge, the box starts further left so it stays on the page.
+      x: Math.max(PAGE_MARGIN, Math.min(x, PAGE_SIZE.width - PAGE_MARGIN - width)),
       y: y - (style.size * style.lineHeight) / 2,
       width,
       rotation: 0,
@@ -115,7 +118,7 @@ export class TextController {
   }
 
   edit(pageId: Id, object: TextObject): void {
-    this.begin(pageId, object, object)
+    this.begin(pageId, onPage(object), object)
   }
 
   /** Focuses the text field again if something else took focus while it is being edited. */
@@ -270,21 +273,36 @@ export class TextController {
   }
 
   /**
-   * Scrolls the page so the text box sits between the toolbar and the keyboard. When the box is
-   * taller than that space, its end stays visible, since that is where typing happens.
+   * Moves the page so the text box sits between the toolbar, the color bar and the keyboard;
+   * a box wider than the screen is zoomed out until it fits. When the box is taller than the
+   * space, its end stays visible, since that is where typing happens.
    */
   ensureVisible(): void {
     if (!this.editing) return
     const area = this.ctx.visibleArea()
-    const box = this.textarea.getBoundingClientRect()
     const host = this.ctx.host.getBoundingClientRect()
     const margin = 20
+    let box = this.textarea.getBoundingClientRect()
+    const room = area.right - area.left - margin * 2
+    if (box.width > room) {
+      const center = {
+        x: (box.left + box.right) / 2 - host.left,
+        y: (box.top + box.bottom) / 2 - host.top,
+      }
+      this.ctx.zoomAt(center, room / box.width)
+      box = this.textarea.getBoundingClientRect()
+    }
+    const left = box.left - host.left - margin
+    const right = box.right - host.left + margin
+    let dx = 0
+    if (right > area.right) dx = area.right - right
+    if (left + dx < area.left) dx = area.left - left
     const top = box.top - host.top - margin
     const bottom = box.bottom - host.top + margin
     let dy = 0
     if (bottom > area.bottom) dy = area.bottom - bottom
     if (top + dy < area.top && bottom - top <= area.bottom - area.top) dy = area.top - top
-    if (Math.abs(dy) > 1) this.ctx.scrollBy(dy)
+    if (Math.abs(dx) > 1 || Math.abs(dy) > 1) this.ctx.scrollBy(dx, dy)
   }
 
   /** A style change that alters the height should not make a rotated box jump sideways. */
@@ -294,6 +312,14 @@ export class TextController {
     const b = textCenter(after)
     return { ...after, x: after.x + a.x - b.x, y: after.y + a.y - b.y }
   }
+}
+
+/** An unrotated text box reaching past the page's right edge is narrowed (or moved) to fit. */
+function onPage(text: TextObject): TextObject {
+  if (text.rotation !== 0 || text.x + text.width <= PAGE_SIZE.width) return text
+  const width = Math.max(MIN_WIDTH, Math.min(text.width, PAGE_SIZE.width - PAGE_MARGIN - text.x))
+  const x = Math.max(PAGE_MARGIN, Math.min(text.x, PAGE_SIZE.width - PAGE_MARGIN - width))
+  return { ...text, x, width }
 }
 
 function sameText(a: TextObject | null, b: TextObject): boolean {

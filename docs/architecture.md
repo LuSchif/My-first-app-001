@@ -43,7 +43,8 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
   anchors; straight lines get two, and straight segments stay straight. Pens can draw solid,
   dashed or dotted lines.
 - **Text and tables**: rendered on the canvas at rest; edited through a DOM overlay positioned
-  with the same transform, so typing feels native.
+  with the same transform, so typing feels native. A text box stays on the page; while typing,
+  the page moves (and zooms out if needed) so the whole box is on screen.
 
 ## Keyboard
 
@@ -52,7 +53,11 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
   keyboard (`features/keyboard`). Text fields there are never focused: tapping one makes it the
   keyboard's target, and keys write into it with input events React sees.
 - German QWERTZ with umlauts and ß, number and symbol pages, shift and caps lock. A hardware
-  keyboard types into the same field. Typing always goes to the end of the field.
+  keyboard types into the same field.
+- Since the field is not focused, a mirror (`fieldMirror.ts`) with the field's box, font and
+  wrapping draws its text, caret and selection. A tap places the caret, a double tap selects a
+  word, dragging selects text; arrow keys and sliding along the space bar move the caret.
+- The name shown is "Broomit Keyboard".
 - "Use the iPad keyboard instead" turns this off per device (`broomit.virtualKeyboard`).
 - The keyboard's height (`lib/keyboardInset.ts`, CSS `--kb-height`) shrinks the visible area,
   so dialogs and the canvas keep the field in view.

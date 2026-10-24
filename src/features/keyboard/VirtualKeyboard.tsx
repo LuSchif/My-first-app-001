@@ -1,13 +1,32 @@
-import { ArrowBigUp, ArrowBigUpDash, ChevronDown, CornerDownLeft, Delete } from 'lucide-react'
-import { useEffect, useLayoutEffect, useRef, useSyncExternalStore, type ReactNode } from 'react'
+import {
+  ArrowBigUp,
+  ArrowBigUpDash,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  CornerDownLeft,
+  Delete,
+} from 'lucide-react'
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useSyncExternalStore,
+  type PointerEvent,
+  type ReactNode,
+} from 'react'
 import { setKeyboardInset } from '../../lib/keyboardInset.ts'
 import { cn } from '../../lib/cn.ts'
 import {
   backspace,
   close,
+  cut,
   enter,
   keyboardState,
+  moveCaret,
   onKeyboardChange,
+  selectAll,
+  selectedText,
   setPage,
   setVirtualKeyboardEnabled,
   toggleShift,
@@ -19,7 +38,23 @@ const LETTERS = ['qwertzuiopü', 'asdfghjklöä', 'yxcvbnm']
 const NUMBERS = ['1234567890', '-/:;()€&@"', ".,?!'%+="]
 const SYMBOLS = ['[]{}#%^*+=', '_\\|~<>$£¥•', ".,?!'`§°"]
 
-/** Broomit's own on-screen keyboard, shown while a text field is its target (see keyboardStore). */
+/** Steps of this many pixels on the space bar move the caret by one character. */
+const SPACE_STEP_PX = 14
+
+function copy(text: string): void {
+  void navigator.clipboard?.writeText(text).catch(() => {})
+}
+
+async function paste(): Promise<void> {
+  try {
+    const text = await navigator.clipboard.readText()
+    if (text) type(text, true)
+  } catch {
+    // No permission to read the clipboard: nothing to paste.
+  }
+}
+
+/** Broomit Keyboard, shown while a text field is its target (see keyboardStore). */
 export function VirtualKeyboard() {
   const state = useSyncExternalStore(onKeyboardChange, keyboardState)
   const ref = useRef<HTMLDivElement>(null)
@@ -39,29 +74,56 @@ export function VirtualKeyboard() {
   if (!open) return null
   const rows = state.page === 'letters' ? LETTERS : state.page === 'numbers' ? NUMBERS : SYMBOLS
   const upper = state.shift !== 'off' && state.page === 'letters'
+  const hasSelection = state.selection.start !== state.selection.end
+  const canPaste = typeof navigator.clipboard?.readText === 'function'
 
   return (
     <div
       ref={ref}
       data-virtual-keyboard=""
       role="group"
-      aria-label="Keyboard"
+      aria-label="Broomit Keyboard"
       // Stays usable while a dialog blocks the page behind it.
       style={{ pointerEvents: 'auto' }}
       className="fixed inset-x-0 bottom-0 z-[70] grid gap-2 bg-surface-sunken/97 px-2 pt-1.5 pb-[calc(8px+env(safe-area-inset-bottom))] shadow-overlay backdrop-blur"
     >
-      <div className="flex items-center justify-between px-1">
-        <button
-          type="button"
-          onClick={() => {
-            setVirtualKeyboardEnabled(false)
-            close()
-            window.location.reload()
-          }}
-          className="h-9 rounded-control px-2 text-xs font-semibold text-ink-muted hover:bg-hover"
-        >
-          Use the iPad keyboard instead
-        </button>
+      <div className="mx-auto flex w-full max-w-[64rem] items-center gap-1 px-1">
+        <div className="mr-auto flex min-w-0 items-baseline gap-2">
+          <span className="truncate text-sm font-semibold text-ink">Broomit Keyboard</span>
+          <button
+            type="button"
+            onClick={() => {
+              setVirtualKeyboardEnabled(false)
+              close()
+              window.location.reload()
+            }}
+            className="truncate rounded-control px-1 text-xs text-ink-muted underline-offset-2 hover:underline"
+          >
+            Use the iPad keyboard
+          </button>
+        </div>
+        <StripButton label="Select all" onClick={selectAll}>
+          Select all
+        </StripButton>
+        <StripButton label="Cut" disabled={!hasSelection} onClick={() => copy(cut())}>
+          Cut
+        </StripButton>
+        <StripButton label="Copy" disabled={!hasSelection} onClick={() => copy(selectedText())}>
+          Copy
+        </StripButton>
+        {canPaste ? (
+          <StripButton label="Paste" onClick={() => void paste()}>
+            Paste
+          </StripButton>
+        ) : null}
+        <span className="mx-1 h-6 w-px bg-line-strong" />
+        <StripButton label="Move cursor left" repeat onPress={() => moveCaret(-1)}>
+          <ChevronLeft size={22} />
+        </StripButton>
+        <StripButton label="Move cursor right" repeat onPress={() => moveCaret(1)}>
+          <ChevronRight size={22} />
+        </StripButton>
+        <span className="mx-1 h-6 w-px bg-line-strong" />
         <button
           type="button"
           aria-label="Hide keyboard"
@@ -121,9 +183,7 @@ export function VirtualKeyboard() {
           <Key label="Comma" onPress={() => type(',')}>
             ,
           </Key>
-          <Key label="Space" grow onPress={() => type(' ')}>
-            <span className="text-sm text-ink-muted">space</span>
-          </Key>
+          <SpaceKey />
           <Key label="Full stop" onPress={() => type('.')}>
             .
           </Key>
@@ -136,26 +196,74 @@ export function VirtualKeyboard() {
   )
 }
 
-/** A key. It acts on touch-down, like a real keyboard; Delete repeats while held. */
-function Key({
+/** Space; sliding a finger along it moves the caret instead, like on the iPad's keyboard. */
+function SpaceKey() {
+  const drag = useRef<{ id: number; x: number; moved: boolean } | null>(null)
+  return (
+    <button
+      type="button"
+      aria-label="Space"
+      onPointerDown={(e) => {
+        e.preventDefault()
+        e.currentTarget.setPointerCapture?.(e.pointerId)
+        drag.current = { id: e.pointerId, x: e.clientX, moved: false }
+      }}
+      onPointerMove={(e) => {
+        const d = drag.current
+        if (!d || d.id !== e.pointerId) return
+        while (Math.abs(e.clientX - d.x) >= SPACE_STEP_PX) {
+          const direction = e.clientX > d.x ? 1 : -1
+          moveCaret(direction)
+          d.x += direction * SPACE_STEP_PX
+          d.moved = true
+        }
+      }}
+      onPointerUp={(e) => {
+        const d = drag.current
+        drag.current = null
+        if (d && d.id === e.pointerId && !d.moved) type(' ')
+      }}
+      onPointerCancel={() => (drag.current = null)}
+      className={cn(KEY_CLASS, 'max-w-none flex-[5] bg-surface-raised')}
+    >
+      <span className="text-sm text-ink-muted">space</span>
+    </button>
+  )
+}
+
+/** A button in the strip above the keys; `onPress` acts on touch-down (and repeats if asked). */
+function StripButton({
   label,
-  onPress,
   children,
-  wide,
-  grow,
-  accent,
-  pressed,
+  onClick,
+  onPress,
   repeat,
+  disabled,
 }: {
   label: string
-  onPress: () => void
   children: ReactNode
-  wide?: boolean
-  grow?: boolean
-  accent?: boolean
-  pressed?: boolean
+  onClick?: () => void
+  onPress?: () => void
   repeat?: boolean
+  disabled?: boolean
 }) {
+  const hold = useHold(onPress ?? (() => {}), repeat)
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      disabled={disabled}
+      onClick={onClick}
+      {...(onPress ? hold : {})}
+      className="grid h-9 min-w-9 place-items-center rounded-control px-2 text-sm font-semibold text-ink hover:bg-hover active:bg-pressed disabled:text-ink-subtle"
+    >
+      {children}
+    </button>
+  )
+}
+
+/** Pointer handlers that act on touch-down and, with `repeat`, again while held. */
+function useHold(onPress: () => void, repeat?: boolean) {
   const timer = useRef<{
     wait?: ReturnType<typeof setTimeout>
     every?: ReturnType<typeof setInterval>
@@ -165,28 +273,54 @@ function Key({
     clearInterval(timer.current.every)
   }
   useEffect(() => stop, [])
+  return {
+    onPointerDown: (e: PointerEvent) => {
+      e.preventDefault()
+      onPress()
+      if (repeat) {
+        timer.current.wait = setTimeout(() => {
+          timer.current.every = setInterval(onPress, 70)
+        }, 420)
+      }
+    },
+    onPointerUp: stop,
+    onPointerCancel: stop,
+    onPointerLeave: stop,
+  }
+}
+
+const KEY_CLASS =
+  'grid h-14 min-w-0 select-none place-items-center rounded-[10px] text-[22px] text-ink shadow-[0_1px_0_rgb(62_45_37/0.25)] active:bg-beige'
+
+/** A key. It acts on touch-down, like a real keyboard; Delete repeats while held. */
+function Key({
+  label,
+  onPress,
+  children,
+  wide,
+  accent,
+  pressed,
+  repeat,
+}: {
+  label: string
+  onPress: () => void
+  children: ReactNode
+  wide?: boolean
+  accent?: boolean
+  pressed?: boolean
+  repeat?: boolean
+}) {
+  const hold = useHold(onPress, repeat)
   return (
     <button
       type="button"
       aria-label={label}
       aria-pressed={pressed}
-      onPointerDown={(e) => {
-        e.preventDefault()
-        onPress()
-        if (repeat) {
-          timer.current.wait = setTimeout(() => {
-            timer.current.every = setInterval(onPress, 70)
-          }, 420)
-        }
-      }}
-      onPointerUp={stop}
-      onPointerCancel={stop}
-      onPointerLeave={stop}
+      {...hold}
       className={cn(
-        'grid h-14 select-none place-items-center rounded-[10px] text-[22px] text-ink shadow-[0_1px_0_rgb(62_45_37/0.25)] active:bg-beige',
-        grow ? 'flex-[5]' : wide ? 'flex-[1.6]' : 'flex-1',
-        'max-w-[5.5rem] min-w-0',
-        grow && 'max-w-none',
+        KEY_CLASS,
+        wide ? 'flex-[1.6]' : 'flex-1',
+        'max-w-[5.5rem]',
         wide && 'max-w-[8rem]',
         accent
           ? 'bg-ink text-ink-inverse active:bg-mocha'

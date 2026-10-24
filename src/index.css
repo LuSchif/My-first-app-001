@@ -30,4 +30,48 @@ body {
 [data-virtual-focus] {
   outline: 2px solid var(--color-accent);
   outline-offset: 1px;
+  touch-action: none;
+}
+
+/* Broomit Keyboard: the mirror (fieldMirror.ts) draws the text, caret and selection instead. */
+[data-virtual-focus],
+[data-virtual-focus]::placeholder {
+  -webkit-text-fill-color: transparent;
+}
+
+[data-field-mirror] {
+  user-select: none;
+  -webkit-user-select: none;
+  scrollbar-width: none;
+}
+
+.field-mirror-caret {
+  position: relative;
+}
+
+.field-mirror-caret::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -1px;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--color-accent);
+  animation: field-caret-blink 1s steps(1) infinite;
+}
+
+.field-mirror-selection {
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--color-accent) 35%, transparent);
+}
+
+.field-mirror-placeholder {
+  opacity: 0.45;
+}
+
+@keyframes field-caret-blink {
+  50% {
+    opacity: 0;
+  }
 }
