@@ -58,7 +58,9 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
   wrapping draws its text, caret and selection. A tap places the caret, a double tap selects a
   word, dragging selects text; arrow keys and sliding along the space bar move the caret.
 - The name shown is "Broomit Keyboard".
-- "Use the iPad keyboard instead" turns this off per device (`broomit.virtualKeyboard`).
+- There is no switch back to the system keyboard: on iPad it would bring the bar back.
+- Each key's touch area covers the gaps around it, and touches on the keyboard are cancelled,
+  so iPadOS cannot take fast taps as a double-tap zoom or a selection.
 - The keyboard's height (`lib/keyboardInset.ts`, CSS `--kb-height`) shrinks the visible area,
   so dialogs and the canvas keep the field in view.
 

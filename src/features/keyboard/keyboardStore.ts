@@ -9,28 +9,15 @@ import { setKeyboardInset } from '../../lib/keyboardInset.ts'
 
 export type Field = HTMLInputElement | HTMLTextAreaElement
 
-const STORAGE_KEY = 'broomit.virtualKeyboard'
-
-/** Whether Broomit's keyboard is used: on iPads and other touch tablets, unless turned off. */
+/** Whether Broomit Keyboard is used: on iPads and other touch tablets (or when forced on). */
 export function virtualKeyboardEnabled(): boolean {
   try {
-    const choice = localStorage.getItem(STORAGE_KEY)
-    if (choice === 'on') return true
-    if (choice === 'off') return false
+    // Forced on for testing on other devices; an old 'off' choice no longer exists.
+    if (localStorage.getItem('broomit.virtualKeyboard') === 'on') return true
   } catch {
-    // No storage: fall back to the device check.
+    // No storage: the device check decides.
   }
-  const touchTablet =
-    navigator.maxTouchPoints > 1 && /Macintosh|iPad|Android/.test(navigator.userAgent)
-  return touchTablet
-}
-
-export function setVirtualKeyboardEnabled(on: boolean): void {
-  try {
-    localStorage.setItem(STORAGE_KEY, on ? 'on' : 'off')
-  } catch {
-    // Not remembered; the choice holds until reload.
-  }
+  return navigator.maxTouchPoints > 1 && /Macintosh|iPad|Android/.test(navigator.userAgent)
 }
 
 export type KeyPage = 'letters' | 'numbers' | 'symbols'
