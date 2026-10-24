@@ -1,5 +1,6 @@
 import { enterBox } from '../geometry/box.ts'
 import type { ChartObject } from '../model/types.ts'
+import { strokeBoxOutline } from './outline.ts'
 import { FONT_STACKS } from './text.ts'
 
 const GRID_COLOR = 'rgba(62, 45, 37, 0.14)'
@@ -53,10 +54,7 @@ export function paintChart(ctx: CanvasRenderingContext2D, chart: ChartObject): v
     ctx.restore()
     ctx.save()
     enterBox(ctx, chart)
-    const w = chart.outline.width
-    ctx.lineWidth = w
-    ctx.strokeStyle = chart.outline.color
-    ctx.strokeRect(-w / 2, -w / 2, chart.width + w, chart.height + w)
+    strokeBoxOutline(ctx, chart.width, chart.height, chart.outline)
   }
   ctx.restore()
 }
@@ -132,7 +130,17 @@ function paintAxes(
   font: (weight?: number, size?: number) => string,
 ): void {
   const fs = chart.fontSize
-  const all = chart.series.flatMap((s) => s.values).filter((v) => Number.isFinite(v))
+  const stacked = chart.kind === 'bar' && chart.stacked && chart.series.length > 1
+  // Stacked bars reach as high as the sum of each category.
+  const all = stacked
+    ? chart.labels.flatMap((_, i) => {
+        const vs = chart.series.map((s) => s.values[i] ?? 0).filter(Number.isFinite)
+        return [
+          vs.filter((v) => v > 0).reduce((a, b) => a + b, 0),
+          vs.filter((v) => v < 0).reduce((a, b) => a + b, 0),
+        ]
+      })
+    : chart.series.flatMap((s) => s.values).filter((v) => Number.isFinite(v))
   const max = Math.max(0, ...all)
   const min = Math.min(0, ...all)
   const up = niceScale(max)
@@ -176,7 +184,29 @@ function paintAxes(
   })
 
   const series = chart.series
-  if (chart.kind === 'bar') {
+  if (stacked) {
+    const barW = band * 0.6
+    const pos = chart.labels.map(() => 0)
+    const neg = chart.labels.map(() => 0)
+    series.forEach((s) => {
+      ctx.fillStyle = s.color
+      s.values.slice(0, n).forEach((v, i) => {
+        if (!Number.isFinite(v) || v === 0) return
+        const base = v > 0 ? pos[i]! : neg[i]!
+        const top = base + v
+        if (v > 0) pos[i] = top
+        else neg[i] = top
+        const x = left + band * i + (band - barW) / 2
+        ctx.fillRect(x, Math.min(y(base), y(top)), barW, Math.abs(y(top) - y(base)))
+      })
+    })
+    if (chart.values) {
+      chart.labels.forEach((_, i) => {
+        const total = pos[i]! + neg[i]!
+        valueLabel(ctx, chart, total, left + band * (i + 0.5), y(pos[i]!) - fs * 0.2, font)
+      })
+    }
+  } else if (chart.kind === 'bar') {
     const inner = band * 0.7
     const barW = inner / Math.max(1, series.length)
     series.forEach((s, k) => {
@@ -229,6 +259,36 @@ function paintAxes(
       }
     })
   }
+  if (chart.average) paintAverages(ctx, chart, left, right, y)
+}
+
+/** A dashed line across the plot at the average of each series. */
+function paintAverages(
+  ctx: CanvasRenderingContext2D,
+  chart: ChartObject,
+  left: number,
+  right: number,
+  y: (v: number) => number,
+): void {
+  ctx.save()
+  ctx.setLineDash([chart.fontSize * 0.5, chart.fontSize * 0.35])
+  ctx.lineWidth = Math.max(0.75, chart.fontSize / 10)
+  for (const s of chart.series) {
+    const values = s.values.slice(0, chart.labels.length).filter(Number.isFinite)
+    if (values.length === 0) continue
+    const avg = values.reduce((a, b) => a + b, 0) / values.length
+    ctx.strokeStyle = s.color
+    ctx.beginPath()
+    ctx.moveTo(left, y(avg))
+    ctx.lineTo(right, y(avg))
+    ctx.stroke()
+    ctx.font = `600 ${chart.fontSize * 0.8}px ${FONT_STACKS.sans}`
+    ctx.fillStyle = s.color
+    ctx.textAlign = 'right'
+    ctx.textBaseline = 'bottom'
+    ctx.fillText(`ø ${formatValue(avg)}`, right, y(avg) - 2)
+  }
+  ctx.restore()
 }
 
 function valueLabel(

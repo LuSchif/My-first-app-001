@@ -1,5 +1,6 @@
 import { enterBox } from '../geometry/box.ts'
 import type { ImageObject } from '../model/types.ts'
+import { strokeBoxOutline } from './outline.ts'
 
 /** Where picture data comes from; the app connects this to its storage. */
 export type ImageLoader = (assetId: string) => Promise<Blob | null>
@@ -75,13 +76,6 @@ export function paintImage(ctx: CanvasRenderingContext2D, image: ImageObject): v
     ctx.fillStyle = 'rgba(216, 193, 165, 0.35)'
     ctx.fillRect(0, 0, image.width, image.height)
   }
-  if (image.outline) {
-    // A frame just outside the picture.
-    const w = image.outline.width
-    ctx.lineWidth = w
-    ctx.strokeStyle = image.outline.color
-    ctx.lineJoin = 'round'
-    ctx.strokeRect(-w / 2, -w / 2, image.width + w, image.height + w)
-  }
+  if (image.outline) strokeBoxOutline(ctx, image.width, image.height, image.outline)
   ctx.restore()
 }

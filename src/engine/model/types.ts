@@ -141,6 +141,10 @@ export interface ChartObject extends BoxFrame {
   grid: boolean
   /** Show each value next to its bar, point or slice. */
   values: boolean
+  /** Bars of all series stacked on each other instead of side by side. */
+  stacked?: boolean
+  /** A dashed line at each series' average. */
+  average?: boolean
   textColor: string
   /** In points. */
   fontSize: number
@@ -166,8 +170,10 @@ export interface Asset {
 /** A contour drawn around an object: around a line, the edge of an area, or each letter. */
 export interface Outline {
   color: string
-  /** Thickness in points, outside the object. */
+  /** Thickness in points. */
   width: number
+  /** Where the contour sits on the edge; outside when absent. */
+  position?: 'outside' | 'center' | 'inside'
 }
 
 export type InkTool = 'pen' | 'highlighter'

@@ -125,3 +125,85 @@ export function setCell(t: TableObject, row: number, col: number, text: string):
   const cells = t.cells.map((r, i) => (i === row ? r.map((c, j) => (j === col ? text : c)) : r))
   return { ...t, cells }
 }
+
+/** Room kept free between a table and the page edge, in points. */
+const PAGE_MARGIN = 12
+
+/**
+ * Keeps a straight table on the page: when it reaches past the right or bottom edge, its columns
+ * or rows shrink together, keeping their proportions, until it fits.
+ */
+export function fitToPage(t: TableObject, pageWidth: number, pageHeight: number): TableObject {
+  if (Math.abs(t.rotation) > 1e-6) return t
+  const roomX = pageWidth - PAGE_MARGIN - t.x
+  const roomY = pageHeight - PAGE_MARGIN - t.y
+  let next = t
+  if (t.width > roomX && roomX > 20) {
+    const k = roomX / t.width
+    next = { ...next, columns: next.columns.map((w) => w * k), width: roomX }
+  }
+  if (t.height > roomY && roomY > 20) {
+    const k = roomY / t.height
+    next = { ...next, rows: next.rows.map((h) => h * k), height: roomY }
+  }
+  return next
+}
+
+/** A number written in a cell ("1,5", "2.5 €", "40%"), or null for text. */
+export function cellNumber(text: string): number | null {
+  const cleaned = text.replace(/[\s€$%]/g, '').replace(',', '.')
+  if (cleaned === '' || !/^[-+]?\d*\.?\d+$/.test(cleaned)) return null
+  return Number(cleaned)
+}
+
+function formatNumber(v: number): string {
+  return Number.isInteger(v) ? String(v) : String(Math.round(v * 100) / 100)
+}
+
+/** Adds a row below that sums up (or averages) every column holding numbers. */
+export function addSummaryRow(t: TableObject, kind: 'sum' | 'average'): TableObject {
+  const body = t.cells.slice(t.style.header ? 1 : 0)
+  const values = t.columns.map((_, c) => {
+    const numbers = body.map((row) => cellNumber(row[c] ?? '')).filter((v) => v !== null)
+    if (numbers.length === 0) return ''
+    const sum = numbers.reduce((a, b) => a + b, 0)
+    return formatNumber(kind === 'sum' ? sum : sum / numbers.length)
+  })
+  // A label in the first column, unless that column holds numbers itself.
+  if (values[0] === '') values[0] = kind === 'sum' ? 'Total' : 'Average'
+  const grown = addRow(t)
+  return { ...grown, cells: [...grown.cells.slice(0, -1), values] }
+}
+
+/** Whether the table holds numbers a chart could show. */
+export function hasChartData(t: TableObject): boolean {
+  return t.cells.some((row) => row.some((c) => cellNumber(c) !== null))
+}
+
+/**
+ * The data of a table for a chart: the first column names the categories, every other column
+ * holding numbers becomes a series, named by the first row if that holds no numbers.
+ */
+export function tableChartData(t: TableObject): {
+  labels: string[]
+  series: { name: string; values: number[] }[]
+} {
+  // A first row without numbers names the series, header row or not.
+  const numeric = (row: string[]) => row.some((c) => cellNumber(c) !== null)
+  const first = t.cells[0] ?? []
+  const header =
+    t.style.header || (!numeric(first) && t.cells.slice(1).some(numeric)) ? first : undefined
+  // Totals and averages added with the table tools are not data of their own.
+  const body = t.cells
+    .slice(header ? 1 : 0)
+    .filter((row) => row[0] !== 'Total' && row[0] !== 'Average')
+  const firstIsLabels = body.some((row) => (row[0] ?? '') !== '' && cellNumber(row[0]!) === null)
+  const labels = body.map((row, i) => (firstIsLabels ? row[0] || `${i + 1}` : `${i + 1}`))
+  const series = t.columns.flatMap((_, c) => {
+    if (firstIsLabels && c === 0) return []
+    const values = body.map((row) => cellNumber(row[c] ?? '') ?? 0)
+    if (!body.some((row) => cellNumber(row[c] ?? '') !== null)) return []
+    return [{ name: header?.[c] || `Column ${c + 1}`, values }]
+  })
+  return { labels, series }
+}

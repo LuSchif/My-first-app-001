@@ -76,3 +76,61 @@ export function setValue(chart: ChartObject, series: number, index: number, valu
     ),
   }
 }
+
+export type ChartSort = 'label' | 'ascending' | 'descending'
+
+/** Reorders the categories: A to Z by label, or by the first series' values. */
+export function sortChart(chart: ChartObject, by: ChartSort): ChartObject {
+  const order = chart.labels.map((_, i) => i)
+  const first = chart.series[0]?.values ?? []
+  order.sort((a, b) => {
+    if (by === 'label')
+      return chart.labels[a]!.localeCompare(chart.labels[b]!, undefined, { numeric: true })
+    const d = (first[a] ?? 0) - (first[b] ?? 0)
+    return by === 'ascending' ? d : -d
+  })
+  return {
+    ...chart,
+    labels: order.map((i) => chart.labels[i]!),
+    series: chart.series.map((s) => ({ ...s, values: order.map((i) => s.values[i] ?? 0) })),
+  }
+}
+
+/** Swaps categories and series: what was a series becomes a category, and the other way round. */
+export function transposeChart(chart: ChartObject): ChartObject {
+  const series = chart.labels.map((label, i) => ({
+    name: label,
+    color: CHART_COLORS[i % CHART_COLORS.length]!,
+    values: chart.series.map((s) => s.values[i] ?? 0),
+  }))
+  return { ...chart, labels: chart.series.map((s) => s.name), series }
+}
+
+export interface SeriesStats {
+  sum: number
+  average: number
+  min: number
+  max: number
+}
+
+export function seriesStats(values: readonly number[]): SeriesStats | null {
+  const v = values.filter(Number.isFinite)
+  if (v.length === 0) return null
+  const sum = v.reduce((a, b) => a + b, 0)
+  return { sum, average: sum / v.length, min: Math.min(...v), max: Math.max(...v) }
+}
+
+/** A chart showing a table's numbers (see `tableChartData`). */
+export function chartFromData(
+  id: Id,
+  layerId: Id,
+  frame: BoxFrame,
+  kind: ChartKind,
+  data: { labels: string[]; series: { name: string; values: number[] }[] },
+): ChartObject {
+  return {
+    ...createChart(id, layerId, frame, kind),
+    labels: data.labels,
+    series: data.series.map((s, k) => ({ ...s, color: CHART_COLORS[k % CHART_COLORS.length]! })),
+  }
+}

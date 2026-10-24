@@ -99,6 +99,8 @@ function shareInside(points: readonly number[], region: Region): number {
 export function suggestFor(
   objects: readonly CanvasObject[],
   stroke: StrokeObject,
+  /** Only look for a table, e.g. after a line that was already made perfectly straight. */
+  tableOnly = false,
 ): Suggestion | null {
   const pts = stroke.points
   let cx = 0
@@ -129,6 +131,7 @@ export function suggestFor(
       width: stroke.width,
     }
   }
+  if (tableOnly) return null
 
   const region = regionAt(
     outlineSources(objects, stroke.layerId, around(cx, cy, reach), stroke.id),

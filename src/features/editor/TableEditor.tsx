@@ -1,8 +1,17 @@
-import { Minus, Plus } from 'lucide-react'
+import { Divide, Minus, Plus, Sigma } from 'lucide-react'
 import { useState } from 'react'
 import type { Editor } from '../../engine/editor/Editor.ts'
-import { addColumn, addRow, removeColumn, removeRow, setCell } from '../../engine/model/table.ts'
-import type { TableObject } from '../../engine/model/types.ts'
+import {
+  addColumn,
+  addRow,
+  addSummaryRow,
+  fitToPage,
+  removeColumn,
+  removeRow,
+  setCell,
+} from '../../engine/model/table.ts'
+import { PAGE_SIZE, type TableObject } from '../../engine/model/types.ts'
+import { ObjectPreview } from './ObjectPreview.tsx'
 import {
   Button,
   ColorPicker,
@@ -54,6 +63,9 @@ function TableEditorContent({
 
   return (
     <DialogContent title="Edit table" className="w-[min(48rem,calc(100%-2rem))]">
+      <div className="mb-4">
+        <ObjectPreview object={draft} height={150} />
+      </div>
       <div role="tablist" aria-label="Table editor" className="mb-4 flex gap-1">
         {(['cells', 'style'] as const).map((name) => (
           <button
@@ -119,10 +131,22 @@ function TableEditorContent({
             <Button icon={<Plus size={16} />} onClick={() => setDraft((t) => addColumn(t))}>
               Column right
             </Button>
+            <Button
+              icon={<Sigma size={16} />}
+              onClick={() => setDraft((t) => addSummaryRow(t, 'sum'))}
+            >
+              Totals row
+            </Button>
+            <Button
+              icon={<Divide size={16} />}
+              onClick={() => setDraft((t) => addSummaryRow(t, 'average'))}
+            >
+              Average row
+            </Button>
           </div>
           <p className="text-xs text-ink-muted">
             New rows and columns repeat the size of the last one, so a drawn table keeps its
-            spacing.
+            spacing. A totals or average row adds up every column with numbers.
           </p>
         </div>
       ) : (
@@ -144,12 +168,12 @@ function TableEditorContent({
             />
             <Slider
               label="Line thickness"
-              value={style.lineWidth}
+              value={Math.round(style.lineWidth * 4) / 4}
               min={0.25}
               max={6}
               step={0.25}
               onChange={(lineWidth) => setStyle({ lineWidth })}
-              format={(v) => `${v} pt`}
+              format={(v) => `${v.toFixed(1)} pt`}
             />
           </div>
           <div className="grid content-start gap-4">
@@ -183,7 +207,10 @@ function TableEditorContent({
         <Button
           variant="primary"
           onClick={() => {
-            editor.updateSelectedObject(draft, 'Edit table')
+            editor.updateSelectedObject(
+              fitToPage(draft, PAGE_SIZE.width, PAGE_SIZE.height),
+              'Edit table',
+            )
             onDone()
           }}
         >

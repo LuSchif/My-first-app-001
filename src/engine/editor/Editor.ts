@@ -639,14 +639,14 @@ export class Editor {
    * Looks for a shape or fill to offer once the pen has rested briefly, never while writing:
    * the analysis must not delay the next stroke.
    */
-  private scheduleSuggestion(pageId: Id, stroke: StrokeObject): void {
+  private scheduleSuggestion(pageId: Id, stroke: StrokeObject, tableOnly = false): void {
     if (this.suggestTimer) clearTimeout(this.suggestTimer)
     this.suggestTimer = setTimeout(() => {
       this.suggestTimer = null
       if (this.session) return
       const objects = this.doc.page(pageId)?.objects
       if (!objects?.some((o) => o.id === stroke.id)) return
-      const suggestion = suggestFor(objects, stroke)
+      const suggestion = suggestFor(objects, stroke, tableOnly)
       if (suggestion) this.offer(pageId, stroke.layerId, suggestion)
     }, SUGGEST_DELAY_MS)
   }
@@ -868,7 +868,13 @@ export class Editor {
    * page, on the active layer, and selects it so it can be moved and resized right away.
    * `width` and `height` are the size it would like; it is scaled down to fit the page.
    */
-  insertBox(make: (frame: BoxFrame, layerId: Id) => CanvasObject, width: number, height: number) {
+  insertBox(
+    make: (frame: BoxFrame, layerId: Id) => CanvasObject,
+    width: number,
+    height: number,
+    /** Where its top-left corner should go on the page; the middle of the view otherwise. */
+    at?: { x: number; y: number },
+  ) {
     const layer = this.activeLayer()
     if (!layer || this.blockedByLayer()) return
     const index = this._state.pageIndex
@@ -877,7 +883,9 @@ export class Editor {
     const fit = Math.min(1, (PAGE_SIZE.width * 0.7) / width, (PAGE_SIZE.height * 0.6) / height)
     const w = width * fit
     const h = height * fit
-    const center = this.toPageLocal({ x: this.view.width / 2, y: this.view.height / 2 }, index)
+    const center = at
+      ? { x: at.x + w / 2, y: at.y + h / 2 }
+      : this.toPageLocal({ x: this.view.width / 2, y: this.view.height / 2 }, index)
     const cx = Math.min(PAGE_SIZE.width - w / 2, Math.max(w / 2, center.x))
     const cy = Math.min(PAGE_SIZE.height - h / 2, Math.max(h / 2, center.y))
     const object = make(
@@ -1797,7 +1805,8 @@ export class Editor {
       this.paintedByEditor = onTop
       this.history.execute(setPageObjects('Draw', page.id, page.objects, [...page.objects, stroke]))
       this.paintedByEditor = false
-      if (this._state.suggest && !snapped) this.scheduleSuggestion(page.id, stroke)
+      // A line made perfectly straight can still complete a table.
+      if (this._state.suggest) this.scheduleSuggestion(page.id, stroke, Boolean(snapped))
     }
     this.clearArea(this.wet, s.wetDirty)
     this.clearTip()

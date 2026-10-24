@@ -1,5 +1,6 @@
 import { enterBox } from '../geometry/box.ts'
 import type { TableObject } from '../model/types.ts'
+import { strokeBoxOutline } from './outline.ts'
 import { FONT_STACKS } from './text.ts'
 
 /** Space between a cell's border and its text, in points. */
@@ -81,16 +82,9 @@ export function paintTable(ctx: CanvasRenderingContext2D, table: TableObject): v
   }
   ctx.stroke()
 
+  // The table's own frame line is its edge.
   if (table.outline) {
-    const w = table.outline.width
-    ctx.lineWidth = w
-    ctx.strokeStyle = table.outline.color
-    ctx.strokeRect(
-      -w / 2 - style.lineWidth / 2,
-      -w / 2 - style.lineWidth / 2,
-      table.width + w + style.lineWidth,
-      table.height + w + style.lineWidth,
-    )
+    strokeBoxOutline(ctx, table.width, table.height, table.outline, style.lineWidth / 2)
   }
   ctx.restore()
 }

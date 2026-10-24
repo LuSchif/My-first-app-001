@@ -5,6 +5,7 @@ import type { CanvasObject, FillObject } from '../model/types.ts'
 import { paintChart } from './chart.ts'
 import { paintImage } from './images.ts'
 import { paintTable } from './table.ts'
+import { outlinePad } from './outline.ts'
 import { paintStroke, strokeBounds } from './strokes.ts'
 import { paintText, textBounds } from './text.ts'
 
@@ -24,10 +25,10 @@ export function fillPath(fill: FillObject): Path2D {
 export function objectBounds(object: CanvasObject): Rect {
   if (object.type === 'stroke') return strokeBounds(object)
   if (object.type === 'text') return textBounds(object)
-  if (isBox(object)) return boxBounds(object, object.outline?.width ?? 0)
+  if (isBox(object)) return boxBounds(object, outlinePad(object.outline) + 1)
   let rect = fillBounds.get(object)
   if (!rect) {
-    rect = boundsOfPoints(object.points, (object.outline?.width ?? 0) / 2)
+    rect = boundsOfPoints(object.points, outlinePad(object.outline))
     fillBounds.set(object, rect)
   }
   return rect
@@ -42,12 +43,27 @@ export function paintObject(ctx: CanvasRenderingContext2D, object: CanvasObject)
   else {
     ctx.globalAlpha = object.opacity
     ctx.fillStyle = object.color
-    ctx.fill(fillPath(object))
-    if (object.outline) {
-      ctx.lineWidth = object.outline.width
+    const path = fillPath(object)
+    const outline = object.outline
+    if (outline) {
       ctx.lineJoin = 'round'
-      ctx.strokeStyle = object.outline.color
-      ctx.stroke(fillPath(object))
+      ctx.strokeStyle = outline.color
+    }
+    if (outline && (outline.position ?? 'outside') === 'outside') {
+      // Twice as wide underneath the area: the inner half is covered by the fill.
+      ctx.lineWidth = outline.width * 2
+      ctx.stroke(path)
+    }
+    ctx.fill(path)
+    if (outline?.position === 'center') {
+      ctx.lineWidth = outline.width
+      ctx.stroke(path)
+    } else if (outline?.position === 'inside') {
+      ctx.save()
+      ctx.clip(path)
+      ctx.lineWidth = outline.width * 2
+      ctx.stroke(path)
+      ctx.restore()
     }
     ctx.globalAlpha = 1
   }

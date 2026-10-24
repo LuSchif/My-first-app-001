@@ -20,7 +20,7 @@ export interface DrawnTable {
 }
 
 /** How far a line may lean (radians) and still count as horizontal or vertical. */
-const MAX_LEAN = (14 * Math.PI) / 180
+const MAX_LEAN = (18 * Math.PI) / 180
 /** Lines closer than this (points) are one line; ends this close meet. */
 const MERGE_PT = 8
 const MEET_PT = 14

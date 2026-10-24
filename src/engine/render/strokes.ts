@@ -1,6 +1,7 @@
 import { boundsOfPoints, type Rect } from '../geometry/rect.ts'
 import { tracePath, traceStroke } from '../geometry/strokePath.ts'
 import type { StrokeObject } from '../model/types.ts'
+import { outlinePad, outlineReach } from './outline.ts'
 
 // Objects are immutable, so derived data can be cached per object for its whole life.
 const paths = new WeakMap<StrokeObject, Path2D>()
@@ -21,7 +22,7 @@ export function strokePath(stroke: StrokeObject): Path2D {
 export function strokeBounds(stroke: StrokeObject): Rect {
   let rect = bounds.get(stroke)
   if (!rect) {
-    rect = boundsOfPoints(stroke.points, stroke.width / 2 + (stroke.outline?.width ?? 0))
+    rect = boundsOfPoints(stroke.points, stroke.width / 2 + outlinePad(stroke.outline))
     bounds.set(stroke, rect)
   }
   return rect
@@ -51,15 +52,21 @@ export function paintStroke(ctx: CanvasRenderingContext2D, stroke: StrokeObject)
   ctx.globalAlpha = stroke.opacity
   // Highlighter tints what is below instead of covering it, like a real marker.
   ctx.globalCompositeOperation = stroke.tool === 'highlighter' ? 'multiply' : 'source-over'
+  let width = stroke.width
   if (stroke.outline) {
-    // The contour is a wider line of its own color underneath.
-    ctx.lineWidth = stroke.width + stroke.outline.width * 2
+    // The contour is a line of its own color underneath; reaching inside, it leaves a thinner
+    // line of ink on top.
+    const { outer, inner } = outlineReach(stroke.outline)
+    ctx.lineWidth = stroke.width + outer * 2
     ctx.strokeStyle = stroke.outline.color
     ctx.stroke(strokePath(stroke))
-    ctx.lineWidth = stroke.width
+    width = stroke.width - inner * 2
     ctx.strokeStyle = stroke.color
   }
-  ctx.stroke(strokePath(stroke))
+  if (width > 0.05) {
+    ctx.lineWidth = width
+    ctx.stroke(strokePath(stroke))
+  }
   ctx.globalAlpha = 1
   ctx.globalCompositeOperation = 'source-over'
   ctx.setLineDash([])

@@ -87,6 +87,11 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
 - Picture data is stored once per picture in the `assets` table (schema version 2), apart from
   the pages, and loaded lazily for drawing. Large photos are scaled to 2400 px on the long side.
   Backups carry pictures as base64.
+- Tables keep to the page: growing past its edge shrinks the columns or rows to fit. Totals
+  and average rows, and charts made from a table, read numbers from the cells
+  (`model/table.ts`).
+- Charts can be stacked, show average lines, and be sorted or transposed (`model/chart.ts`).
+- Outlines sit outside, centered on or inside the edge (`render/outline.ts`).
 
 ## Export
 

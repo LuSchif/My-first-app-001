@@ -25,9 +25,25 @@ import {
   Slider,
   Switch,
 } from '../../design/index.ts'
-import { addColumn, addRow, removeColumn, removeRow } from '../../engine/model/table.ts'
+import { CHART_KINDS, chartFromData } from '../../engine/model/chart.ts'
+import { newId } from '../../engine/model/ids.ts'
+import {
+  addColumn,
+  addRow,
+  fitToPage,
+  hasChartData,
+  removeColumn,
+  removeRow,
+  tableChartData,
+} from '../../engine/model/table.ts'
+import { CHART_ICONS } from './chartIcons.tsx'
 import { Stepper } from './Stepper.tsx'
-import type { Outline } from '../../engine/model/types.ts'
+import {
+  PAGE_SIZE,
+  type ChartKind,
+  type Outline,
+  type TableObject,
+} from '../../engine/model/types.ts'
 import { ChartEditor } from './ChartEditor.tsx'
 import { TableEditor } from './TableEditor.tsx'
 import { useState } from 'react'
@@ -68,24 +84,29 @@ export function SelectionMenu({ editor, state }: { editor: Editor; state: Editor
       <MenuButton label="Cut" onClick={() => editor.cutSelection()}>
         <Scissors size={18} />
       </MenuButton>
-      <Popover>
-        <PopoverTrigger asChild>
-          <button
-            type="button"
-            aria-label="Color"
-            className="flex h-11 items-center gap-1.5 rounded-control px-3 text-sm font-semibold hover:bg-white/10 active:bg-white/15"
-          >
-            <span
-              className="size-[18px] rounded-full ring-2 ring-white/80"
-              style={{ background: sel.color ?? '#3e2d25' }}
-            />
-            Color
-          </button>
-        </PopoverTrigger>
-        <PopoverContent className="w-80">
-          <SelectionColor editor={editor} color={sel.color ?? '#3e2d25'} />
-        </PopoverContent>
-      </Popover>
+      {/* Charts and pictures keep their own colors. */}
+      {sel.boxKind === 'chart' || sel.boxKind === 'image' ? null : (
+        <>
+          <Popover>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                aria-label="Color"
+                className="flex h-11 items-center gap-1.5 rounded-control px-3 text-sm font-semibold hover:bg-white/10 active:bg-white/15"
+              >
+                <span
+                  className="size-[18px] rounded-full ring-2 ring-white/80"
+                  style={{ background: sel.color ?? '#3e2d25' }}
+                />
+                Color
+              </button>
+            </PopoverTrigger>
+            <PopoverContent className="w-80">
+              <SelectionColor editor={editor} color={sel.color ?? '#3e2d25'} />
+            </PopoverContent>
+          </Popover>
+        </>
+      )}
       <Popover>
         <PopoverTrigger asChild>
           <button
@@ -139,23 +160,28 @@ export function SelectionMenu({ editor, state }: { editor: Editor; state: Editor
       <MenuButton label="Duplicate" onClick={() => editor.duplicateSelection()}>
         <CopyPlus size={18} />
       </MenuButton>
-      {/* Lucide names these icons by their axis line, the opposite of the action. */}
-      <MenuButton
-        label="Flip horizontally"
-        iconOnly
-        onClick={() => editor.flipSelection('horizontal')}
-      >
-        <FlipVertical2 size={18} />
-      </MenuButton>
-      {/* A chart has no top-to-bottom mirror image that still reads as a chart. */}
-      {sel.boxKind === 'chart' ? null : (
-        <MenuButton
-          label="Flip vertically"
-          iconOnly
-          onClick={() => editor.flipSelection('vertical')}
-        >
-          <FlipHorizontal2 size={18} />
-        </MenuButton>
+      {/* A table is not mirrored; flipping would only scramble it. */}
+      {sel.boxKind === 'table' ? null : (
+        <>
+          {/* Lucide names these icons by their axis line, the opposite of the action. */}
+          <MenuButton
+            label="Flip horizontally"
+            iconOnly
+            onClick={() => editor.flipSelection('horizontal')}
+          >
+            <FlipVertical2 size={18} />
+          </MenuButton>
+          {/* A chart has no top-to-bottom mirror image that still reads as a chart. */}
+          {sel.boxKind === 'chart' ? null : (
+            <MenuButton
+              label="Flip vertically"
+              iconOnly
+              onClick={() => editor.flipSelection('vertical')}
+            >
+              <FlipHorizontal2 size={18} />
+            </MenuButton>
+          )}
+        </>
       )}
       <MenuButton label="Delete" onClick={() => editor.deleteSelection()}>
         <Trash2 size={18} />
@@ -169,7 +195,9 @@ function TableActions({ editor }: { editor: Editor }) {
   const [editing, setEditing] = useState(false)
   const table = editor.selectedObject()
   if (table?.type !== 'table') return null
-  const resize = (next: typeof table, label: string) => editor.updateSelectedObject(next, label)
+  // A table that grows past the page edge shrinks its columns or rows to fit the page.
+  const resize = (next: typeof table, label: string) =>
+    editor.updateSelectedObject(fitToPage(next, PAGE_SIZE.width, PAGE_SIZE.height), label)
   return (
     <>
       <MenuButton label="Edit table" onClick={() => setEditing(true)}>
@@ -216,8 +244,62 @@ function TableActions({ editor }: { editor: Editor }) {
           </p>
         </PopoverContent>
       </Popover>
+      {hasChartData(table) ? <MakeChart editor={editor} table={table} /> : null}
       <TableEditor editor={editor} table={table} open={editing} onOpenChange={setEditing} />
     </>
+  )
+}
+
+/** Shows the numbers of a table as a chart, placed next to it. */
+function MakeChart({ editor, table }: { editor: Editor; table: TableObject }) {
+  const make = (kind: ChartKind) => {
+    const data = tableChartData(table)
+    const width = kind === 'pie' || kind === 'donut' ? 260 : 340
+    const height = 240
+    // Right of the table when there is room, below it otherwise.
+    const right = table.x + table.width + 16
+    const at =
+      right + width <= PAGE_SIZE.width
+        ? { x: right, y: table.y }
+        : { x: table.x, y: table.y + table.height + 16 }
+    editor.insertBox(
+      (frame, layerId) => chartFromData(newId(), layerId, frame, kind, data),
+      width,
+      height,
+      at,
+    )
+  }
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="flex h-11 items-center gap-1.5 rounded-control px-3 text-sm font-semibold hover:bg-white/10 active:bg-white/15"
+        >
+          <ChartColumn size={18} />
+          Make chart
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="grid w-72 gap-3">
+        <p className="text-sm font-semibold">Show this table as a chart</p>
+        <div className="grid grid-cols-2 gap-2">
+          {CHART_KINDS.map(({ kind, label }) => (
+            <button
+              key={kind}
+              type="button"
+              onClick={() => make(kind)}
+              className="flex min-h-14 flex-col items-center justify-center gap-1 rounded-control text-sm font-semibold ring-1 ring-line hover:bg-hover"
+            >
+              {CHART_ICONS[kind]}
+              {label}
+            </button>
+          ))}
+        </div>
+        <p className="text-xs text-ink-muted">
+          The first column names the categories; every column with numbers becomes a series.
+        </p>
+      </PopoverContent>
+    </Popover>
   )
 }
 
@@ -235,6 +317,12 @@ function ChartActions({ editor }: { editor: Editor }) {
   )
 }
 
+const OUTLINE_POSITIONS = [
+  ['outside', 'Outside'],
+  ['center', 'Center'],
+  ['inside', 'Inside'],
+] as const
+
 const DEFAULT_OUTLINE: Outline = { color: '#3e2d25', width: 2 }
 
 /** Turns the contour around the selection on or off, and sets its thickness and color. */
@@ -250,16 +338,29 @@ function OutlineControls({ editor, outline }: { editor: Editor; outline: Outline
       />
       {outline ? (
         <>
+          <div role="group" aria-label="Outline position" className="grid grid-cols-3 gap-1.5">
+            {OUTLINE_POSITIONS.map(([position, label]) => (
+              <button
+                key={position}
+                type="button"
+                aria-pressed={(outline.position ?? 'outside') === position}
+                onClick={() => editor.setSelectionOutline({ ...outline, position })}
+                className="min-h-11 rounded-control text-sm font-semibold ring-1 ring-line aria-pressed:bg-ink aria-pressed:text-ink-inverse aria-pressed:ring-ink"
+              >
+                {label}
+              </button>
+            ))}
+          </div>
           {/* Changes show live while dragging and become one undo step on release. */}
           <Slider
             label="Thickness"
-            value={outline.width}
+            value={Math.round(outline.width * 2) / 2}
             min={0.5}
             max={12}
             step={0.5}
             onChange={(width) => editor.setSelectionOutline({ ...outline, width }, false)}
             onCommit={() => editor.commitSelectionEdit('Outline')}
-            format={(v) => `${v} pt`}
+            format={(v) => `${v.toFixed(1)} pt`}
           />
           <ColorPicker
             value={outline.color}

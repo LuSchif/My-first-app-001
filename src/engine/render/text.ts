@@ -1,5 +1,6 @@
 import type { Rect } from '../geometry/rect.ts'
 import type { FontFamily, TextObject, TextStyle } from '../model/types.ts'
+import { composite, isolate, outlinePad } from './outline.ts'
 
 /** CSS font-family stacks; the web fonts ship with the app, so they work offline. */
 export const FONT_STACKS: Record<FontFamily, string> = {
@@ -105,7 +106,7 @@ export function textCorners(object: TextObject): { x: number; y: number }[] {
 
 export function textBounds(object: TextObject): Rect {
   const corners = textCorners(object)
-  const pad = object.outline?.width ?? 0
+  const pad = outlinePad(object.outline)
   return {
     minX: Math.min(...corners.map((p) => p.x)) - pad,
     minY: Math.min(...corners.map((p) => p.y)) - pad,
@@ -149,16 +150,41 @@ export function paintText(ctx: CanvasRenderingContext2D, object: TextObject): vo
           ? object.width - line.width
           : 0
     const y = i * lineHeight + lineHeight / 2
-    if (object.outline) {
+    const outline = object.outline
+    const position = outline?.position ?? 'outside'
+    if (outline && position === 'outside') {
       // Stroked behind the letters, so only the outer half of the contour shows.
       ctx.save()
-      ctx.lineWidth = object.outline.width * 2
+      ctx.lineWidth = outline.width * 2
       ctx.lineJoin = 'round'
-      ctx.strokeStyle = object.outline.color
+      ctx.strokeStyle = outline.color
       ctx.strokeText(line.text, x, y)
       ctx.restore()
     }
-    ctx.fillText(line.text, x, y)
+    if (outline && position === 'inside') {
+      // Only inside the letters: drawn apart, where the contour can keep to their pixels.
+      const own = isolate(ctx)
+      own.font = ctx.font
+      own.textBaseline = 'middle'
+      own.fillStyle = style.color
+      own.fillText(line.text, x, y)
+      own.globalCompositeOperation = 'source-atop'
+      own.lineWidth = outline.width * 2
+      own.lineJoin = 'round'
+      own.strokeStyle = outline.color
+      own.strokeText(line.text, x, y)
+      composite(ctx, own)
+    } else {
+      ctx.fillText(line.text, x, y)
+    }
+    if (outline && position === 'center') {
+      ctx.save()
+      ctx.lineWidth = outline.width
+      ctx.lineJoin = 'round'
+      ctx.strokeStyle = outline.color
+      ctx.strokeText(line.text, x, y)
+      ctx.restore()
+    }
     if (style.underline && line.width > 0) {
       ctx.lineWidth = Math.max(0.5, style.size / 16)
       const uy = y + style.size * 0.42
