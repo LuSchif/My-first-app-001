@@ -9,6 +9,7 @@ import { keyboardInset, onKeyboardInset } from '../../lib/keyboardInset.ts'
 import { Autosave } from '../../storage/Autosave.ts'
 import { setImageLoader } from '../../engine/render/images.ts'
 import { getAssetBlob, loadNotebook, saveChanges } from '../../storage/notebooks.ts'
+import { loadFeatures, saveFeatures } from './featureStore.ts'
 import { Toolbar } from './Toolbar.tsx'
 
 type Loaded = { doc: NotebookDocument; history: History; autosave: Autosave }
@@ -68,9 +69,15 @@ function EditorSession({ doc, history, autosave }: Loaded) {
     const instance = new Editor(hostRef.current!, doc, history)
     const notebookId = doc.notebook.id
     instance.setRecentColors(loadRecentColors(notebookId))
-    // Each notebook has its own recent colors, kept on this device.
+    instance.setFeatures(loadFeatures())
+    // Each notebook has its own recent colors, kept on this device; features apply to all.
     let saved = instance.state.recentColors
+    let features = instance.state.features
     const stop = instance.subscribe(() => {
+      if (instance.state.features !== features) {
+        features = instance.state.features
+        saveFeatures(features)
+      }
       if (instance.state.recentColors === saved) return
       saved = instance.state.recentColors
       saveRecentColors(notebookId, saved)

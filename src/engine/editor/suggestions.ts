@@ -68,7 +68,8 @@ export function outlineSources(
 ): OutlineSource[] {
   const out: OutlineSource[] = []
   for (const o of objects) {
-    if (o.type !== 'stroke' || o.layerId !== layerId || o.id === except) continue
+    if (o.type !== 'stroke' || o.tool === 'tape' || o.layerId !== layerId || o.id === except)
+      continue
     const b = objectBounds(o)
     if (!intersects(b, around)) continue
     if (Math.max(b.maxX - b.minX, b.maxY - b.minY) < MIN_OUTLINE_SIZE) continue

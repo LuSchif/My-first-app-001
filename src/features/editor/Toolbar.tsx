@@ -11,7 +11,10 @@ import {
   LoaderCircle,
   LayoutGrid,
   Lock,
+  Bandage,
   PenLine,
+  Pipette,
+  Settings,
   PenTool,
   Redo2,
   SquareDashed,
@@ -46,6 +49,7 @@ import { useExpanded } from './useExpanded.ts'
 import { PagesOverview } from './PagesOverview.tsx'
 import { LayersPanel } from './LayersPanel.tsx'
 import { RecentColors } from './RecentColors.tsx'
+import { ControlCenter } from './ControlCenter.tsx'
 import { PathMenu } from './PathMenu.tsx'
 import { PenPreview } from './PenPreview.tsx'
 import { PasteButton, PasteMenu, SelectionMenu } from './SelectionMenu.tsx'
@@ -82,7 +86,8 @@ export function Toolbar({
     (fn) => editor.subscribe(fn),
     () => editor.state,
   )
-  const [panel, setPanel] = useState<ToolId | 'pages' | 'layers' | null>(null)
+  const [panel, setPanel] = useState<ToolId | 'pages' | 'layers' | 'control' | null>(null)
+  const { features } = state
   const activeLayer = state.layers.find((l) => l.id === state.activeLayerId)
   const [expanded, setExpanded] = useExpanded('broomit.toolbarExpanded')
   const leftCorner = useRef<HTMLDivElement>(null)
@@ -188,15 +193,28 @@ export function Toolbar({
               <TextSettings editor={editor} state={state} />
             </>,
           )}
-          {toolButton('path', 'Edit paths', <PenTool {...ICON} />)}
+          {features.pathTool ? toolButton('path', 'Edit paths', <PenTool {...ICON} />) : null}
           {expanded ? (
             <>
-              {toolButton(
-                'laser',
-                'Laser pointer',
-                <LaserBroomIcon size={22} />,
-                <LaserSettings editor={editor} state={state} />,
-              )}
+              {features.eyedropper
+                ? toolButton('eyedropper', 'Eyedropper', <Pipette {...ICON} />)
+                : null}
+              {features.tape
+                ? toolButton(
+                    'tape',
+                    'Tape',
+                    <Bandage {...ICON} />,
+                    <TapeSettings editor={editor} state={state} />,
+                  )
+                : null}
+              {features.laser
+                ? toolButton(
+                    'laser',
+                    'Laser pointer',
+                    <LaserBroomIcon size={22} />,
+                    <LaserSettings editor={editor} state={state} />,
+                  )
+                : null}
               <InsertTools editor={editor} notebookId={doc.notebook.id} />
             </>
           ) : null}
@@ -226,6 +244,21 @@ export function Toolbar({
           className="pointer-events-auto flex items-center gap-1 rounded-panel bg-surface-raised/95 p-1.5 shadow-raised backdrop-blur"
         >
           <SaveStatus autosave={autosave} compact={expanded} />
+          <Popover
+            open={panel === 'control'}
+            onOpenChange={(open) => setPanel(open ? 'control' : null)}
+          >
+            <PopoverTrigger asChild>
+              <IconButton label="Control center" icon={<Settings size={20} />} />
+            </PopoverTrigger>
+            <PopoverContent
+              movable="control"
+              align="end"
+              className="max-h-[min(40rem,calc(100dvh-7rem))] w-80 overflow-y-auto"
+            >
+              <ControlCenter editor={editor} state={state} />
+            </PopoverContent>
+          </Popover>
           <Popover
             open={panel === 'layers'}
             onOpenChange={(open) => setPanel(open ? 'layers' : null)}
@@ -283,7 +316,7 @@ export function Toolbar({
       {state.editingText ? <FormatBar editor={editor} state={state} /> : null}
       <SelectionMenu editor={editor} state={state} />
       <PathMenu editor={editor} state={state} />
-      <RecentColors editor={editor} state={state} />
+      {features.recentColors ? <RecentColors editor={editor} state={state} /> : null}
       <SuggestionChip editor={editor} state={state} />
       <PasteButton editor={editor} state={state} />
       <PasteMenu editor={editor} state={state} />
@@ -317,6 +350,49 @@ function FormatBar({ editor, state }: { editor: Editor; state: EditorState }) {
         onDone={() => editor.finishText()}
       />
     </FloatingPanel>
+  )
+}
+
+const TAPE_COLORS = [
+  ['Caramel', '#d9b48f'],
+  ['Sand', '#e8dcc6'],
+  ['Mint', '#a8d5c2'],
+  ['Sky', '#a9c8ec'],
+  ['Rose', '#efb3bd'],
+  ['Butter', '#f1d98a'],
+  ['Lilac', '#c9b8e6'],
+  ['Cocoa', '#8a6a55'],
+] as const
+
+function TapeSettings({ editor, state }: { editor: Editor; state: EditorState }) {
+  return (
+    <>
+      <p className="text-sm text-ink-muted">
+        Drag across writing to cover it. Double tap the tape with a finger to reveal what is below,
+        and again to cover it.
+      </p>
+      <Slider
+        label="Width"
+        value={state.tape.width}
+        min={8}
+        max={60}
+        onChange={(width) => editor.setTape({ width })}
+        format={(v) => `${v} pt`}
+      />
+      <div role="group" aria-label="Tape colors" className="flex flex-wrap">
+        {TAPE_COLORS.map(([name, color]) => (
+          <ColorSwatch
+            key={color}
+            label={name}
+            fill={{ type: 'solid', color }}
+            selected={state.tape.color === color}
+            onSelect={() => {
+              editor.setTape({ color })
+            }}
+          />
+        ))}
+      </div>
+    </>
   )
 }
 

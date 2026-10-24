@@ -75,6 +75,10 @@ export function dashPattern(stroke: Pick<StrokeObject, 'width' | 'dash'>): numbe
 }
 
 export function paintStroke(ctx: CanvasRenderingContext2D, stroke: StrokeObject): void {
+  if (stroke.tool === 'tape') {
+    paintTape(ctx, stroke)
+    return
+  }
   if (variable(stroke)) {
     paintNibStroke(ctx, stroke)
     return
@@ -124,4 +128,61 @@ function paintNibStroke(
   ctx.fill(nibPath(stroke, -shrink))
   ctx.globalAlpha = 1
   ctx.globalCompositeOperation = 'source-over'
+}
+
+let stripes: CanvasPattern | null | undefined
+
+/** Fine diagonal stripes, the texture of paper tape. */
+function tapeTexture(ctx: CanvasRenderingContext2D): CanvasPattern | null {
+  if (stripes !== undefined) return stripes
+  stripes = null
+  if (typeof document === 'undefined') return null
+  const tile = document.createElement('canvas')
+  tile.width = 8
+  tile.height = 8
+  const t = tile.getContext('2d')
+  if (!t) return null
+  t.strokeStyle = 'rgba(255, 255, 255, 0.55)'
+  t.lineWidth = 1.5
+  t.beginPath()
+  t.moveTo(-2, 10)
+  t.lineTo(10, -2)
+  t.moveTo(6, 10)
+  t.lineTo(10, 6)
+  t.moveTo(-2, 2)
+  t.lineTo(2, -2)
+  t.stroke()
+  stripes = ctx.createPattern(tile, 'repeat')
+  return stripes
+}
+
+/**
+ * Tape: an opaque band with flat ends and a striped texture, or once revealed, a faint outline
+ * of where it sits so it can be tapped closed again.
+ */
+export function paintTape(ctx: CanvasRenderingContext2D, stroke: StrokeObject, alpha = 1): void {
+  const path = strokePath(stroke)
+  ctx.lineCap = 'butt'
+  ctx.lineJoin = 'round'
+  ctx.setLineDash([])
+  ctx.globalCompositeOperation = 'source-over'
+  if (stroke.revealed) {
+    ctx.globalAlpha = 0.16 * alpha
+    ctx.strokeStyle = stroke.color
+    ctx.lineWidth = stroke.width
+    ctx.stroke(path)
+    ctx.globalAlpha = 1
+    return
+  }
+  ctx.globalAlpha = alpha
+  ctx.strokeStyle = stroke.color
+  ctx.lineWidth = stroke.width
+  ctx.stroke(path)
+  const texture = tapeTexture(ctx)
+  if (texture) {
+    ctx.globalAlpha = 0.35 * alpha
+    ctx.strokeStyle = texture
+    ctx.stroke(path)
+  }
+  ctx.globalAlpha = 1
 }

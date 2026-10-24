@@ -180,7 +180,8 @@ export interface Outline {
 /** A gradient an object can be painted with. */
 export type GradientPaint = LinearGradientFill | RadialGradientFill
 
-export type InkTool = 'pen' | 'highlighter'
+/** Tape is a straight band that covers what is below until it is tapped open. */
+export type InkTool = 'pen' | 'highlighter' | 'tape'
 
 export interface StrokeObject {
   id: Id
@@ -213,6 +214,8 @@ export interface StrokeObject {
   outline?: Outline
   /** Paints the object with a gradient instead of its color (which stays as a fallback). */
   gradient?: GradientPaint
+  /** Tape only: pulled back, so what it covers shows through. */
+  revealed?: boolean
 }
 
 export type StrokeDash = 'dashed' | 'dotted'

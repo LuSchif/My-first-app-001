@@ -81,10 +81,12 @@ import { DEFAULT_TEXT_STYLE, TextController } from './TextController.ts'
 import { BroomDust } from './BroomDust.ts'
 import { FxLayer } from './FxLayer.ts'
 import { LaserPointer } from './LaserPointer.ts'
+import { TapePeel } from './TapePeel.ts'
 import { PathController, type PathEditInfo } from './PathController.ts'
 import { DEFAULT_FEATURES, type Features } from './features.ts'
 
-export type ToolId = 'pen' | 'highlighter' | 'broom' | 'lasso' | 'text' | 'path' | 'laser'
+export type ToolId =
+  'pen' | 'highlighter' | 'broom' | 'lasso' | 'text' | 'path' | 'laser' | 'eyedropper' | 'tape'
 export type BroomMode = 'precise' | 'stroke'
 /** A ballpoint draws one width; a fountain pen's width follows direction and pressure. */
 export type PenNib = 'ballpoint' | 'fountain'
@@ -94,6 +96,7 @@ export interface EditorState {
   pen: { color: string; width: number; opacity: number; dash: StrokeDash | null; nib: PenNib }
   highlighter: { color: string; width: number }
   broom: { size: number; mode: BroomMode }
+  tape: { color: string; width: number }
   laserColor: string
   canUndo: boolean
   canRedo: boolean
@@ -188,7 +191,29 @@ interface EraseSession {
   before: Map<Id, CanvasObject[]>
 }
 
-type Session = InkSession | EraseSession
+/** Dragging out a strip of tape. */
+interface TapeSession {
+  kind: 'tape'
+  pointerId: number
+  pointerType: string
+  pageIndex: number
+  pageId: Id
+  /** Ends of the strip in page coordinates. */
+  from: Point
+  to: Point
+}
+
+/** The eyedropper held on the page, showing the color under it. */
+interface PickSession {
+  kind: 'pick'
+  pointerId: number
+  pointerType: string
+  color: string | null
+  /** The page as shown when the eyedropper touched down, read once. */
+  pixels: ImageData | null
+}
+
+type Session = InkSession | EraseSession | TapeSession | PickSession
 
 interface ScreenRect {
   x: number
@@ -237,6 +262,7 @@ export class Editor {
   /** Laser trail and broom dust. */
   private readonly fx: FxLayer
   private readonly dust = new BroomDust()
+  private readonly tapePeel: TapePeel
   private hidden: ReadonlySet<Id> = new Set()
   private textTap: { pointerId: number; x: number; y: number } | null = null
   /** Screen pixels at the bottom hidden by the keyboard and format bar while typing. */
@@ -273,7 +299,12 @@ export class Editor {
   private readonly touches = new Map<number, Point>()
   private gesture: { cx: number; cy: number; dist: number; count: number } | null = null
   private panning = false
-  private tap: { start: number; maxTouches: number; moved: number } | null = null
+  private tap: { start: number; maxTouches: number; moved: number; x: number; y: number } | null =
+    null
+  /** The last tap on a strip of tape, to tell a double tap. */
+  private lastTapeTap: { id: Id; time: number } | null = null
+  /** The tool to go back to once the eyedropper picked a color. */
+  private pickReturn: ToolId = 'pen'
   private lastGestureTap: { fingers: number; time: number } | null = null
   private momentum: { vx: number; vy: number; last: number } | null = null
   private velocity: { vx: number; vy: number; t: number } = { vx: 0, vy: 0, t: 0 }
@@ -294,6 +325,7 @@ export class Editor {
       pen: { color: '#3e2d25', width: 2, opacity: 1, dash: null, nib: 'ballpoint' },
       highlighter: { color: '#f2cf4a', width: 14 },
       broom: { size: 16, mode: 'precise' },
+      tape: { color: '#d9b48f', width: 22 },
       laserColor: '#e0533f',
       canUndo: history.canUndo,
       canRedo: history.canRedo,
@@ -348,8 +380,13 @@ export class Editor {
     this.text = new TextController(context)
     this.paths = new PathController(context)
     this.laser = new LaserPointer(context, () => this.fx.request())
+    this.tapePeel = new TapePeel(
+      () => this.camera,
+      () => this.view.dpr,
+    )
     this.fx.add(this.laser)
     this.fx.add(this.dust)
+    this.fx.add(this.tapePeel)
 
     this.listen(host, 'pointerdown', (e) => this.onPointerDown(e))
     this.listen(host, 'pointermove', (e) => this.onPointerMove(e))
@@ -426,6 +463,8 @@ export class Editor {
     if (tool !== 'lasso') this.selection.clear()
     if (tool !== 'path') this.paths.clear()
     if (tool !== 'laser') this.laser.clear()
+    if (tool === 'eyedropper' && this._state.tool !== 'eyedropper')
+      this.pickReturn = this._state.tool
     this.update({ tool })
   }
 
@@ -694,7 +733,16 @@ export class Editor {
 
   setFeatures(patch: Partial<Features>): void {
     if (patch.suggestions === false) this.dismissSuggestion()
-    this.update({ features: { ...this._state.features, ...patch } })
+    const features = { ...this._state.features, ...patch }
+    this.update({ features })
+    // A tool taken off the toolbar cannot stay in use.
+    const hidden: Partial<Record<ToolId, boolean>> = {
+      laser: !features.laser,
+      tape: !features.tape,
+      eyedropper: !features.eyedropper,
+      path: !features.pathTool,
+    }
+    if (hidden[this._state.tool]) this.setTool('pen')
   }
 
   /** Turns the drawn stroke into the recognized shape, or fills the colored-in area. */
@@ -797,6 +845,7 @@ export class Editor {
     if (this._state.selection) this.selection.recolor(color)
     else if (this.text.isEditing || tool === 'text') this.setTextStyle({ color })
     else if (tool === 'highlighter') this.setHighlighter({ color })
+    else if (tool === 'tape') this.setTape({ color })
     else {
       this.setPen({ color })
       if (tool !== 'pen') this.setTool('pen')
@@ -917,6 +966,10 @@ export class Editor {
 
   setPen(patch: Partial<EditorState['pen']>): void {
     this.update({ pen: { ...this._state.pen, ...patch } })
+  }
+
+  setTape(patch: Partial<EditorState['tape']>): void {
+    this.update({ tape: { ...this._state.tape, ...patch } })
   }
 
   setLaserColor(laserColor: string): void {
@@ -1354,8 +1407,9 @@ export class Editor {
     if (e.pointerType === 'touch') {
       this.touches.set(e.pointerId, this.screenPos(e))
       this.host.setPointerCapture(e.pointerId)
-      if (this.touches.size === 1) this.tap = { start: e.timeStamp, maxTouches: 1, moved: 0 }
-      else if (this.tap) this.tap.maxTouches = Math.max(this.tap.maxTouches, this.touches.size)
+      if (this.touches.size === 1) {
+        this.tap = { start: e.timeStamp, maxTouches: 1, moved: 0, ...this.screenPos(e) }
+      } else if (this.tap) this.tap.maxTouches = Math.max(this.tap.maxTouches, this.touches.size)
       // Fingers pan and zoom once a pen has been used; before that, one finger can write.
       if (this.touches.size > 1 || this.penSeen) {
         if (this.session?.pointerType === 'touch') this.cancelSession()
@@ -1393,6 +1447,20 @@ export class Editor {
       this.laser.down(e)
       return
     }
+    // The eyedropper only looks; it works on any layer.
+    if (this._state.tool === 'eyedropper') {
+      this.host.setPointerCapture(e.pointerId)
+      const { width, height, dpr } = this.view
+      this.session = {
+        kind: 'pick',
+        pointerId: e.pointerId,
+        pointerType: e.pointerType,
+        color: null,
+        pixels: this.scene.getImageData(0, 0, Math.round(width * dpr), Math.round(height * dpr)),
+      }
+      this.extendPick(this.session, e)
+      return
+    }
     if (this.blockedByLayer()) return
     const tool = this._state.tool
     if (tool === 'lasso') {
@@ -1412,6 +1480,7 @@ export class Editor {
     }
     this.text.finish()
     if (tool === 'broom') this.beginErase(e)
+    else if (tool === 'tape') this.beginTape(e)
     else this.beginInk(e)
   }
 
@@ -1485,6 +1554,8 @@ export class Editor {
     const s = this.session
     if (s && e.pointerId === s.pointerId) {
       if (s.kind === 'ink') this.extendInk(s, e)
+      else if (s.kind === 'tape') this.extendTape(s, e)
+      else if (s.kind === 'pick') this.extendPick(s, e)
       else this.extendErase(s, e)
       return
     }
@@ -1648,6 +1719,10 @@ export class Editor {
   private finishTap(time: number): void {
     const tap = this.tap
     if (!tap || time - tap.start > TWO_FINGER_TAP_MS || tap.moved > TAP_SLOP_PX) return
+    if (tap.maxTouches === 1) {
+      this.tapeTapAt(tap, time)
+      return
+    }
     if (tap.maxTouches !== 2 && tap.maxTouches !== 3) return
     if (!this._state.features.gestureUndo) return
     const last = this.lastGestureTap
@@ -2018,6 +2093,21 @@ export class Editor {
     const snapped = s.snapped
     const points = snapped ? snapped.points : this.drawnPoints(s)
     const page = this.doc.page(s.pageId)
+    // A finger writing (before any pencil was used) double taps tape like a panning finger does.
+    if (page && !snapped && s.pointerType === 'touch' && this.isTap(points)) {
+      const b = boundsOfPoints(points)
+      const o = pageOrigin(s.pageIndex)
+      const c = this.camera
+      const at = {
+        x: (o.x + (b.minX + b.maxX) / 2) * c.zoom + c.offsetX,
+        y: (o.y + (b.minY + b.maxY) / 2) * c.zoom + c.offsetY,
+      }
+      if (this.tapeTapAt(at, performance.now())) {
+        this.clearArea(this.wet, s.wetDirty)
+        this.clearTip()
+        return
+      }
+    }
     // A pen tap on a text box opens it for typing instead of leaving a dot.
     if (page && !snapped && this.isTap(points)) {
       const b = boundsOfPoints(points)
@@ -2057,6 +2147,187 @@ export class Editor {
     }
     this.clearArea(this.wet, s.wetDirty)
     this.clearTip()
+  }
+
+  // ---------- Tape ----------
+
+  private beginTape(e: PointerEvent): void {
+    const layer = this.activeLayer()
+    if (!layer || layer.locked || !layer.visible) return
+    const world = this.toWorld(this.screenPos(e))
+    const pageIndex = pageIndexAt(world.x, world.y, this.doc.notebook.pageIds.length)
+    const page = this.doc.pageList[pageIndex]
+    if (!page) return
+    const at = this.toPageLocal(this.screenPos(e), pageIndex)
+    const session: TapeSession = {
+      kind: 'tape',
+      pointerId: e.pointerId,
+      pointerType: e.pointerType,
+      pageIndex,
+      pageId: page.id,
+      from: at,
+      to: at,
+    }
+    this.session = session
+    this.host.setPointerCapture(e.pointerId)
+  }
+
+  private tapeStroke(s: TapeSession): StrokeObject {
+    return {
+      id: newId(),
+      type: 'stroke',
+      layerId: this._state.activeLayerId,
+      tool: 'tape',
+      color: this._state.tape.color,
+      width: this._state.tape.width,
+      opacity: 1,
+      straight: true,
+      points: [s.from.x, s.from.y, s.to.x, s.to.y],
+    }
+  }
+
+  private extendTape(s: TapeSession, e: PointerEvent): void {
+    s.to = this.toPageLocal(this.screenPos(e), s.pageIndex)
+    this.clearTip()
+    this.inkLayer.style.opacity = '1'
+    this.inkLayer.style.mixBlendMode = 'normal'
+    this.tip.save()
+    enterPage(this.tip, this.camera, this.view.dpr, s.pageIndex)
+    paintStroke(this.tip, this.tapeStroke(s))
+    this.tip.restore()
+    const { width, height, dpr } = this.view
+    this.tipDirty = { x: 0, y: 0, w: width * dpr, h: height * dpr }
+  }
+
+  private finishTape(s: TapeSession): void {
+    this.clearTip()
+    const page = this.doc.page(s.pageId)
+    if (!page) return
+    const length = Math.hypot(s.to.x - s.from.x, s.to.y - s.from.y) * this.camera.zoom
+    // A tap opens or closes the tape under it.
+    if (length < TAP_SLOP_PX) {
+      const tape = this.tapeAt(page, s.from.x, s.from.y)
+      if (tape) this.toggleTape(page.id, tape)
+      return
+    }
+    const tape = this.tapeStroke(s)
+    this.history.execute(setPageObjects('Tape', page.id, page.objects, [...page.objects, tape]))
+  }
+
+  /** The topmost strip of tape at a page point. */
+  private tapeAt(page: Page, x: number, y: number): StrokeObject | null {
+    for (let i = page.objects.length - 1; i >= 0; i--) {
+      const o = page.objects[i]!
+      if (o.type !== 'stroke' || o.tool !== 'tape') continue
+      if (!this.doc.notebook.layers.find((l) => l.id === o.layerId)?.visible) continue
+      if (strokeTouchesCircle(o.points, x, y, o.width / 2 + 4 / this.camera.zoom)) return o
+    }
+    return null
+  }
+
+  /**
+   * A finger tap at a screen point: a second tap on the same strip of tape soon after the first
+   * opens or closes it. Returns whether the tap was on tape.
+   */
+  private tapeTapAt(screen: Point, time: number): boolean {
+    const hit = this.pageAt(screen)
+    const tape = hit && this.tapeAt(hit.page, hit.x, hit.y)
+    if (!hit || !tape) {
+      this.lastTapeTap = null
+      return false
+    }
+    const last = this.lastTapeTap
+    if (last && last.id === tape.id && time - last.time < DOUBLE_TAP_MS) {
+      this.lastTapeTap = null
+      this.toggleTape(hit.page.id, tape)
+    } else {
+      this.lastTapeTap = { id: tape.id, time }
+    }
+    return true
+  }
+
+  /**
+   * Pulls tape off or sticks it back on, with a short animation. Whether tape is open is a
+   * way of looking at the page, not an edit, so it is saved but not undone.
+   */
+  private toggleTape(pageId: Id, tape: StrokeObject): void {
+    const pageIndex = this.doc.pageList.findIndex((p) => p.id === pageId)
+    const set = (revealed: boolean) => {
+      const page = this.doc.page(pageId)
+      if (!page) return
+      const objects = page.objects.map((o) =>
+        o.id === tape.id && o.type === 'stroke' ? { ...o, revealed } : o,
+      )
+      this.doc.setObjects(pageId, objects)
+    }
+    if (tape.revealed) {
+      // Stuck back on: the page shows it covered once the strip has come down.
+      this.tapePeel.add({ ...tape, revealed: false }, pageIndex, false, () => set(false))
+    } else {
+      set(true)
+      this.tapePeel.add(tape, pageIndex, true)
+    }
+    this.fx.request()
+  }
+
+  // ---------- Eyedropper ----------
+
+  /** The color of the page at a screen point, as #rrggbb. */
+  private colorAt(pixels: ImageData | null, p: Point): string | null {
+    const { dpr } = this.view
+    const x = Math.floor(p.x * dpr)
+    const y = Math.floor(p.y * dpr)
+    if (!pixels || x < 0 || y < 0 || x >= pixels.width || y >= pixels.height) return null
+    const i = (y * pixels.width + x) * 4
+    const rgb = [pixels.data[i]!, pixels.data[i + 1]!, pixels.data[i + 2]!]
+    return '#' + rgb.map((v) => v.toString(16).padStart(2, '0')).join('')
+  }
+
+  private extendPick(s: PickSession, e: PointerEvent): void {
+    const p = this.screenPos(e)
+    s.color = this.colorAt(s.pixels, p) ?? s.color
+    this.clearTip()
+    if (!s.color) return
+    // A loupe above the finger shows the color, with a small ring around the exact spot.
+    const { dpr } = this.view
+    const ctx = this.tip
+    this.inkLayer.style.opacity = '1'
+    this.inkLayer.style.mixBlendMode = 'normal'
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+    const lx = p.x
+    const ly = p.y - (e.pointerType === 'touch' ? 86 : 64)
+    ctx.beginPath()
+    ctx.arc(lx, ly, 30, 0, Math.PI * 2)
+    ctx.fillStyle = s.color
+    ctx.fill()
+    ctx.lineWidth = 6
+    ctx.strokeStyle = '#fffcf7'
+    ctx.stroke()
+    ctx.lineWidth = 1.5
+    ctx.strokeStyle = 'rgba(62, 45, 37, 0.55)'
+    ctx.beginPath()
+    ctx.arc(lx, ly, 33, 0, Math.PI * 2)
+    ctx.stroke()
+    ctx.beginPath()
+    ctx.arc(p.x, p.y, 7, 0, Math.PI * 2)
+    ctx.lineWidth = 3
+    ctx.strokeStyle = '#fffcf7'
+    ctx.stroke()
+    ctx.lineWidth = 1.5
+    ctx.strokeStyle = 'rgba(62, 45, 37, 0.8)'
+    ctx.stroke()
+    const { width, height } = this.view
+    this.tipDirty = { x: 0, y: 0, w: width * dpr, h: height * dpr }
+  }
+
+  /** Lifting the eyedropper takes the color and goes back to the tool used before. */
+  private finishPick(s: PickSession): void {
+    this.clearTip()
+    if (!s.color) return
+    const back = this.pickReturn === 'eyedropper' ? 'pen' : this.pickReturn
+    this.setTool(back)
+    this.applyColor(s.color)
+    this.showNotice(`Picked ${s.color.toUpperCase()}`)
   }
 
   // ---------- Broom ----------
@@ -2214,6 +2485,8 @@ export class Editor {
     if (!s) return
     this.session = null
     if (s.kind === 'ink') this.finishInk(s)
+    else if (s.kind === 'tape') this.finishTape(s)
+    else if (s.kind === 'pick') this.finishPick(s)
     else this.finishErase(s)
   }
 
@@ -2224,6 +2497,8 @@ export class Editor {
     if (s.kind === 'ink') {
       if (s.holdTimer) clearTimeout(s.holdTimer)
       this.clearArea(this.wet, s.wetDirty)
+      this.clearTip()
+    } else if (s.kind === 'tape' || s.kind === 'pick') {
       this.clearTip()
     } else {
       this.finishErase(s)
