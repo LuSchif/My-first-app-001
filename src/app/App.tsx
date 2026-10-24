@@ -9,6 +9,7 @@ import { useRequestedFocus } from '../lib/useRequestedFocus.ts'
 import { useVirtualKeyboard } from '../features/keyboard/useVirtualKeyboard.ts'
 import { VirtualKeyboard } from '../features/keyboard/VirtualKeyboard.tsx'
 import { useRoute } from './router.ts'
+import { UpdateBanner } from './UpdateBanner.tsx'
 
 export function App() {
   const route = useRoute()
@@ -32,6 +33,7 @@ export function App() {
         <LibraryView />
       )}
       {ownKeyboard ? <VirtualKeyboard /> : null}
+      <UpdateBanner />
     </TooltipProvider>
   )
 }
