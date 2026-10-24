@@ -45,6 +45,8 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
 - **Text and tables**: rendered on the canvas at rest; edited through a DOM overlay positioned
   with the same transform, so typing feels native. A text box stays on the page; while typing,
   the page moves (and zooms out if needed) so the whole box is on screen.
+- A new text box says "Text", selected so the first key replaces it, and is as wide as its
+  text: it grows while typing up to the page's right edge, then wraps (`autoWidth`).
 - **Rich text**: a text box has one style, and spans that format ranges of characters
   differently (font, size, color, bold, italic, underline; `model/richText.ts`). With text
   selected, the format bar changes only the selection; otherwise the whole box. Lines are as
@@ -76,6 +78,13 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
   blur when typing ends.
 - The keyboard's height (`lib/keyboardInset.ts`, CSS `--kb-height`) shrinks the visible area,
   so dialogs and the canvas keep the field in view.
+
+## Workspace
+
+- The tool bar, the text format bar and the recent colors bar can be dragged by their grip
+  anywhere, or dropped near an edge to snap to its middle (top, bottom, left, right). At the
+  left and right a bar stands upright; bars at the same edge stack; menus open away from the
+  edge. Positions are remembered per device (`FloatingPanel.tsx`, `panelLayout.ts`).
 
 ## Colors
 

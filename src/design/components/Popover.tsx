@@ -1,6 +1,7 @@
 import * as RadixPopover from '@radix-ui/react-popover'
 import {
   useCallback,
+  useContext,
   useEffect,
   useRef,
   useState,
@@ -9,7 +10,7 @@ import {
 } from 'react'
 import { cn } from '../../lib/cn.ts'
 import { keyboardInset, onKeyboardInset } from '../../lib/keyboardInset.ts'
-import { CloseContext, useClosePopover } from './popoverContext.ts'
+import { CloseContext, PopoverSideContext, useClosePopover } from './popoverContext.ts'
 
 export const PopoverTrigger = RadixPopover.Trigger
 export const PopoverClose = RadixPopover.Close
@@ -47,7 +48,7 @@ export function Popover({
 export function PopoverContent({
   children,
   className,
-  side = 'bottom',
+  side,
   align = 'center',
 }: {
   children: ReactNode
@@ -56,6 +57,7 @@ export function PopoverContent({
   align?: 'start' | 'center' | 'end'
 }) {
   const close = useClosePopover()
+  const defaultSide = useContext(PopoverSideContext)
   const ref = useRef<HTMLDivElement>(null)
   // The app's own keyboard counts as the screen's edge: a popover opens above it, never under it.
   const keyboard = useSyncExternalStore(onKeyboardInset, keyboardInset)
@@ -86,7 +88,7 @@ export function PopoverContent({
     <RadixPopover.Portal>
       <RadixPopover.Content
         ref={ref}
-        side={side}
+        side={side ?? defaultSide}
         align={align}
         sideOffset={10}
         collisionPadding={{ top: 16, right: 16, left: 16, bottom: 16 + keyboard }}

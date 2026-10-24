@@ -214,6 +214,12 @@ export function layoutText(object: TextObject): TextLayout {
   return layout
 }
 
+/** The width of the text's longest line when nothing wraps (lines end only at line breaks). */
+export function naturalWidth(object: TextObject): number {
+  const { lines } = layoutText({ ...object, width: 1e6 })
+  return Math.max(0, ...lines.map((l) => l.width))
+}
+
 export function textCenter(object: TextObject): { x: number; y: number } {
   const { height } = layoutText(object)
   return { x: object.x + object.width / 2, y: object.y + height / 2 }

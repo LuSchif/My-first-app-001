@@ -18,7 +18,7 @@ import {
   Type,
   Undo2,
 } from 'lucide-react'
-import { useState, useSyncExternalStore, type ReactNode } from 'react'
+import { useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
 import type { Editor, EditorState, ToolId } from '../../engine/editor/Editor.ts'
 import type { StrokeDash } from '../../engine/model/types.ts'
 import { dashPattern } from '../../engine/render/strokes.ts'
@@ -37,9 +37,10 @@ import {
   Slider,
   Switch,
 } from '../../design/index.ts'
-import { useVisualViewportBottom } from '../../lib/useVisualViewport.ts'
 import type { Autosave } from '../../storage/Autosave.ts'
 import type { NotebookDocument } from '../../engine/document/NotebookDocument.ts'
+import { FloatingPanel, PanelDivider } from './FloatingPanel.tsx'
+import { setTopCorners } from './panelLayout.ts'
 import { InsertTools } from './InsertMenu.tsx'
 import { useExpanded } from './useExpanded.ts'
 import { PagesOverview } from './PagesOverview.tsx'
@@ -83,6 +84,21 @@ export function Toolbar({
   const [panel, setPanel] = useState<ToolId | 'pages' | 'layers' | null>(null)
   const activeLayer = state.layers.find((l) => l.id === state.activeLayerId)
   const [expanded, setExpanded] = useExpanded('broomit.toolbarExpanded')
+  const leftCorner = useRef<HTMLDivElement>(null)
+  const rightCorner = useRef<HTMLDivElement>(null)
+
+  // A bar at the top keeps clear of the title and of the layer and page buttons.
+  useLayoutEffect(() => {
+    const left = leftCorner.current
+    const right = rightCorner.current
+    if (!left || !right) return
+    const measure = () => setTopCorners(left.offsetWidth, right.offsetWidth)
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(left)
+    observer.observe(right)
+    return () => observer.disconnect()
+  }, [])
 
   // The first tap selects a tool; tapping the selected tool again opens its settings.
   const toolButton = (tool: ToolId, label: string, icon: ReactNode, settings?: ReactNode) =>
@@ -117,6 +133,7 @@ export function Toolbar({
     <>
       <div className="pointer-events-none absolute inset-x-0 top-0 flex flex-wrap items-start justify-between gap-2 px-[max(12px,env(safe-area-inset-left))] pt-[calc(10px+env(safe-area-inset-top))]">
         <div
+          ref={leftCorner}
           className={cn(
             'pointer-events-auto flex min-w-0 items-center gap-1 rounded-panel bg-surface-raised/95 p-1.5 shadow-raised backdrop-blur',
             !expanded && 'pr-4',
@@ -134,11 +151,7 @@ export function Toolbar({
           </span>
         </div>
 
-        <div
-          role="toolbar"
-          aria-label="Tools"
-          className="pointer-events-auto flex items-center gap-1 rounded-panel bg-surface-raised/95 p-1.5 shadow-raised backdrop-blur"
-        >
+        <FloatingPanel id="tools" label="Tools" defaultDock="top" order={0}>
           {toolButton(
             'lasso',
             state.lassoMode === 'rect' ? 'Rectangle lasso' : 'Lasso',
@@ -190,7 +203,7 @@ export function Toolbar({
             aria-expanded={expanded}
             onClick={() => setExpanded(!expanded)}
           />
-          <span className="mx-1 h-7 w-px bg-line" />
+          <PanelDivider />
           <IconButton
             label="Undo"
             icon={<Undo2 {...ICON} />}
@@ -203,9 +216,12 @@ export function Toolbar({
             disabled={!state.canRedo}
             onClick={() => editor.redo()}
           />
-        </div>
+        </FloatingPanel>
 
-        <div className="pointer-events-auto flex items-center gap-1 rounded-panel bg-surface-raised/95 p-1.5 shadow-raised backdrop-blur">
+        <div
+          ref={rightCorner}
+          className="pointer-events-auto flex items-center gap-1 rounded-panel bg-surface-raised/95 p-1.5 shadow-raised backdrop-blur"
+        >
           <SaveStatus autosave={autosave} compact={expanded} />
           <Popover
             open={panel === 'layers'}
@@ -282,20 +298,22 @@ export function Toolbar({
 
 /** Text formatting while typing, right above the on-screen keyboard. */
 function FormatBar({ editor, state }: { editor: Editor; state: EditorState }) {
-  const bottom = useVisualViewportBottom()
   return (
-    <div
-      // Using the format bar keeps the keyboard open.
+    // Using the format bar keeps the keyboard open.
+    <FloatingPanel
+      id="format"
+      label="Text format"
+      defaultDock="bottom"
+      order={1}
       data-keep-keyboard=""
-      className="pointer-events-auto fixed inset-x-0 z-20 mx-auto w-fit max-w-[calc(100%-24px)] rounded-panel bg-surface-raised/95 p-1.5 shadow-overlay backdrop-blur"
-      style={{ top: bottom - 68 - 12 }}
+      className="max-w-[calc(100%-24px)] shadow-overlay"
     >
       <TextFormatControls
         editor={editor}
         style={state.textStyle}
         onDone={() => editor.finishText()}
       />
-    </div>
+    </FloatingPanel>
   )
 }
 

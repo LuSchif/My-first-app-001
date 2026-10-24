@@ -167,9 +167,12 @@ export function useVirtualKeyboard(): boolean {
         (touched?.field === field && performance.now() - touched.time < TAP_WINDOW_MS)
       if (asked) activate(field)
     }
-    // The page's own text box asks for typing with this event instead of focusing.
+    // The page's own text box asks for typing with this event, optionally with a selection.
     const onType = (e: Event) => {
-      if (isTextField(e.target)) activate(e.target)
+      if (!isTextField(e.target)) return
+      activate(e.target)
+      const range = (e as CustomEvent<{ start: number; end: number } | null>).detail
+      if (range) select(range.start, range.end)
     }
     const onDone = (e: Event) => {
       if (keyboardState().field === e.target) close()

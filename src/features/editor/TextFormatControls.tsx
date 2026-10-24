@@ -1,3 +1,5 @@
+import { PanelDivider } from './FloatingPanel.tsx'
+import { VerticalContext } from './panelLayout.ts'
 import {
   AlignCenter,
   AlignLeft,
@@ -9,7 +11,7 @@ import {
   Plus,
   Underline,
 } from 'lucide-react'
-import { useState, type ReactNode } from 'react'
+import { useContext, useState, type ReactNode } from 'react'
 import type { Editor } from '../../engine/editor/Editor.ts'
 import type { FontFamily, TextStyle } from '../../engine/model/types.ts'
 import { FONT_LABELS, FONT_STACKS } from '../../engine/render/text.ts'
@@ -43,6 +45,7 @@ export function TextFormatControls({
   /** Called after each change, e.g. to close the menu these controls sit in. */
   onChoice?: () => void
 }) {
+  const vertical = useContext(VerticalContext)
   const [menu, setMenu] = useState<'font' | 'color' | 'align' | null>(null)
   const menuProps = (name: 'font' | 'color' | 'align') => ({
     open: menu === name,
@@ -66,7 +69,7 @@ export function TextFormatControls({
   return (
     // Buttons here must not take focus from the text field, or the keyboard would close.
     <div
-      className="flex flex-wrap items-center gap-0.5"
+      className={cn('flex items-center gap-0.5', vertical ? 'flex-col' : 'flex-wrap')}
       onMouseDown={(e) => {
         if ((e.target as HTMLElement).closest('[data-keep-focus]')) e.preventDefault()
       }}
@@ -249,5 +252,5 @@ function Toggle({
 }
 
 function Divider() {
-  return <span className={cn('mx-1 h-7 w-px bg-line')} />
+  return <PanelDivider />
 }

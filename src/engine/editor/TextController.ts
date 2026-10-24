@@ -17,12 +17,13 @@ import {
   styleAt,
   textRuns,
 } from '../model/richText.ts'
-import { FONT_STACKS, layoutText, textCenter } from '../render/text.ts'
+import { FONT_STACKS, layoutText, naturalWidth, textCenter } from '../render/text.ts'
 import type { EditorContext } from './context.ts'
 import { setStyledRanges, type StyledRange } from './styledField.ts'
 
-const DEFAULT_WIDTH = 260
 const MIN_WIDTH = 60
+/** What a new text box says until typing replaces it. */
+const PLACEHOLDER = 'Text'
 /** Distance a text box keeps from the page's edges. */
 const PAGE_MARGIN = 16
 
@@ -144,20 +145,22 @@ export class TextController {
   create(pageId: Id, x: number, y: number, style: TextStyle): void {
     const layer = this.ctx.activeLayer()
     if (!layer || layer.locked) return
-    const width = Math.min(DEFAULT_WIDTH, PAGE_SIZE.width - PAGE_MARGIN * 2)
-    const draft: TextObject = {
+    const draft: TextObject = fitWidth({
       id: newId(),
       type: 'text',
       layerId: layer.id,
-      // Near the right edge, the box starts further left so it stays on the page.
-      x: Math.max(PAGE_MARGIN, Math.min(x, PAGE_SIZE.width - PAGE_MARGIN - width)),
+      x,
       y: y - (style.size * style.lineHeight) / 2,
-      width,
+      width: 0,
       rotation: 0,
-      text: '',
+      text: PLACEHOLDER,
       style,
-    }
-    this.begin(pageId, draft, null)
+      autoWidth: true,
+    })
+    // Near the right edge, the box starts further left so it stays on the page.
+    draft.x = Math.max(PAGE_MARGIN, Math.min(x, PAGE_SIZE.width - PAGE_MARGIN - draft.width))
+    // "Text" is selected, so the first key replaces it.
+    this.begin(pageId, draft, null, true)
   }
 
   edit(pageId: Id, object: TextObject): void {
@@ -173,14 +176,16 @@ export class TextController {
    * Asks for typing into the text box. With the app's own keyboard (on iPad) the field is never
    * focused, so iPadOS shows no bar of its own; the keyboard listens for this event instead.
    */
-  private focusField(): void {
+  private focusField(selectAll = false): void {
+    const end = this.textarea.value.length
+    const start = selectAll ? 0 : end
     if (document.documentElement.hasAttribute('data-own-keyboard')) {
-      this.textarea.dispatchEvent(new Event('broomit:type', { bubbles: true }))
+      const detail = { start, end }
+      this.textarea.dispatchEvent(new CustomEvent('broomit:type', { bubbles: true, detail }))
       return
     }
     this.textarea.focus({ preventScroll: true })
-    const end = this.textarea.value.length
-    this.textarea.setSelectionRange(end, end)
+    this.textarea.setSelectionRange(start, end)
   }
 
   /**
@@ -204,7 +209,7 @@ export class TextController {
     } else {
       next = formatAll(next, patch)
     }
-    e.draft = this.keepCenter(e.draft, next)
+    e.draft = this.keepCenter(e.draft, fitWidth(next))
     this.position()
     this.ctx.changed()
   }
@@ -373,14 +378,19 @@ export class TextController {
     )
   }
 
-  private begin(pageId: Id, draft: TextObject, original: TextObject | null): void {
+  private begin(
+    pageId: Id,
+    draft: TextObject,
+    original: TextObject | null,
+    selectAll = false,
+  ): void {
     this.finish()
     this.editing = { pageId, draft, original }
     this.textarea.value = draft.text
     this.textarea.style.display = 'block'
     this.ctx.setHidden(new Set([draft.id]))
     this.position()
-    this.focusField()
+    this.focusField(selectAll)
     this.ctx.requestRender()
     this.ctx.changed()
     this.ensureVisible()
@@ -389,7 +399,7 @@ export class TextController {
   private onInput(): void {
     const e = this.editing
     if (!e) return
-    e.draft = editText(e.draft, this.textarea.value)
+    e.draft = fitWidth(editText(e.draft, this.textarea.value))
     this.position()
     this.ensureVisible()
   }
@@ -434,6 +444,18 @@ export class TextController {
     const b = textCenter(after)
     return { ...after, x: after.x + a.x - b.x, y: after.y + a.y - b.y }
   }
+}
+
+/**
+ * A box that is as wide as its text gets the width of its longest line, up to the page's right
+ * edge (there it wraps). Never narrower than one letter, so an empty box still shows.
+ */
+function fitWidth(text: TextObject): TextObject {
+  if (!text.autoWidth) return text
+  const room = Math.max(text.style.size, PAGE_SIZE.width - PAGE_MARGIN - text.x)
+  // A hair wider than measured, so rounding never wraps the last letter.
+  const width = Math.min(room, Math.max(text.style.size, naturalWidth(text) + 1))
+  return width === text.width ? text : { ...text, width }
 }
 
 /** An unrotated text box reaching past the page's right edge is narrowed (or moved) to fit. */

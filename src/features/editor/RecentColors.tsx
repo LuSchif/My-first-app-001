@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import type { Editor, EditorState } from '../../engine/editor/Editor.ts'
+import { FloatingPanel } from './FloatingPanel.tsx'
 
 const DRAG_PX = 8
 /** The dragged chip floats above the finger so the drop point stays visible. */
@@ -30,14 +31,7 @@ export function RecentColors({ editor, state }: { editor: Editor; state: EditorS
 
   return (
     <>
-      <div
-        role="toolbar"
-        aria-label="Recent colors"
-        aria-orientation="vertical"
-        // Centered in the space above the app's own keyboard, when it is open.
-        style={{ top: 'calc((100% - var(--kb-height, 0px)) / 2)' }}
-        className="pointer-events-auto absolute right-[max(12px,env(safe-area-inset-right))] z-10 flex -translate-y-1/2 flex-col gap-1 rounded-panel bg-surface-raised/95 p-1.5 shadow-raised backdrop-blur"
-      >
+      <FloatingPanel id="colors" label="Recent colors" defaultDock="right" order={2}>
         {state.recentColors.map((color) => (
           <button
             key={color}
@@ -66,7 +60,7 @@ export function RecentColors({ editor, state }: { editor: Editor; state: EditorS
             />
           </button>
         ))}
-      </div>
+      </FloatingPanel>
       {ghost ? (
         <span
           aria-hidden="true"

@@ -266,6 +266,8 @@ export interface TextObject {
   style: TextStyle
   /** Parts formatted differently from `style`: sorted, not overlapping. */
   spans?: TextSpan[]
+  /** The box is as wide as its text and grows while typing, up to the page's edge. */
+  autoWidth?: boolean
   outline?: Outline
 }
 
