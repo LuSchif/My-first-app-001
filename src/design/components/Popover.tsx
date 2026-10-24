@@ -1,6 +1,14 @@
 import * as RadixPopover from '@radix-ui/react-popover'
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type ReactNode,
+} from 'react'
 import { cn } from '../../lib/cn.ts'
+import { keyboardInset, onKeyboardInset } from '../../lib/keyboardInset.ts'
 import { CloseContext, useClosePopover } from './popoverContext.ts'
 
 export const PopoverTrigger = RadixPopover.Trigger
@@ -49,6 +57,8 @@ export function PopoverContent({
 }) {
   const close = useClosePopover()
   const ref = useRef<HTMLDivElement>(null)
+  // The app's own keyboard counts as the screen's edge: a popover opens above it, never under it.
+  const keyboard = useSyncExternalStore(onKeyboardInset, keyboardInset)
 
   // Radix waits for a click before closing on an outside touch, and the canvas cancels touches
   // so no click ever comes. Close on the touch itself instead.
@@ -79,13 +89,13 @@ export function PopoverContent({
         side={side}
         align={align}
         sideOffset={10}
-        collisionPadding={16}
+        collisionPadding={{ top: 16, right: 16, left: 16, bottom: 16 + keyboard }}
         // Focus going back to the trigger would pop up its tooltip after every choice, and focus
         // moving into the menu could land on a text field and bring up the keyboard.
         onCloseAutoFocus={(e) => e.preventDefault()}
         onOpenAutoFocus={(e) => e.preventDefault()}
         className={cn(
-          'z-60 w-72 animate-pop-in rounded-panel bg-surface-raised p-4 shadow-raised ring-1 ring-line',
+          'z-60 max-h-[var(--radix-popover-content-available-height)] w-72 animate-pop-in overflow-y-auto rounded-panel bg-surface-raised p-4 shadow-raised ring-1 ring-line',
           className,
         )}
       >
