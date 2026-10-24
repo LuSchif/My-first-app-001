@@ -19,6 +19,22 @@ import {
 } from '../model/richText.ts'
 import { FONT_STACKS, layoutText, naturalWidth, textCenter } from '../render/text.ts'
 import type { EditorContext } from './context.ts'
+
+/** Ruled lines on a page: the first one, the spacing, and the margin line on the left. */
+export interface Rules {
+  top: number
+  gap: number
+  margin: number
+}
+
+/**
+ * A line height that makes every line of text one ruled line (or, for large text, a whole
+ * number of ruled lines) tall.
+ */
+export function ruledLineHeight(size: number, gap: number): number {
+  const lines = Math.max(1, Math.ceil((size * 1.15) / gap))
+  return (lines * gap) / size
+}
 import { setStyledRanges, type StyledRange } from './styledField.ts'
 
 const MIN_WIDTH = 60
@@ -141,10 +157,17 @@ export class TextController {
     return { start: Math.min(a, b), end: Math.max(a, b) }
   }
 
-  /** Starts a new text box with its first line centered on (x, y) in page coordinates. */
-  create(pageId: Id, x: number, y: number, style: TextStyle): void {
+  /**
+   * Starts a new text box with its first line centered on (x, y) in page coordinates. With
+   * `rules` (the ruled lines of lined paper), the text sits on the lines instead: its line
+   * height becomes the line spacing, and the first line rests on the ruled line below (x, y).
+   */
+  create(pageId: Id, x: number, y: number, style: TextStyle, rules?: Rules): void {
     const layer = this.ctx.activeLayer()
     if (!layer || layer.locked) return
+    const lineStyle = rules
+      ? { ...style, lineHeight: ruledLineHeight(style.size, rules.gap) }
+      : style
     const draft: TextObject = fitWidth({
       id: newId(),
       type: 'text',
@@ -154,11 +177,18 @@ export class TextController {
       width: 0,
       rotation: 0,
       text: PLACEHOLDER,
-      style,
+      style: lineStyle,
       autoWidth: true,
     })
+    if (rules) {
+      const n = Math.max(1, Math.ceil((y - rules.top) / rules.gap))
+      const baseline = layoutText(draft).lines[0]?.baseline ?? 0
+      draft.y = rules.top + n * rules.gap - baseline
+      // Text starts right of the margin line.
+      if (x < rules.margin + 6) draft.x = rules.margin + 6
+    }
     // Near the right edge, the box starts further left so it stays on the page.
-    draft.x = Math.max(PAGE_MARGIN, Math.min(x, PAGE_SIZE.width - PAGE_MARGIN - draft.width))
+    draft.x = Math.max(PAGE_MARGIN, Math.min(draft.x, PAGE_SIZE.width - PAGE_MARGIN - draft.width))
     // "Text" is selected, so the first key replaces it.
     this.begin(pageId, draft, null, true)
   }

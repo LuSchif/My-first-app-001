@@ -36,6 +36,7 @@ import {
 } from '../model/types.ts'
 import { contentHeight, PAGE_PITCH, pageIndexAt, pageOrigin } from '../render/layout.ts'
 import { enterPage, renderScene, type View } from '../render/SceneRenderer.ts'
+import { PAPER_STYLE } from '../render/paper.ts'
 import { paintStroke, setInkStyle, strokeBounds } from '../render/strokes.ts'
 import { perfectShape, recognizeShape, regionAt, type Shape } from '../geometry/shapes.ts'
 import {
@@ -1502,7 +1503,12 @@ export class Editor {
     const y = w.y - o.y
     const hit = this.textAt(page, x, y)
     if (hit) this.text.edit(page.id, hit)
-    else if (!wasEditing) this.text.create(page.id, x, y, this._state.textStyle)
+    else if (!wasEditing) {
+      // On ruled paper, text can sit on the lines.
+      const ruled = this._state.features.textAutoAlign && page.paper === 'lined'
+      const rules = ruled ? PAPER_STYLE.lined : undefined
+      this.text.create(page.id, x, y, this._state.textStyle, rules)
+    }
   }
 
   /**

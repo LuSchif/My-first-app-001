@@ -428,7 +428,21 @@ function LaserSettings({ editor, state }: { editor: Editor; state: EditorState }
 }
 
 function TextSettings({ editor, state }: { editor: Editor; state: EditorState }) {
-  return <TextFormatControls editor={editor} style={state.textStyle} />
+  return (
+    <>
+      <TextFormatControls editor={editor} style={state.textStyle} />
+      <div className="border-t border-line pt-2">
+        <Switch
+          label="Auto align"
+          hint="On ruled paper, new text sits on the lines"
+          checked={state.features.textAutoAlign}
+          onChange={(on) => {
+            editor.setFeatures({ textAutoAlign: on })
+          }}
+        />
+      </div>
+    </>
+  )
 }
 
 function LassoSettings({ editor, state }: { editor: Editor; state: EditorState }) {
