@@ -1,6 +1,7 @@
 import { boundsOfPoints, type Rect } from '../geometry/rect.ts'
 import { tracePath, traceStroke } from '../geometry/strokePath.ts'
 import type { StrokeObject } from '../model/types.ts'
+import { canvasGradient, rectOf } from './effects.ts'
 import { outlinePad, outlineReach } from './outline.ts'
 
 // Objects are immutable, so derived data can be cached per object for its whole life.
@@ -61,8 +62,10 @@ export function paintStroke(ctx: CanvasRenderingContext2D, stroke: StrokeObject)
     ctx.strokeStyle = stroke.outline.color
     ctx.stroke(strokePath(stroke))
     width = stroke.width - inner * 2
-    ctx.strokeStyle = stroke.color
   }
+  ctx.strokeStyle = stroke.gradient
+    ? canvasGradient(ctx, stroke.gradient, rectOf(boundsOfPoints(stroke.points, 0)))
+    : stroke.color
   if (width > 0.05) {
     ctx.lineWidth = width
     ctx.stroke(strokePath(stroke))

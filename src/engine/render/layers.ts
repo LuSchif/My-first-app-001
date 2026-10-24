@@ -1,6 +1,6 @@
 import { intersects, type Rect } from '../geometry/rect.ts'
 import type { CanvasObject, LayerDef } from '../model/types.ts'
-import { objectBounds, paintObject } from './objects.ts'
+import { paintBounds, paintObject } from './objects.ts'
 
 /** A layer and the layers clipped to it (clipping masks), bottom to top. */
 interface LayerGroup {
@@ -36,7 +36,7 @@ export function paintLayers(
   const on = (layer: LayerDef) =>
     objects.filter(
       (o) =>
-        o.layerId === layer.id && !hidden.has(o.id) && (!area || intersects(objectBounds(o), area)),
+        o.layerId === layer.id && !hidden.has(o.id) && (!area || intersects(paintBounds(o), area)),
     )
   for (const { base, clipped } of layerGroups(layers)) {
     if (!base.visible || base.opacity <= 0) continue

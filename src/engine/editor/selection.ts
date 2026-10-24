@@ -2,7 +2,15 @@ import { formatAll, scaleText } from '../model/richText.ts'
 import { boxCenter, boxContains, boxCorners, isBox } from '../geometry/box.ts'
 import { strokeTouchesCircle } from '../geometry/erase.ts'
 import { union, type Rect } from '../geometry/rect.ts'
-import type { CanvasObject, Outline, TextObject } from '../model/types.ts'
+import { fillBaseColor, type Fill } from '../model/fill.ts'
+import type {
+  CanvasObject,
+  FillObject,
+  Outline,
+  Shadow,
+  StrokeObject,
+  TextObject,
+} from '../model/types.ts'
 import { objectBounds } from '../render/objects.ts'
 import { layoutText, textCenter, textContains, textCorners } from '../render/text.ts'
 
@@ -113,11 +121,41 @@ export function withOutline(object: CanvasObject, outline: Outline | null): Canv
 
 /** The same object in another color: the ink of a stroke or fill, the text of a text box. */
 export function recolor(object: CanvasObject, color: string): CanvasObject {
-  if (object.type === 'text') return formatAll(object, { color })
+  if (object.type === 'text') return withoutGradient(formatAll(object, { color }))
   // A table takes the color for its lines; pictures keep their own colors.
   if (object.type === 'table') return { ...object, style: { ...object.style, lineColor: color } }
   if (isBox(object)) return object
-  return { ...object, color }
+  return withoutGradient({ ...object, color })
+}
+
+function withoutGradient<T extends CanvasObject>(object: T): T {
+  if (!('gradient' in object)) return object
+  const { gradient: _gradient, ...rest } = object
+  return rest as T
+}
+
+/** Whether an object can be painted with a gradient: ink, filled areas and text. */
+export function takesGradient(object: CanvasObject): boolean {
+  return object.type === 'stroke' || object.type === 'fill' || object.type === 'text'
+}
+
+/**
+ * Paints an object with a color or a gradient. A gradient keeps its first color as the
+ * object's plain color, used where a single color is needed; objects that cannot show a
+ * gradient take that color.
+ */
+export function repaint(object: CanvasObject, fill: Fill): CanvasObject {
+  if (fill.type === 'solid') return recolor(object, fill.color)
+  const base = fillBaseColor(fill)
+  if (!takesGradient(object)) return recolor(object, base)
+  const colored = recolor(object, base) as StrokeObject | FillObject | TextObject
+  return { ...colored, gradient: fill }
+}
+
+/** The same object with a shadow, or without one. */
+export function withShadow(object: CanvasObject, shadow: Shadow | null): CanvasObject {
+  const { shadow: _old, ...rest } = object
+  return shadow ? { ...rest, shadow } : rest
 }
 
 /** Whether a tap at (x, y) with the given tolerance lands on the object. */

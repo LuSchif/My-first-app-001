@@ -1,6 +1,7 @@
 import type { Rect } from '../geometry/rect.ts'
 import { styleAt, textRuns } from '../model/richText.ts'
 import type { FontFamily, TextObject, TextStyle } from '../model/types.ts'
+import { canvasGradient } from './effects.ts'
 import { composite, isolate, outlinePad } from './outline.ts'
 
 /** CSS font-family stacks; the web fonts ship with the app, so they work offline. */
@@ -277,6 +278,10 @@ export function paintText(ctx: CanvasRenderingContext2D, object: TextObject): vo
   ctx.textBaseline = 'alphabetic'
   const outline = object.outline
   const position = outline?.position ?? 'outside'
+  // A gradient runs across the whole box, through every line and style.
+  const gradient = object.gradient
+    ? canvasGradient(ctx, object.gradient, { x: 0, y: 0, width: object.width, height })
+    : null
   for (const line of lines) {
     const left =
       base.align === 'center'
@@ -289,8 +294,8 @@ export function paintText(ctx: CanvasRenderingContext2D, object: TextObject): vo
       const { style, text } = fragment
       const x = left + fragment.x
       ctx.font = cssFont(style)
-      ctx.fillStyle = style.color
-      ctx.strokeStyle = style.color
+      ctx.fillStyle = gradient ?? style.color
+      ctx.strokeStyle = gradient ?? style.color
       if (outline && position === 'outside') {
         // Stroked behind the letters, so only the outer half of the contour shows.
         ctx.save()
@@ -305,7 +310,7 @@ export function paintText(ctx: CanvasRenderingContext2D, object: TextObject): vo
         const own = isolate(ctx)
         own.font = ctx.font
         own.textBaseline = 'alphabetic'
-        own.fillStyle = style.color
+        own.fillStyle = gradient ?? style.color
         own.fillText(text, x, y)
         own.globalCompositeOperation = 'source-atop'
         own.lineWidth = outline.width * 2

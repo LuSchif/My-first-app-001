@@ -11,6 +11,7 @@ import {
   type Command,
 } from '../commands/commands.ts'
 import type { History } from '../commands/History.ts'
+import { fillBaseColor, type Fill } from '../model/fill.ts'
 import type { NotebookDocument } from '../document/NotebookDocument.ts'
 import { eraseFromPoints, strokeTouchesCircle } from '../geometry/erase.ts'
 import { intersects } from '../geometry/rect.ts'
@@ -27,6 +28,7 @@ import {
   type Outline,
   type Page,
   type PaperKind,
+  type Shadow,
   type StrokeDash,
   type StrokeObject,
   type TextObject,
@@ -431,6 +433,18 @@ export class Editor {
   recolorSelection(color: string, commit = true): void {
     if (commit) this.rememberColor(color)
     this.selection.recolor(color, commit)
+  }
+
+  /** Paints the selection with a color or a gradient; `commit` false previews it. */
+  paintSelection(fill: Fill, commit = true): void {
+    if (commit) this.rememberColor(fill.type === 'solid' ? fill.color : fillBaseColor(fill))
+    this.selection.repaint(fill, commit)
+  }
+
+  /** Adds, changes or removes the selection's shadow; `commit` false previews it. */
+  setSelectionShadow(shadow: Shadow | null, commit = true): void {
+    if (shadow && commit) this.rememberColor(shadow.color)
+    this.selection.setShadow(shadow, commit)
   }
 
   /** Records the previewed change to the selection as one undo step. */

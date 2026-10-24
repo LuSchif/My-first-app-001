@@ -14,6 +14,7 @@ import {
   Table2,
   SquareRoundCorner,
   TextCursorInput,
+  SunDim,
   Trash2,
 } from 'lucide-react'
 import type { Editor, EditorState } from '../../engine/editor/Editor.ts'
@@ -44,9 +45,14 @@ import {
   PAGE_SIZE,
   type ChartKind,
   type ChartObject,
+  type GradientPaint,
   type Outline,
+  type Shadow,
   type TableObject,
 } from '../../engine/model/types.ts'
+import { fillToCss } from '../../engine/model/fill.ts'
+import { cn } from '../../lib/cn.ts'
+import { FillEditor } from '../folders/FillEditor.tsx'
 import { ChartEditor } from './ChartEditor.tsx'
 import { TableEditor } from './TableEditor.tsx'
 import { Fragment, useLayoutEffect, useRef, useState } from 'react'
@@ -183,18 +189,25 @@ function menuItems(
     items.push({
       key: 'color',
       node: (
-        <Popover>
+        // Closing the menu records what was previewed in it as one undo step.
+        <Popover onOpenChange={(open) => !open && editor.commitSelectionEdit('Color')}>
           <PopoverTrigger asChild>
             <button type="button" aria-label="Color" className={pill}>
               <span
                 className="size-[18px] rounded-full ring-2 ring-white/80"
-                style={{ background: sel.color ?? '#3e2d25' }}
+                style={{
+                  background: sel.gradient ? fillToCss(sel.gradient) : (sel.color ?? '#3e2d25'),
+                }}
               />
               Color
             </button>
           </PopoverTrigger>
-          <PopoverContent className="w-80">
-            <SelectionColor editor={editor} color={sel.color ?? '#3e2d25'} />
+          <PopoverContent movable="selection-color" className="w-80">
+            <SelectionColor
+              editor={editor}
+              color={sel.color ?? '#3e2d25'}
+              gradient={sel.canGradient ? sel.gradient : undefined}
+            />
           </PopoverContent>
         </Popover>
       ),
@@ -242,6 +255,22 @@ function menuItems(
         </PopoverTrigger>
         <PopoverContent className="grid w-80 gap-4">
           <OutlineControls editor={editor} outline={sel.outline} />
+        </PopoverContent>
+      </Popover>
+    ),
+  })
+  items.push({
+    key: 'shadow',
+    node: (
+      <Popover onOpenChange={(open) => !open && editor.commitSelectionEdit('Shadow')}>
+        <PopoverTrigger asChild>
+          <button type="button" className={pill}>
+            <SunDim size={18} />
+            Shadow
+          </button>
+        </PopoverTrigger>
+        <PopoverContent movable="selection-shadow" className="grid w-80 gap-4">
+          <ShadowControls editor={editor} shadow={sel.shadow} />
         </PopoverContent>
       </Popover>
     ),
@@ -502,13 +531,140 @@ function OutlineControls({ editor, outline }: { editor: Editor; outline: Outline
   )
 }
 
-function SelectionColor({ editor, color }: { editor: Editor; color: string }) {
-  return (
+/**
+ * The color of the selection; for ink, shapes and text also a gradient (linear or radial, with
+ * as many colors as wanted).
+ */
+function SelectionColor({
+  editor,
+  color,
+  gradient,
+}: {
+  editor: Editor
+  color: string
+  /** The selection's gradient; undefined when nothing selected can have one. */
+  gradient: GradientPaint | null | undefined
+}) {
+  const [tab, setTab] = useState<'color' | 'gradient'>(gradient ? 'gradient' : 'color')
+  const color_ = (
     <ColorPicker
       value={color}
       onChange={(next) => editor.recolorSelection(next, false)}
       onCommit={() => editor.commitSelectionEdit('Color')}
     />
+  )
+  if (gradient === undefined) return color_
+  const startGradient: GradientPaint = gradient ?? {
+    type: 'linear',
+    angle: 90,
+    stops: [
+      { offset: 0, color },
+      { offset: 1, color: '#4a80c0' },
+    ],
+  }
+  return (
+    <div className="grid gap-4">
+      <div
+        role="tablist"
+        aria-label="Paint"
+        className="flex gap-1 rounded-control bg-surface-sunken p-1"
+      >
+        {(
+          [
+            ['color', 'Color'],
+            ['gradient', 'Gradient'],
+          ] as const
+        ).map(([value, label]) => (
+          <button
+            key={value}
+            type="button"
+            role="tab"
+            aria-selected={tab === value}
+            onClick={() => {
+              editor.commitSelectionEdit('Color')
+              setTab(value)
+              // Opening the gradient tab shows a gradient at once.
+              if (value === 'gradient' && !gradient) editor.paintSelection(startGradient, false)
+            }}
+            className={cn(
+              'h-9 flex-1 rounded-[10px] text-sm font-semibold transition-colors',
+              tab === value ? 'bg-surface-raised shadow-soft' : 'text-ink-muted hover:bg-hover',
+            )}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      {tab === 'color' ? (
+        color_
+      ) : (
+        <FillEditor
+          value={gradient ?? startGradient}
+          onChange={(fill) => editor.paintSelection(fill, false)}
+        />
+      )}
+    </div>
+  )
+}
+
+const DEFAULT_SHADOW: Shadow = { color: '#3e2d25', opacity: 0.35, blur: 10, distance: 6, angle: 90 }
+
+/** A soft shadow under the selection: on or off, its softness, distance, direction and color. */
+function ShadowControls({ editor, shadow }: { editor: Editor; shadow: Shadow | null }) {
+  const set = (patch: Partial<Shadow>, commit = false) =>
+    shadow && editor.setSelectionShadow({ ...shadow, ...patch }, commit)
+  const done = () => editor.commitSelectionEdit('Shadow')
+  return (
+    <>
+      <Switch
+        label="Shadow"
+        hint="A soft shadow under the selected objects"
+        checked={shadow !== null}
+        onChange={(on) => editor.setSelectionShadow(on ? (shadow ?? DEFAULT_SHADOW) : null)}
+      />
+      {shadow ? (
+        <>
+          {/* Changes show live while dragging and become one undo step on release. */}
+          <Slider
+            label="Softness"
+            value={Math.round(shadow.blur)}
+            min={0}
+            max={40}
+            onChange={(blur) => set({ blur })}
+            onCommit={done}
+            format={(v) => `${v} pt`}
+          />
+          <Slider
+            label="Distance"
+            value={Math.round(shadow.distance)}
+            min={0}
+            max={40}
+            onChange={(distance) => set({ distance })}
+            onCommit={done}
+            format={(v) => `${v} pt`}
+          />
+          <Slider
+            label="Direction"
+            value={Math.round(shadow.angle)}
+            min={0}
+            max={359}
+            onChange={(angle) => set({ angle })}
+            onCommit={done}
+            format={(v) => `${v}°`}
+          />
+          <Slider
+            label="Opacity"
+            value={Math.round(shadow.opacity * 100)}
+            min={5}
+            max={100}
+            onChange={(v) => set({ opacity: v / 100 })}
+            onCommit={done}
+            format={(v) => `${v}%`}
+          />
+          <ColorPicker value={shadow.color} onChange={(color) => set({ color })} onCommit={done} />
+        </>
+      ) : null}
+    </>
   )
 }
 

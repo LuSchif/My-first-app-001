@@ -168,6 +168,17 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
   the one new pages get. The page overview changes the paper of the page in view, of new pages,
   of both, or of all pages, as one undo step.
 
+## Gradients and shadows
+
+- Ink, filled areas and text can be painted with a linear or radial gradient (any number of
+  colors, any direction) instead of one color: the color menu of a selection has a Gradient tab
+  with the same designer as folders. The gradient spans the object's box; its first color stays
+  the object's plain color. Tables take that color; pictures and charts keep theirs.
+- Every object can have a soft shadow (softness, distance, direction, opacity, color). An object
+  is drawn on a surface of its own and put on the page once with the shadow, so a table or a
+  text with an outline casts one shadow (`render/effects.ts`). Selection and taps use the object
+  without its shadow; redraws include it.
+
 ## Export
 
 - The page overview (the page button in the toolbar) shows every page and exports single pages
@@ -197,14 +208,14 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
 
 The editor was moved ahead of the dashboard (packages 2–3) so the tools can be tried early.
 
-| Package | Scope                                                                   | Status      |
-| ------- | ----------------------------------------------------------------------- | ----------- |
-| 0       | Ink spike (`spikes/ink-test.html`): validate writing feel on iPad       | Done        |
-| 1a      | Project setup: Vite, TypeScript, Tailwind, oxlint, Prettier, Vitest, CI | Done        |
-| 1b      | Design system: tokens, typefaces, base components, broom icon           | Done        |
-| 1c      | Document model, Dexie storage, command system                           | Done        |
-| 2a–2b   | Dashboard, folders, folder preview animation, folder view               | Done        |
-| 3       | Notebook creation dialog with cover designer and paper choice           | Done        |
-| 4a–4c   | Engine: camera, pages, paper, fineliner, highlighter, undo, autosave    | Done        |
-| 5a–5d   | Broom, lasso and transforms, text boxes, layers, PWA, backup            | Done        |
-| 6–10    | Full layers, text, tables, charts, colour drag and drop, PDF, polish    | Version 1.0 |
+| Package | Scope                                                                   | Status   |
+| ------- | ----------------------------------------------------------------------- | -------- |
+| 0       | Ink spike (`spikes/ink-test.html`): validate writing feel on iPad       | Done     |
+| 1a      | Project setup: Vite, TypeScript, Tailwind, oxlint, Prettier, Vitest, CI | Done     |
+| 1b      | Design system: tokens, typefaces, base components, broom icon           | Done     |
+| 1c      | Document model, Dexie storage, command system                           | Done     |
+| 2a–2b   | Dashboard, folders, folder preview animation, folder view               | Done     |
+| 3       | Notebook creation dialog with cover designer and paper choice           | Done     |
+| 4a–4c   | Engine: camera, pages, paper, fineliner, highlighter, undo, autosave    | Done     |
+| 5a–5d   | Broom, lasso and transforms, text boxes, layers, PWA, backup            | Done     |
+| 6–10    | Full layers, text, tables, charts, colour drag and drop, PDF, polish    | 6–7 done |
