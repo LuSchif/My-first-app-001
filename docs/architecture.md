@@ -59,8 +59,13 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
   word, dragging selects text; arrow keys and sliding along the space bar move the caret.
 - The name shown is "Broomit Keyboard".
 - There is no switch back to the system keyboard: on iPad it would bring the bar back.
-- Each key's touch area covers the gaps around it, and touches on the keyboard are cancelled,
-  so iPadOS cannot take fast taps as a double-tap zoom or a selection.
+- Keys read touch events directly (every finger separately, on touch-down, also the space
+  bar), so fast typing with overlapping fingers keeps every letter in order. Each key's touch
+  area covers the gaps around it, and touches on the keyboard are cancelled, so iPadOS cannot
+  take fast taps as a double-tap zoom or a selection.
+- Return confirms a one-line field and closes the keyboard; it never submits a form. Tapping
+  anywhere else closes the keyboard once the tap is complete. Fields that save on blur get a
+  blur when typing ends.
 - The keyboard's height (`lib/keyboardInset.ts`, CSS `--kb-height`) shrinks the visible area,
   so dialogs and the canvas keep the field in view.
 

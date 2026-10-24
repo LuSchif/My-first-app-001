@@ -8,6 +8,7 @@ import {
   Delete,
 } from 'lucide-react'
 import {
+  useCallback,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -68,13 +69,10 @@ export function VirtualKeyboard() {
     measure()
     const observer = new ResizeObserver(measure)
     observer.observe(el)
-    // Touches on the keyboard are keys only: iPadOS must not read fast taps as a double-tap
-    // zoom, a scroll or a text selection, which would swallow them.
-    const block = (e: TouchEvent) => e.preventDefault()
-    el.addEventListener('touchstart', block, { passive: false })
+    const stopTouches = routeTouches(el)
     return () => {
       observer.disconnect()
-      el.removeEventListener('touchstart', block)
+      stopTouches()
     }
   }, [open])
 
@@ -185,46 +183,193 @@ export function VirtualKeyboard() {
   )
 }
 
+/**
+ * What a key does with a touch. Each finger has its own id, so keys pressed in quick succession,
+ * or the same key by two fingers, are all counted.
+ */
+interface KeyHandler {
+  down(id: number, x: number): void
+  move?(id: number, x: number): void
+  up?(id: number): void
+  cancel?(id: number): void
+}
+
+const keyHandlers = new WeakMap<Element, KeyHandler>()
+
+/** How far from a key a touch at the keyboard's edge may land and still press it. */
+const NEAREST_KEY_PX = 28
+
+/**
+ * Feeds touches on the keyboard straight to the keys. Touch events report every finger
+ * separately and at once, which keeps up with fast typing; all touches are cancelled, so
+ * iPadOS cannot read quick taps as a double-tap zoom, a scroll or a text selection.
+ */
+function routeTouches(keyboard: HTMLElement): () => void {
+  const pressed = new Map<number, Element>()
+  const keyAt = (x: number, y: number): Element | null => {
+    const hit = document.elementFromPoint(x, y)?.closest('[data-key]')
+    if (hit && keyboard.contains(hit)) return hit
+    let best: Element | null = null
+    let bestDistance = NEAREST_KEY_PX
+    for (const key of keyboard.querySelectorAll('[data-key]')) {
+      const r = key.getBoundingClientRect()
+      const d = Math.hypot(
+        Math.max(r.left - x, 0, x - r.right),
+        Math.max(r.top - y, 0, y - r.bottom),
+      )
+      if (d < bestDistance) {
+        best = key
+        bestDistance = d
+      }
+    }
+    return best
+  }
+  const onStart = (e: TouchEvent) => {
+    e.preventDefault()
+    for (const t of Array.from(e.changedTouches)) {
+      const key = keyAt(t.clientX, t.clientY)
+      if (!key || (key as HTMLButtonElement).disabled) continue
+      pressed.set(t.identifier, key)
+      key.setAttribute('data-down', '')
+      keyHandlers.get(key)?.down(t.identifier, t.clientX)
+    }
+  }
+  const onMove = (e: TouchEvent) => {
+    e.preventDefault()
+    for (const t of Array.from(e.changedTouches)) {
+      const key = pressed.get(t.identifier)
+      if (key) keyHandlers.get(key)?.move?.(t.identifier, t.clientX)
+    }
+  }
+  const onEnd = (e: TouchEvent) => {
+    for (const t of Array.from(e.changedTouches)) {
+      const key = pressed.get(t.identifier)
+      if (!key) continue
+      pressed.delete(t.identifier)
+      if (![...pressed.values()].includes(key)) key.removeAttribute('data-down')
+      const handler = keyHandlers.get(key)
+      if (e.type === 'touchcancel') handler?.cancel?.(t.identifier)
+      else handler?.up?.(t.identifier)
+    }
+  }
+  keyboard.addEventListener('touchstart', onStart, { passive: false })
+  keyboard.addEventListener('touchmove', onMove, { passive: false })
+  keyboard.addEventListener('touchend', onEnd)
+  keyboard.addEventListener('touchcancel', onEnd)
+  return () => {
+    keyboard.removeEventListener('touchstart', onStart)
+    keyboard.removeEventListener('touchmove', onMove)
+    keyboard.removeEventListener('touchend', onEnd)
+    keyboard.removeEventListener('touchcancel', onEnd)
+  }
+}
+
+/**
+ * Connects a key to touches (see routeTouches) and to a mouse or trackpad, which still uses
+ * pointer events.
+ */
+function useKey(handler: KeyHandler) {
+  const current = useRef(handler)
+  useLayoutEffect(() => {
+    current.current = handler
+  })
+  const ref = useCallback((el: HTMLElement | null) => {
+    if (!el) return
+    keyHandlers.set(el, {
+      down: (id, x) => current.current.down(id, x),
+      move: (id, x) => current.current.move?.(id, x),
+      up: (id) => current.current.up?.(id),
+      cancel: (id) => current.current.cancel?.(id),
+    })
+  }, [])
+  const mouse = (e: PointerEvent<HTMLElement>) => e.pointerType === 'mouse'
+  return {
+    ref,
+    'data-key': '',
+    onPointerDown: (e: PointerEvent<HTMLElement>) => {
+      if (!mouse(e)) return
+      e.preventDefault()
+      e.currentTarget.setPointerCapture?.(e.pointerId)
+      e.currentTarget.dataset.down = ''
+      current.current.down(-1, e.clientX)
+    },
+    onPointerMove: (e: PointerEvent<HTMLElement>) => {
+      if (mouse(e) && e.currentTarget.dataset.down !== undefined)
+        current.current.move?.(-1, e.clientX)
+    },
+    onPointerUp: (e: PointerEvent<HTMLElement>) => {
+      if (!mouse(e) || e.currentTarget.dataset.down === undefined) return
+      delete e.currentTarget.dataset.down
+      current.current.up?.(-1)
+    },
+    onPointerCancel: (e: PointerEvent<HTMLElement>) => {
+      if (!mouse(e)) return
+      delete e.currentTarget.dataset.down
+      current.current.cancel?.(-1)
+    },
+  }
+}
+
+/** A handler that acts on touch-down and, with `repeat`, again while held. */
+function usePress(onPress: () => void, repeat?: boolean) {
+  const timer = useRef<{
+    wait?: ReturnType<typeof setTimeout>
+    every?: ReturnType<typeof setInterval>
+  }>({})
+  const stop = () => {
+    clearTimeout(timer.current.wait)
+    clearInterval(timer.current.every)
+  }
+  useEffect(() => stop, [])
+  return useKey({
+    down: () => {
+      stop()
+      onPress()
+      if (repeat) {
+        timer.current.wait = setTimeout(() => {
+          timer.current.every = setInterval(onPress, 70)
+        }, 420)
+      }
+    },
+    up: stop,
+    cancel: stop,
+  })
+}
+
 /** Space; sliding a finger along it moves the caret instead, like on the iPad's keyboard. */
 function SpaceKey() {
-  const drag = useRef<{ id: number; x: number; moved: boolean } | null>(null)
+  const drags = useRef(new Map<number, { x: number; moved: boolean }>())
+  const key = useKey({
+    // The space is typed at once, like every key, so fast typing keeps its order.
+    down: (id, x) => {
+      drags.current.set(id, { x, moved: false })
+      type(' ')
+    },
+    move: (id, x) => {
+      const d = drags.current.get(id)
+      if (!d) return
+      // A small slip while typing fast is still just a space.
+      if (!d.moved && Math.abs(x - d.x) < SPACE_SLIDE_PX) return
+      if (!d.moved) {
+        // Sliding moves the caret instead; the space typed on touch-down goes again.
+        d.moved = true
+        d.x = x
+        backspace()
+      }
+      while (Math.abs(x - d.x) >= SPACE_STEP_PX) {
+        const direction = x > d.x ? 1 : -1
+        moveCaret(direction)
+        d.x += direction * SPACE_STEP_PX
+      }
+    },
+    up: (id) => drags.current.delete(id),
+    cancel: (id) => drags.current.delete(id),
+  })
   return (
     <button
       type="button"
       aria-label="Space"
-      onPointerDown={(e) => {
-        e.preventDefault()
-        e.currentTarget.setPointerCapture?.(e.pointerId)
-        e.currentTarget.dataset.down = ''
-        drag.current = { id: e.pointerId, x: e.clientX, moved: false }
-      }}
-      onPointerMove={(e) => {
-        const d = drag.current
-        if (!d || d.id !== e.pointerId) return
-        // A small slip while typing fast is still a space.
-        if (!d.moved && Math.abs(e.clientX - d.x) < SPACE_SLIDE_PX) return
-        if (!d.moved) {
-          d.moved = true
-          d.x = e.clientX
-        }
-        while (Math.abs(e.clientX - d.x) >= SPACE_STEP_PX) {
-          const direction = e.clientX > d.x ? 1 : -1
-          moveCaret(direction)
-          d.x += direction * SPACE_STEP_PX
-        }
-      }}
-      onPointerUp={(e) => {
-        delete e.currentTarget.dataset.down
-        const d = drag.current
-        drag.current = null
-        if (d && d.id === e.pointerId && !d.moved) type(' ')
-      }}
-      onPointerCancel={(e) => {
-        delete e.currentTarget.dataset.down
-        // The touch was taken away before it ended; it was still meant as a space.
-        if (drag.current && !drag.current.moved) type(' ')
-        drag.current = null
-      }}
+      {...key}
       className={cn(HIT_CLASS, 'max-w-none flex-[5]')}
     >
       <span className={cn(KEY_CLASS, 'bg-surface-raised text-sm text-ink-muted')}>space</span>
@@ -251,59 +396,19 @@ function StripButton({
   repeat?: boolean
   disabled?: boolean
 }) {
-  const hold = useHold(onPress ?? (() => {}), repeat)
-  const touched = useRef(false)
+  const press = usePress(onPress ?? (() => {}), repeat)
+  const click = useKey({ down: () => {}, up: () => onClick?.() })
   return (
     <button
       type="button"
       aria-label={label}
       disabled={disabled}
-      // Touches are cancelled on the keyboard, so they never become clicks: act on lifting.
-      // A trackpad or mouse still clicks.
-      onPointerUp={(e) => {
-        touched.current = e.pointerType !== 'mouse'
-        if (touched.current) onClick?.()
-      }}
-      onClick={() => {
-        if (!touched.current) onClick?.()
-        touched.current = false
-      }}
-      {...(onPress ? hold : {})}
+      {...(onPress ? press : click)}
       className="grid h-10 min-w-10 place-items-center rounded-control px-2 text-sm font-semibold text-ink hover:bg-hover data-[down]:bg-pressed disabled:text-ink-subtle"
     >
       {children}
     </button>
   )
-}
-
-/** Pointer handlers that act on touch-down and, with `repeat`, again while held. */
-function useHold(onPress: () => void, repeat?: boolean) {
-  const timer = useRef<{
-    wait?: ReturnType<typeof setTimeout>
-    every?: ReturnType<typeof setInterval>
-  }>({})
-  const stop = (e?: PointerEvent<HTMLElement>) => {
-    if (e) delete e.currentTarget.dataset.down
-    clearTimeout(timer.current.wait)
-    clearInterval(timer.current.every)
-  }
-  useEffect(() => stop, [])
-  return {
-    onPointerDown: (e: PointerEvent<HTMLElement>) => {
-      e.preventDefault()
-      // Shown pressed until lifted; :active is unreliable once touches are cancelled.
-      e.currentTarget.dataset.down = ''
-      onPress()
-      if (repeat) {
-        timer.current.wait = setTimeout(() => {
-          timer.current.every = setInterval(onPress, 70)
-        }, 420)
-      }
-    },
-    onPointerUp: stop,
-    onPointerCancel: stop,
-    onPointerLeave: stop,
-  }
 }
 
 /**
@@ -332,14 +437,14 @@ function Key({
   pressed?: boolean
   repeat?: boolean
 }) {
-  const hold = useHold(onPress, repeat)
+  const press = usePress(onPress, repeat)
   return (
     <button
       type="button"
       aria-label={label}
       aria-pressed={pressed}
-      {...hold}
-      className={cn(HIT_CLASS, wide ? 'flex-[1.6] max-w-[8.4rem]' : 'flex-1 max-w-[5.9rem]')}
+      {...press}
+      className={cn(HIT_CLASS, wide ? 'max-w-[8.4rem] flex-[1.6]' : 'max-w-[5.9rem] flex-1')}
     >
       <span
         className={cn(

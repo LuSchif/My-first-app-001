@@ -71,7 +71,7 @@ export function activate(field: Field, at?: number): void {
     if (at !== undefined) select(at)
     return
   }
-  state.field?.removeAttribute('data-virtual-focus')
+  if (state.field) leave(state.field)
   field.setAttribute('data-virtual-focus', '')
   const caret = clampIndex(field, at ?? field.value.length)
   set({
@@ -163,9 +163,20 @@ export function selectedText(): string {
 
 export function close(): void {
   if (!state.field) return
-  state.field.removeAttribute('data-virtual-focus')
+  const field = state.field
   set({ field: null })
   setKeyboardInset(0)
+  leave(field)
+}
+
+/**
+ * Typing into a field has ended. Fields that save their value when they lose focus (a color's
+ * hex code, a layer's name) are told so, as if they had been focused.
+ */
+function leave(field: Field): void {
+  field.removeAttribute('data-virtual-focus')
+  field.dispatchEvent(new FocusEvent('focusout', { bubbles: true }))
+  field.dispatchEvent(new FocusEvent('blur'))
 }
 
 export function setPage(page: KeyPage): void {
@@ -232,7 +243,7 @@ export function cut(): string {
   return text
 }
 
-/** Return: a new line in multi-line text; otherwise the field is done (and its form sent). */
+/** Return: a new line in multi-line text; otherwise it confirms the field and typing ends. */
 export function enter(): void {
   const field = state.field
   if (!field || !field.isConnected) return close()
@@ -240,7 +251,5 @@ export function enter(): void {
     type('\n')
     return
   }
-  const form = field.form
   close()
-  form?.requestSubmit()
 }

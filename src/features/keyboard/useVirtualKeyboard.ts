@@ -46,9 +46,11 @@ export function useVirtualKeyboard(): boolean {
 
   useEffect(() => {
     if (!enabled) return
-    document.documentElement.setAttribute('data-virtual-keyboard', '')
+    document.documentElement.setAttribute('data-own-keyboard', '')
     let touched: { field: Field; time: number } | null = null
     let press: Press | null = null
+    /** A tap outside the field being typed into, which ends typing once it is complete. */
+    let closeAfter: { pointerId: number; field: Field } | null = null
     let lastTap: { field: Field; x: number; y: number; time: number } | null = null
 
     // The mirror draws the caret and selection; it follows every change, and the field's place
@@ -96,8 +98,14 @@ export function useVirtualKeyboard(): boolean {
         }
         return
       }
-      // Touching anything else ends typing, except the keyboard and bars made for typing.
-      if (keyboardState().field && !inKeyboard(e.target)) close()
+      // Touching anything else ends typing, except the keyboard and bars made for typing. The
+      // page's own text box ends typing itself when its editing ends.
+      // It closes once the tap is complete: closing earlier moves what is under the finger
+      // (a dialog re-centers), and the tap would miss its button.
+      const active = keyboardState().field
+      if (active && active.dataset.allowFocus === undefined && !inKeyboard(e.target)) {
+        closeAfter = { pointerId: e.pointerId, field: active }
+      }
     }
     // Dragging across the text being typed selects it.
     const onPointerMove = (e: PointerEvent) => {
@@ -111,6 +119,14 @@ export function useVirtualKeyboard(): boolean {
     }
     // A tap places the caret (and opens the keyboard); a quick second tap selects the word.
     const onPointerUp = (e: PointerEvent) => {
+      if (closeAfter?.pointerId === e.pointerId) {
+        const { field } = closeAfter
+        closeAfter = null
+        // After the tap's click; unless the tap gave the keyboard another field meanwhile.
+        setTimeout(() => {
+          if (keyboardState().field === field) close()
+        }, 0)
+      }
       const p = press
       if (!p || p.pointerId !== e.pointerId) return
       press = null
@@ -127,6 +143,10 @@ export function useVirtualKeyboard(): boolean {
       else if (at !== undefined) select(at)
     }
     const onPointerCancel = (e: PointerEvent) => {
+      if (closeAfter?.pointerId === e.pointerId) {
+        closeAfter = null
+        close()
+      }
       if (press?.pointerId === e.pointerId) press = null
     }
     // Focus from code or a trackpad click: take the field over instead.
@@ -179,7 +199,7 @@ export function useVirtualKeyboard(): boolean {
     document.addEventListener('broomit:done', onDone, true)
     window.addEventListener('keydown', onKeyDown, true)
     return () => {
-      document.documentElement.removeAttribute('data-virtual-keyboard')
+      document.documentElement.removeAttribute('data-own-keyboard')
       document.removeEventListener('touchstart', onTouchStart, { capture: true })
       stopWatching()
       cancelAnimationFrame(frame)

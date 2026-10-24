@@ -131,7 +131,7 @@ export class TextController {
    * focused, so iPadOS shows no bar of its own; the keyboard listens for this event instead.
    */
   private focusField(): void {
-    if (document.documentElement.hasAttribute('data-virtual-keyboard')) {
+    if (document.documentElement.hasAttribute('data-own-keyboard')) {
       this.textarea.dispatchEvent(new Event('broomit:type', { bubbles: true }))
       return
     }
