@@ -2,6 +2,7 @@ import { BookmarkPlus, Paintbrush, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { createNotebook } from '../../engine/model/factory.ts'
 import type { Fill } from '../../engine/model/fill.ts'
+import { cn } from '../../lib/cn.ts'
 import type { Folder, Id, PaperKind } from '../../engine/model/types.ts'
 import {
   Button,
@@ -12,10 +13,9 @@ import {
 } from '../../design/index.ts'
 import { createNotebookRecord } from '../../storage/notebooks.ts'
 import { FillEditor } from '../folders/FillEditor.tsx'
-import { PAPER_OPTIONS } from '../paper.ts'
+import { PAPER_OPTIONS, paperPreviewStyle } from '../paper.ts'
 import { loadCoverDesigns, removeCoverDesign, saveCoverDesign } from './coverDesigns.ts'
 import { NotebookPreview } from './NotebookPreview.tsx'
-import { PaperCarousel } from './PaperCarousel.tsx'
 import { FolderField } from './FolderField.tsx'
 
 const COVERS: { name: string; fill: Fill }[] = [
@@ -173,10 +173,31 @@ export function NewNotebookDialog({
               ) : null}
             </fieldset>
 
-            <div className="grid gap-1">
-              <span className="text-sm font-medium">Paper</span>
-              <PaperCarousel value={paper} onChange={setPaper} />
-            </div>
+            <fieldset className="grid gap-2">
+              <legend className="mb-2 text-sm font-medium">Paper</legend>
+              <div className="grid grid-cols-5 gap-3">
+                {PAPER_OPTIONS.map((option) => (
+                  <button
+                    key={option.kind}
+                    type="button"
+                    aria-pressed={paper === option.kind}
+                    onClick={() => setPaper(option.kind)}
+                    className="group grid gap-1.5 text-sm"
+                  >
+                    <span
+                      className={cn(
+                        'aspect-[3/4] w-full rounded-lg shadow-soft ring-1 ring-line transition-shadow',
+                        'group-aria-pressed:ring-2 group-aria-pressed:ring-ink',
+                      )}
+                      style={paperPreviewStyle(option.kind)}
+                    />
+                    <span className="text-ink-muted group-aria-pressed:font-semibold group-aria-pressed:text-ink">
+                      {option.label}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </fieldset>
           </div>
         </div>
 

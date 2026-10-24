@@ -100,8 +100,7 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
 - Creating a notebook: a live preview (cover with title, first page peeking out in the chosen
   paper) beside title, folder (or a new one), cover and paper. Covers come from presets or are
   designed freely (color, linear or radial gradient); designs can be saved and reused (kept per
-  device). Papers sit in a carousel of real previews (drawn by the editor's paper code, as a
-  close-up): swipe, tap, arrow buttons or arrow keys.
+  device). Papers are chosen from a row of previews.
 
 ## Workspace
 
@@ -201,7 +200,7 @@ The editor was moved ahead of the dashboard (packages 2–3) so the tools can be
 | 1b      | Design system: tokens, typefaces, base components, broom icon           | Done        |
 | 1c      | Document model, Dexie storage, command system                           | Done        |
 | 2a–2b   | Dashboard, folders, folder preview animation, folder view               | Done        |
-| 3       | Notebook creation dialog with cover designer and paper carousel         | Done        |
+| 3       | Notebook creation dialog with cover designer and paper choice           | Done        |
 | 4a–4c   | Engine: camera, pages, paper, fineliner, highlighter, undo, autosave    | Done        |
 | 5a–5d   | Broom, lasso and transforms, text boxes, layers, PWA, backup            | Done        |
 | 6–10    | Full layers, text, tables, charts, colour drag and drop, PDF, polish    | Version 1.0 |
