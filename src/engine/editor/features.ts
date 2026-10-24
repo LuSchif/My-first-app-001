@@ -17,6 +17,8 @@ export interface Features {
   smartHighlight: boolean
   /** New text on ruled paper sits on the lines. */
   textAutoAlign: boolean
+  /** Pulling past the last page asks for the new page's paper. */
+  askPaper: boolean
   /** The bar of recently used colors at the edge. */
   recentColors: boolean
   /** Tools shown in the toolbar. */
@@ -35,6 +37,7 @@ export const DEFAULT_FEATURES: Features = {
   broomDust: true,
   textAutoAlign: true,
   smartHighlight: true,
+  askPaper: true,
   recentColors: true,
   laser: true,
   tape: true,

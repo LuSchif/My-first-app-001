@@ -159,6 +159,17 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
 - The control center (gear in the editor) switches features and toolbar tools on and off; the
   choice is kept per device (`editor/features.ts`).
 
+- Hand-drawn arrows (one stroke, or a shaft and a head) offer Auto arrow: the shaft is kept
+  (made straight when it nearly is) and gets an even head (`engine/geometry/arrows.ts`).
+- A highlighter stroke over typed text becomes a text highlight in its color (a span style),
+  snapped to whole words (`editor/textHighlight.ts`).
+- The laser drawing stays in full until the pen has rested for three seconds, then fades.
+- The magnifier enlarges a spot and lists the objects there with their layers, with a way to
+  make that layer active.
+- Pulling past the last page arms adding a page; the pull must then be held (a filling ring),
+  so a fling never adds one. The new page's paper is asked for, or every new page gets one
+  chosen paper from then on.
+
 ## Appearance
 
 - Themes are built from one accent color (presets or any color), light or dark, by overriding

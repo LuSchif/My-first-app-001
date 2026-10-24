@@ -142,6 +142,13 @@ export interface EditorState {
   notice: string | null
   /** What the magnifier found: the objects under it and their layers, at a screen point. */
   inspect: { x: number; y: number; items: InspectItem[] } | null
+  /**
+   * Pulling past the last page: how far the hold to add a page has come (0 to 1), and whether
+   * the pull is far enough for it to count.
+   */
+  pull: { armed: boolean; progress: number } | null
+  /** The menu for the paper of the page about to be added is open. */
+  newPageMenu: boolean
   /** Where a long press offers to paste, in screen pixels. */
   pasteMenu: { x: number; y: number } | null
 }
@@ -170,6 +177,12 @@ const TWO_FINGER_TAP_MS = 280
 /** The second tap of a two- or three-finger double tap must come within this time. */
 const DOUBLE_TAP_MS = 450
 const TAP_SLOP_PX = 12
+/** Pulling this far past the last page arms adding a page. */
+const PULL_ARM_PX = 110
+/** Then the pull must be held this long, so a page is never added by a fling. */
+const PULL_HOLD_MS = 900
+/** How far the pages follow the pull, at most. */
+const PULL_STRETCH_PX = 70
 
 interface InkSession {
   kind: 'ink'
@@ -339,6 +352,11 @@ export class Editor {
   private panning = false
   private tap: { start: number; maxTouches: number; moved: number; x: number; y: number } | null =
     null
+  /** How far fingers or a wheel pulled past the last page, and since when it is armed. */
+  private pullRaw = 0
+  private pullArmedAt = 0
+  private pullFrame = 0
+  private wheelPullTimer: ReturnType<typeof setTimeout> | null = null
   /** The last tap on a strip of tape, to tell a double tap. */
   private lastTapeTap: { id: Id; time: number } | null = null
   /** The tool to go back to once the eyedropper picked a color. */
@@ -384,6 +402,8 @@ export class Editor {
       activeLayerId: doc.notebook.layers[doc.notebook.layers.length - 1]?.id ?? '',
       notice: null,
       inspect: null,
+      pull: null,
+      newPageMenu: false,
       pasteMenu: null,
     }
 
@@ -1320,9 +1340,11 @@ export class Editor {
         ? (width - pagesWidth) / 2
         : Math.min(SIDE_MARGIN, Math.max(width - pagesWidth - SIDE_MARGIN, c.offsetX))
     const pagesHeight = contentHeight(this.doc.notebook.pageIds.length) * zoom
-    // While typing, the last page may scroll up above the keyboard.
+    // While typing, the last page may scroll up above the keyboard. A pull for a new page
+    // stretches a little further.
     const minY = Math.min(TOP_INSET, height - pagesHeight - TOP_INSET - this.bottomInset)
-    const offsetY = Math.min(TOP_INSET, Math.max(minY, c.offsetY))
+    const stretch = Math.min(PULL_STRETCH_PX, this.pullRaw * 0.35)
+    const offsetY = Math.min(TOP_INSET, Math.max(minY - stretch, c.offsetY))
     return { zoom, offsetX, offsetY }
   }
 
@@ -1667,7 +1689,8 @@ export class Editor {
       this.gesture = null
       if (this.touches.size === 0) {
         if (this.panning && this.tap) this.finishTap(e.timeStamp)
-        if (this.panning) this.startMomentum(e.timeStamp)
+        if (this.pullRaw > 0) this.endPull()
+        else if (this.panning) this.startMomentum(e.timeStamp)
         this.panning = false
         this.tap = null
       } else if (this.panning) {
@@ -1685,12 +1708,106 @@ export class Editor {
       const delta = Math.max(-25, Math.min(25, e.deltaY))
       this.zoomAt(this.screenPos(e), Math.exp(-delta * 0.01))
     } else {
+      if (this.atBottom() || this.pullRaw > 0) {
+        this.pullBy(e.deltaY * 0.6)
+        // A wheel has no release; a short pause ends the pull.
+        if (this.wheelPullTimer) clearTimeout(this.wheelPullTimer)
+        this.wheelPullTimer = setTimeout(() => this.endPull(), 220)
+      }
       this.setCamera({
         ...this.camera,
         offsetX: this.camera.offsetX - e.deltaX,
         offsetY: this.camera.offsetY - e.deltaY,
       })
     }
+  }
+
+  // ---------- Pull for a new page ----------
+
+  /** Whether the view shows the end of the last page. */
+  private atBottom(): boolean {
+    const { height } = this.view
+    const pagesHeight = contentHeight(this.doc.notebook.pageIds.length) * this.camera.zoom
+    const minY = Math.min(TOP_INSET, height - pagesHeight - TOP_INSET - this.bottomInset)
+    return this.camera.offsetY <= minY + 1
+  }
+
+  /** Pulls `by` pixels further past the last page (less when negative). */
+  private pullBy(by: number): void {
+    if (this._state.newPageMenu) return
+    this.pullRaw = Math.max(0, this.pullRaw + by)
+    const armed = this.pullRaw >= PULL_ARM_PX
+    if (armed && !this.pullArmedAt) this.pullArmedAt = performance.now()
+    if (!armed) this.pullArmedAt = 0
+    this.showPull()
+    if (armed && !this.pullFrame) this.pullFrame = requestAnimationFrame(() => this.tickPull())
+  }
+
+  private showPull(): void {
+    if (this.pullRaw < 12) {
+      if (this._state.pull) this.update({ pull: null })
+      return
+    }
+    const progress = this.pullArmedAt
+      ? Math.min(1, (performance.now() - this.pullArmedAt) / PULL_HOLD_MS)
+      : 0
+    this.update({ pull: { armed: Boolean(this.pullArmedAt), progress } })
+  }
+
+  /** The hold fills up while the pull stays armed; once full, a page is asked for. */
+  private tickPull(): void {
+    this.pullFrame = 0
+    if (!this.pullArmedAt) return
+    this.showPull()
+    if ((this._state.pull?.progress ?? 0) >= 1) {
+      navigator.vibrate?.(15)
+      this.endPull()
+      this.requestNewPage()
+      return
+    }
+    this.pullFrame = requestAnimationFrame(() => this.tickPull())
+  }
+
+  /** Letting go: the pages spring back, and a pull not held long enough does nothing. */
+  private endPull(): void {
+    if (this.wheelPullTimer) clearTimeout(this.wheelPullTimer)
+    this.wheelPullTimer = null
+    cancelAnimationFrame(this.pullFrame)
+    this.pullFrame = 0
+    this.pullRaw = 0
+    this.pullArmedAt = 0
+    if (this._state.pull) this.update({ pull: null })
+    this.setCamera(this.camera)
+  }
+
+  /** Adds a page at the end: right away, or after asking for its paper. */
+  requestNewPage(): void {
+    if (this._state.features.askPaper) this.update({ newPageMenu: true })
+    else this.addPageAtEnd(this.doc.notebook.paper, false)
+  }
+
+  /** The paper new pages get. */
+  notebookPaper(): PaperKind {
+    return this.doc.notebook.paper
+  }
+
+  closeNewPageMenu(): void {
+    this.update({ newPageMenu: false })
+  }
+
+  /**
+   * Adds a page of `paper` after the last one. With `makeDefault`, every new page gets that
+   * paper from now on, without asking.
+   */
+  addPageAtEnd(paper: PaperKind, makeDefault: boolean): void {
+    const index = this.doc.notebook.pageIds.length
+    const commands = [insertPages('Add page', index, [createPage(this.doc.notebook.id, paper)])]
+    const before = this.doc.notebook.paper
+    if (makeDefault && before !== paper) commands.push(setNotebookPaper(before, paper))
+    this.history.execute(compound('Add page', commands))
+    if (makeDefault) this.setFeatures({ askPaper: false })
+    this.update({ newPageMenu: false })
+    this.scrollToPage(index)
   }
 
   private onKeyDown(e: KeyboardEvent): void {
@@ -1759,6 +1876,8 @@ export class Editor {
         const zoom = camera.zoom * factor
         camera = { zoom, offsetX: cx - wx * zoom, offsetY: cy - wy * zoom }
       }
+      const atBottom = this.atBottom()
+      if (next.count === 1 && (atBottom || this.pullRaw > 0)) this.pullBy(-dy)
       this.setCamera(camera)
       if (time !== undefined) {
         const dt = Math.max(1, time - this.velocity.t)

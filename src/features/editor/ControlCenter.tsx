@@ -17,6 +17,7 @@ const GROUPS: { title: string; items: [keyof Features, string, string][] }[] = [
     title: 'Gestures and effects',
     items: [
       ['gestureUndo', 'Finger undo and redo', 'Double tap with two fingers to undo, three to redo'],
+      ['askPaper', 'Ask for paper', 'Pulling past the last page asks which paper it gets'],
       ['broomDust', 'Broom dust', 'A little dust flies where the broom sweeps'],
     ],
   },

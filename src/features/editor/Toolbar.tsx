@@ -52,6 +52,7 @@ import { LayersPanel } from './LayersPanel.tsx'
 import { RecentColors } from './RecentColors.tsx'
 import { ControlCenter } from './ControlCenter.tsx'
 import { InspectCard } from './InspectCard.tsx'
+import { NewPageMenu, PullForPage } from './NewPage.tsx'
 import { PathMenu } from './PathMenu.tsx'
 import { PenPreview } from './PenPreview.tsx'
 import { PasteButton, PasteMenu, SelectionMenu } from './SelectionMenu.tsx'
@@ -324,6 +325,8 @@ export function Toolbar({
       {features.recentColors ? <RecentColors editor={editor} state={state} /> : null}
       <SuggestionChip editor={editor} state={state} />
       <InspectCard editor={editor} state={state} />
+      <PullForPage state={state} />
+      <NewPageMenu editor={editor} state={state} />
       <PasteButton editor={editor} state={state} />
       <PasteMenu editor={editor} state={state} />
       {state.notice ? (
