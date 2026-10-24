@@ -23,6 +23,7 @@ export interface Features {
   laser: boolean
   tape: boolean
   eyedropper: boolean
+  magnifier: boolean
   pathTool: boolean
 }
 
@@ -38,6 +39,7 @@ export const DEFAULT_FEATURES: Features = {
   laser: true,
   tape: true,
   eyedropper: true,
+  magnifier: true,
   pathTool: true,
 }
 

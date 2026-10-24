@@ -24,6 +24,7 @@ const GROUPS: { title: string; items: [keyof Features, string, string][] }[] = [
     title: 'Toolbar',
     items: [
       ['eyedropper', 'Eyedropper', 'Pick a color from the page'],
+      ['magnifier', 'Magnifier', 'See which layer something is on'],
       ['tape', 'Tape', 'Cover writing; double tap to reveal it'],
       ['laser', 'Laser pointer', 'Point at things while presenting'],
       ['pathTool', 'Edit paths', 'Move the anchor points of a line'],

@@ -14,6 +14,7 @@ import {
   Bandage,
   PenLine,
   Pipette,
+  ScanSearch,
   Settings,
   PenTool,
   Redo2,
@@ -50,6 +51,7 @@ import { PagesOverview } from './PagesOverview.tsx'
 import { LayersPanel } from './LayersPanel.tsx'
 import { RecentColors } from './RecentColors.tsx'
 import { ControlCenter } from './ControlCenter.tsx'
+import { InspectCard } from './InspectCard.tsx'
 import { PathMenu } from './PathMenu.tsx'
 import { PenPreview } from './PenPreview.tsx'
 import { PasteButton, PasteMenu, SelectionMenu } from './SelectionMenu.tsx'
@@ -199,6 +201,9 @@ export function Toolbar({
               {features.eyedropper
                 ? toolButton('eyedropper', 'Eyedropper', <Pipette {...ICON} />)
                 : null}
+              {features.magnifier
+                ? toolButton('magnifier', 'Magnifier', <ScanSearch {...ICON} />)
+                : null}
               {features.tape
                 ? toolButton(
                     'tape',
@@ -318,6 +323,7 @@ export function Toolbar({
       <PathMenu editor={editor} state={state} />
       {features.recentColors ? <RecentColors editor={editor} state={state} /> : null}
       <SuggestionChip editor={editor} state={state} />
+      <InspectCard editor={editor} state={state} />
       <PasteButton editor={editor} state={state} />
       <PasteMenu editor={editor} state={state} />
       {state.notice ? (

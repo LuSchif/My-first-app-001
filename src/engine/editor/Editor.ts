@@ -88,7 +88,16 @@ import { DEFAULT_FEATURES, type Features } from './features.ts'
 import { highlightText } from './textHighlight.ts'
 
 export type ToolId =
-  'pen' | 'highlighter' | 'broom' | 'lasso' | 'text' | 'path' | 'laser' | 'eyedropper' | 'tape'
+  | 'pen'
+  | 'highlighter'
+  | 'broom'
+  | 'lasso'
+  | 'text'
+  | 'path'
+  | 'laser'
+  | 'eyedropper'
+  | 'tape'
+  | 'magnifier'
 export type BroomMode = 'precise' | 'stroke'
 /** A ballpoint draws one width; a fountain pen's width follows direction and pressure. */
 export type PenNib = 'ballpoint' | 'fountain'
@@ -131,6 +140,8 @@ export interface EditorState {
   background: string | null
   /** A short message, e.g. why the pen does nothing on a hidden layer. */
   notice: string | null
+  /** What the magnifier found: the objects under it and their layers, at a screen point. */
+  inspect: { x: number; y: number; items: InspectItem[] } | null
   /** Where a long press offers to paste, in screen pixels. */
   pasteMenu: { x: number; y: number } | null
 }
@@ -219,7 +230,28 @@ interface PickSession {
   pixels: ImageData | null
 }
 
-type Session = InkSession | EraseSession | TapeSession | PickSession
+/** The magnifier held on the page. */
+interface LookSession {
+  kind: 'look'
+  pointerId: number
+  pointerType: string
+  /** The page as shown when the magnifier touched down, to enlarge from. */
+  snapshot: HTMLCanvasElement
+  at: Point
+}
+
+/** An object under the magnifier, with the layer it is on. */
+export interface InspectItem {
+  id: Id
+  label: string
+  layerId: Id
+  layerName: string
+  /** The layer is hidden or locked. */
+  hidden: boolean
+  locked: boolean
+}
+
+type Session = InkSession | EraseSession | TapeSession | PickSession | LookSession
 
 interface ScreenRect {
   x: number
@@ -351,6 +383,7 @@ export class Editor {
       background: doc.notebook.background ?? null,
       activeLayerId: doc.notebook.layers[doc.notebook.layers.length - 1]?.id ?? '',
       notice: null,
+      inspect: null,
       pasteMenu: null,
     }
 
@@ -479,6 +512,7 @@ export class Editor {
     if (tool !== 'laser') this.laser.clear()
     if (tool === 'eyedropper' && this._state.tool !== 'eyedropper')
       this.pickReturn = this._state.tool
+    if (this._state.inspect) this.closeInspect()
     this.update({ tool })
   }
 
@@ -754,6 +788,7 @@ export class Editor {
       laser: !features.laser,
       tape: !features.tape,
       eyedropper: !features.eyedropper,
+      magnifier: !features.magnifier,
       path: !features.pathTool,
     }
     if (hidden[this._state.tool]) this.setTool('pen')
@@ -1292,6 +1327,8 @@ export class Editor {
   }
 
   private setCamera(c: Camera): void {
+    // The magnifier's frames belong to the view it was used in.
+    if (this._state.inspect) this.closeInspect()
     this.camera = this.clampCamera(c)
     const center = (this.view.height / 2 - this.camera.offsetY) / this.camera.zoom
     const pageIndex = Math.max(
@@ -1462,6 +1499,12 @@ export class Editor {
       this.laser.down(e)
       return
     }
+    // The magnifier only looks; it works on any layer.
+    if (this._state.tool === 'magnifier') {
+      this.host.setPointerCapture(e.pointerId)
+      this.beginLook(e)
+      return
+    }
     // The eyedropper only looks; it works on any layer.
     if (this._state.tool === 'eyedropper') {
       this.host.setPointerCapture(e.pointerId)
@@ -1576,6 +1619,7 @@ export class Editor {
       if (s.kind === 'ink') this.extendInk(s, e)
       else if (s.kind === 'tape') this.extendTape(s, e)
       else if (s.kind === 'pick') this.extendPick(s, e)
+      else if (s.kind === 'look') this.extendLook(s, e)
       else this.extendErase(s, e)
       return
     }
@@ -2301,6 +2345,149 @@ export class Editor {
     this.fx.request()
   }
 
+  // ---------- Magnifier ----------
+
+  private beginLook(e: PointerEvent): void {
+    this.closeInspect()
+    // A copy of the page as shown, so the loupe never enlarges itself.
+    const snapshot = document.createElement('canvas')
+    snapshot.width = this.sceneCanvas.width
+    snapshot.height = this.sceneCanvas.height
+    snapshot.getContext('2d')?.drawImage(this.sceneCanvas, 0, 0)
+    const session: LookSession = {
+      kind: 'look',
+      pointerId: e.pointerId,
+      pointerType: e.pointerType,
+      snapshot,
+      at: this.screenPos(e),
+    }
+    this.session = session
+    this.extendLook(session, e)
+  }
+
+  private extendLook(s: LookSession, e: PointerEvent): void {
+    s.at = this.screenPos(e)
+    this.drawLoupe(s, this.objectsAt(s.at))
+  }
+
+  /** A round loupe above the finger, showing the spot under it enlarged. */
+  private drawLoupe(s: LookSession, items: InspectItem[]): void {
+    this.clearTip()
+    const { dpr, width, height } = this.view
+    const ctx = this.tip
+    const r = 64
+    const zoom = 2.5
+    const cx = s.at.x
+    const cy = Math.max(r + 8, s.at.y - (s.pointerType === 'touch' ? 110 : 90))
+    this.inkLayer.style.opacity = '1'
+    this.inkLayer.style.mixBlendMode = 'normal'
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+    this.outlineObjects(ctx, items)
+    ctx.save()
+    ctx.beginPath()
+    ctx.arc(cx, cy, r, 0, Math.PI * 2)
+    ctx.clip()
+    const size = (r * 2) / zoom
+    ctx.drawImage(
+      s.snapshot,
+      (s.at.x - size / 2) * dpr,
+      (s.at.y - size / 2) * dpr,
+      size * dpr,
+      size * dpr,
+      cx - r,
+      cy - r,
+      r * 2,
+      r * 2,
+    )
+    ctx.restore()
+    ctx.lineWidth = 5
+    ctx.strokeStyle = '#fffcf7'
+    ctx.beginPath()
+    ctx.arc(cx, cy, r, 0, Math.PI * 2)
+    ctx.stroke()
+    ctx.lineWidth = 1.5
+    ctx.strokeStyle = 'rgba(62, 45, 37, 0.6)'
+    ctx.beginPath()
+    ctx.arc(cx, cy, r + 3, 0, Math.PI * 2)
+    ctx.stroke()
+    // Cross hairs in the loupe, and a ring at the spot itself.
+    ctx.beginPath()
+    ctx.moveTo(cx - 9, cy)
+    ctx.lineTo(cx + 9, cy)
+    ctx.moveTo(cx, cy - 9)
+    ctx.lineTo(cx, cy + 9)
+    ctx.stroke()
+    ctx.beginPath()
+    ctx.arc(s.at.x, s.at.y, 6, 0, Math.PI * 2)
+    ctx.stroke()
+    this.tipDirty = { x: 0, y: 0, w: width * dpr, h: height * dpr }
+  }
+
+  /** Dashed frames around objects, in screen pixels. */
+  private outlineObjects(ctx: CanvasRenderingContext2D, items: InspectItem[]): void {
+    const pages = this.doc.pageList
+    const c = this.camera
+    ctx.save()
+    ctx.setLineDash([5, 4])
+    ctx.lineWidth = 1.5
+    ctx.strokeStyle = 'rgba(185, 139, 101, 0.95)'
+    for (const item of items) {
+      const index = pages.findIndex((p) => p.objects.some((o) => o.id === item.id))
+      const object = pages[index]?.objects.find((o) => o.id === item.id)
+      if (!object) continue
+      const b = objectBounds(object)
+      const o = pageOrigin(index)
+      ctx.strokeRect(
+        (b.minX + o.x) * c.zoom + c.offsetX - 4,
+        (b.minY + o.y) * c.zoom + c.offsetY - 4,
+        (b.maxX - b.minX) * c.zoom + 8,
+        (b.maxY - b.minY) * c.zoom + 8,
+      )
+    }
+    ctx.restore()
+  }
+
+  /** Lifting the magnifier lists what was under it; the frames stay until the list closes. */
+  private finishLook(s: LookSession): void {
+    const items = this.objectsAt(s.at)
+    this.clearTip()
+    const { dpr, width, height } = this.view
+    this.tip.setTransform(dpr, 0, 0, dpr, 0, 0)
+    this.outlineObjects(this.tip, items)
+    this.tipDirty = { x: 0, y: 0, w: width * dpr, h: height * dpr }
+    this.update({ inspect: { x: s.at.x, y: s.at.y, items } })
+  }
+
+  closeInspect(): void {
+    if (!this._state.inspect) return
+    this.clearTip()
+    this.update({ inspect: null })
+  }
+
+  /** Every object under a screen point, upper layers first, with its layer. */
+  private objectsAt(screen: Point): InspectItem[] {
+    const hit = this.pageAt(screen)
+    if (!hit) return []
+    const slop = 6 / this.camera.zoom
+    const layers = this.doc.notebook.layers
+    const out: InspectItem[] = []
+    for (let i = hit.page.objects.length - 1; i >= 0; i--) {
+      const o = hit.page.objects[i]!
+      const layer = layers.find((l) => l.id === o.layerId)
+      if (!layer || !hitsObject(o, hit.x, hit.y, slop)) continue
+      out.push({
+        id: o.id,
+        label: objectLabel(o),
+        layerId: layer.id,
+        layerName: layer.name,
+        hidden: !layer.visible,
+        locked: layer.locked,
+      })
+    }
+    const order = (id: Id) => layers.findIndex((l) => l.id === id)
+    return out.sort((a, b) => order(b.layerId) - order(a.layerId))
+  }
+
   // ---------- Eyedropper ----------
 
   /** The color of the page at a screen point, as #rrggbb. */
@@ -2518,6 +2705,7 @@ export class Editor {
     if (s.kind === 'ink') this.finishInk(s)
     else if (s.kind === 'tape') this.finishTape(s)
     else if (s.kind === 'pick') this.finishPick(s)
+    else if (s.kind === 'look') this.finishLook(s)
     else this.finishErase(s)
   }
 
@@ -2529,7 +2717,7 @@ export class Editor {
       if (s.holdTimer) clearTimeout(s.holdTimer)
       this.clearArea(this.wet, s.wetDirty)
       this.clearTip()
-    } else if (s.kind === 'tape' || s.kind === 'pick') {
+    } else if (s.kind === 'tape' || s.kind === 'pick' || s.kind === 'look') {
       this.clearTip()
     } else {
       this.finishErase(s)
@@ -2614,4 +2802,21 @@ function widest(flat: readonly number[]): number {
   let w = 0
   for (let i = 2; i < flat.length; i += 3) w = Math.max(w, flat[i]!)
   return w
+}
+
+/** A short name for an object, as the magnifier lists it. */
+function objectLabel(o: CanvasObject): string {
+  if (o.type === 'stroke') {
+    if (o.tool === 'tape') return 'Tape'
+    if (o.tool === 'highlighter') return 'Highlighter'
+    return o.widths ? 'Fountain pen' : 'Ink'
+  }
+  if (o.type === 'text') {
+    const t = o.text.trim().replace(/\s+/g, ' ')
+    return `Text “${t.length > 18 ? `${t.slice(0, 18)}…` : t}”`
+  }
+  if (o.type === 'fill') return 'Filled area'
+  if (o.type === 'image') return 'Picture'
+  if (o.type === 'table') return 'Table'
+  return 'Chart'
 }
