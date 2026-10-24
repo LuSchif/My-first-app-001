@@ -181,8 +181,12 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
 
 - Layers belong to the notebook; the editor keeps an active layer for new ink, text and
   selections. Hidden or locked layers cannot be changed, and the editor says so.
-- Every layer change (add, delete with content, reorder, rename, show, lock, opacity) is an
-  undoable command. Layers below full opacity are drawn as a whole, then faded.
+- Every layer change (add, delete with content, reorder, rename, show, lock, opacity, duplicate,
+  merge) is an undoable command. Layers are sorted by dragging their grip in the panel (or with
+  Move up / Move down).
+- Merge down moves a layer's content onto the layer below, on top of what is there, on every
+  page. A layer fainter than the one below passes its opacity on to its objects. Clipping
+  layers, and locked or hidden layers, are not merged. Layers below full opacity are drawn as a whole, then faded.
 - Every notebook has a background layer below all others: a color (white for new notebooks).
 - A new text box gets its own text layer, named after the text, right above the active layer.
   Text on text layers can be tapped and selected from any layer.

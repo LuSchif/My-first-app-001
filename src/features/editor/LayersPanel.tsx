@@ -1,18 +1,22 @@
 import {
   ArrowDown,
   ArrowUp,
+  Copy,
   CornerLeftDown,
   Eye,
   EyeOff,
+  GripVertical,
   Lock,
   LockOpen,
+  Merge,
   Plus,
   TextCursorInput,
   Trash2,
   Type,
 } from 'lucide-react'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { Editor, EditorState } from '../../engine/editor/Editor.ts'
+import { mergeDownBlock } from '../../engine/editor/layers.ts'
 import type { LayerDef } from '../../engine/model/types.ts'
 import {
   Button,
@@ -38,6 +42,39 @@ export function LayersPanel({ editor, state }: { editor: Editor; state: EditorSt
   const topFirst = [...state.layers].reverse()
   const index = state.layers.findIndex((l) => l.id === state.activeLayerId)
   const active = state.layers[index]
+  const list = useRef<HTMLUListElement>(null)
+  const [drag, setDrag] = useState<{
+    id: string
+    pointerId: number
+    startY: number
+    dy: number
+  } | null>(null)
+
+  // Dragging a row by its grip sorts the layers: it lands where the finger lets go.
+  const grip = (id: string) => ({
+    onPointerDown: (e: React.PointerEvent) => {
+      e.preventDefault()
+      e.currentTarget.setPointerCapture?.(e.pointerId)
+      setDrag({ id, pointerId: e.pointerId, startY: e.clientY, dy: 0 })
+    },
+    onPointerMove: (e: React.PointerEvent) => {
+      if (drag?.id !== id || drag.pointerId !== e.pointerId) return
+      setDrag({ ...drag, dy: e.clientY - drag.startY })
+    },
+    onPointerUp: (e: React.PointerEvent) => {
+      if (drag?.id !== id || drag.pointerId !== e.pointerId) return
+      setDrag(null)
+      const rows = Array.from(list.current?.querySelectorAll<HTMLElement>('[data-layer-row]') ?? [])
+      // Top-first place: how many other rows have their middle above the finger.
+      const place = rows.filter((row) => {
+        if (row.dataset.layerRow === id) return false
+        const r = row.getBoundingClientRect()
+        return r.top + r.height / 2 < e.clientY
+      }).length
+      editor.placeLayer(id, topFirst.length - 1 - place)
+    },
+    onPointerCancel: () => setDrag(null),
+  })
   return (
     <div className="grid gap-3">
       <div className="flex items-center justify-between">
@@ -46,13 +83,19 @@ export function LayersPanel({ editor, state }: { editor: Editor; state: EditorSt
           New layer
         </Button>
       </div>
-      <ul className="grid max-h-[40vh] gap-1 overflow-y-auto" aria-label="Layers, top first">
+      <ul
+        ref={list}
+        className="grid max-h-[40vh] gap-1 overflow-y-auto"
+        aria-label="Layers, top first"
+      >
         {topFirst.map((layer) => (
           <LayerRow
             key={layer.id}
             editor={editor}
             layer={layer}
             active={layer.id === state.activeLayerId}
+            grip={grip(layer.id)}
+            offset={drag?.id === layer.id ? drag.dy : 0}
           />
         ))}
         <BackgroundRow editor={editor} color={state.background ?? PAPER_STYLE.paper} />
@@ -66,6 +109,7 @@ export function LayersPanel({ editor, state }: { editor: Editor; state: EditorSt
           isTop={index === state.layers.length - 1}
           isBottom={index === 0}
           only={state.layers.length <= 1}
+          mergeBlock={mergeDownBlock(state.layers, active.id)}
         />
       ) : null}
     </div>
@@ -133,19 +177,43 @@ function EditTextButton({
   )
 }
 
-function LayerRow({ editor, layer, active }: { editor: Editor; layer: LayerDef; active: boolean }) {
+function LayerRow({
+  editor,
+  layer,
+  active,
+  grip,
+  offset,
+}: {
+  editor: Editor
+  layer: LayerDef
+  active: boolean
+  grip: React.HTMLAttributes<HTMLButtonElement>
+  /** How far the row is being dragged, in pixels. */
+  offset: number
+}) {
   return (
     <li
+      data-layer-row={layer.id}
       className={cn(
-        'flex items-center gap-1 rounded-control pr-1 ring-1 ring-line',
-        active && 'bg-ink text-ink-inverse ring-ink',
+        'relative flex items-center gap-1 rounded-control pr-1 ring-1 ring-line',
+        active ? 'bg-ink text-ink-inverse ring-ink' : 'bg-surface-raised',
+        offset !== 0 && 'z-10 shadow-overlay',
       )}
+      style={offset ? { transform: `translateY(${offset}px)` } : undefined}
     >
+      <button
+        type="button"
+        aria-label={`Drag to sort ${layer.name}`}
+        {...grip}
+        className="grid h-11 w-7 shrink-0 cursor-grab touch-none place-items-center opacity-55 active:cursor-grabbing"
+      >
+        <GripVertical size={16} />
+      </button>
       <button
         type="button"
         aria-pressed={active}
         onClick={() => editor.setActiveLayer(layer.id)}
-        className="flex min-h-11 min-w-0 flex-1 items-center px-3 text-left"
+        className="flex min-h-11 min-w-0 flex-1 items-center pr-3 text-left"
       >
         {layer.kind === 'text' ? (
           <Type size={16} aria-label="Text layer" className="mr-1.5 shrink-0 opacity-75" />
@@ -180,18 +248,27 @@ function LayerRow({ editor, layer, active }: { editor: Editor; layer: LayerDef; 
   )
 }
 
+const MERGE_HINTS = {
+  clip: 'To merge this layer, turn off its clipping mask first.',
+  locked: 'To merge, unlock this layer and the one below.',
+  hidden: 'To merge, show this layer and the one below.',
+} as const
+
 function ActiveLayerSettings({
   editor,
   layer,
   isTop,
   isBottom,
   only,
+  mergeBlock,
 }: {
   editor: Editor
   layer: LayerDef
   isTop: boolean
   isBottom: boolean
   only: boolean
+  /** Why "Merge down" is not possible, if it is not. */
+  mergeBlock: ReturnType<typeof mergeDownBlock>
 }) {
   const [name, setName] = useState(layer.name)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -254,7 +331,25 @@ function ActiveLayerSettings({
         >
           Move down
         </Button>
+        <Button
+          variant="ghost"
+          icon={<Copy size={16} />}
+          onClick={() => editor.duplicateLayer(layer.id)}
+        >
+          Duplicate
+        </Button>
+        <Button
+          variant="ghost"
+          icon={<Merge size={16} />}
+          disabled={mergeBlock !== null}
+          onClick={() => editor.mergeLayerDown(layer.id)}
+        >
+          Merge down
+        </Button>
       </div>
+      {mergeBlock && mergeBlock !== 'bottom' ? (
+        <p className="text-xs text-ink-muted">{MERGE_HINTS[mergeBlock]}</p>
+      ) : null}
       {confirmDelete ? (
         <Button
           variant="danger"

@@ -64,11 +64,14 @@ import {
 } from './suggestions.ts'
 import {
   addLayer,
+  duplicateLayer,
   layerBlock,
+  type LayerPatch,
+  mergeLayerDown,
   moveLayer,
   patchLayer,
+  placeLayer,
   removeLayer,
-  type LayerPatch,
 } from './layers.ts'
 import { SelectionController, type LassoMode, type SelectionInfo } from './SelectionController.ts'
 import { DEFAULT_TEXT_STYLE, TextController } from './TextController.ts'
@@ -464,6 +467,32 @@ export class Editor {
       this.setActiveLayer((layers[index - 1] ?? layers[index + 1])!.id)
     }
     this.history.execute(command)
+  }
+
+  /** Merges a layer into the one below it; that one becomes the active layer. */
+  mergeLayerDown(id: Id): void {
+    const layers = this.doc.notebook.layers
+    const below = layers[layers.findIndex((l) => l.id === id) - 1]
+    const command = mergeLayerDown(this.doc, id)
+    if (!command || !below) return
+    this.text.finish()
+    this.selection.clear()
+    this.history.execute(command)
+    this.update({ activeLayerId: below.id })
+  }
+
+  /** Copies a layer with all its content; the copy becomes the active layer. */
+  duplicateLayer(id: Id): void {
+    const result = duplicateLayer(this.doc, id)
+    if (!result) return
+    this.history.execute(result.command)
+    this.setActiveLayer(result.id)
+  }
+
+  /** Puts a layer at a place in the drawing order (0 is the bottom layer). */
+  placeLayer(id: Id, index: number): void {
+    const command = placeLayer(this.doc, id, index)
+    if (command) this.history.execute(command)
   }
 
   moveLayer(id: Id, step: 1 | -1): void {
