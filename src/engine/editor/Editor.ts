@@ -35,7 +35,7 @@ import {
   type TextStyle,
 } from '../model/types.ts'
 import { contentHeight, PAGE_PITCH, pageIndexAt, pageOrigin } from '../render/layout.ts'
-import { enterPage, renderScene, type View } from '../render/SceneRenderer.ts'
+import { enterPage, renderScene, setDeskColor, type View } from '../render/SceneRenderer.ts'
 import { PAPER_STYLE } from '../render/paper.ts'
 import { paintStroke, setInkStyle, strokeBounds } from '../render/strokes.ts'
 import { perfectShape, recognizeShape, regionAt, type Shape } from '../geometry/shapes.ts'
@@ -430,6 +430,14 @@ export class Editor {
       this.listen(document, type, (e) => e.preventDefault())
     }
     this.listen(window, 'keydown', (e) => this.onKeyDown(e))
+    // The desk around the pages takes its color from the interface theme.
+    const readDesk = () => {
+      const desk = getComputedStyle(document.documentElement).getPropertyValue('--color-desk')
+      setDeskColor(desk.trim())
+      this.requestRender()
+    }
+    readDesk()
+    this.listen(window, 'broomit:theme', readDesk)
     // The on-screen keyboard shrinks the visual viewport; keep the text being typed in view.
     const vv = window.visualViewport
     if (vv) {

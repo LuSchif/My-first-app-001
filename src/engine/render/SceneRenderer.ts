@@ -6,6 +6,12 @@ import { drawPaper, PAPER_STYLE } from './paper.ts'
 import { paintLayers } from './layers.ts'
 
 export const DESK_COLOR = '#ede4d8'
+let deskColor = DESK_COLOR
+
+/** The color around the pages, following the interface theme. */
+export function setDeskColor(color: string): void {
+  deskColor = color || DESK_COLOR
+}
 
 export interface View {
   width: number
@@ -57,7 +63,7 @@ export function renderScene(
 ): void {
   const { dpr } = view
   ctx.setTransform(1, 0, 0, 1, 0, 0)
-  ctx.fillStyle = DESK_COLOR
+  ctx.fillStyle = deskColor
   ctx.fillRect(0, 0, view.width * dpr, view.height * dpr)
 
   const world = visibleWorld(camera, view)

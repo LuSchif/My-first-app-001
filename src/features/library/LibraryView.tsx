@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { navigate } from '../../app/router.ts'
 import { Button, Dialog, DialogTrigger } from '../../design/index.ts'
 import { FolderEditorDialog } from '../folders/FolderEditorDialog.tsx'
+import { AppearanceMenu } from './AppearanceMenu.tsx'
 import { DragGhost } from './DragGhost.tsx'
 import { FolderGrid, NotebookGrid } from './Grids.tsx'
 import {
@@ -40,6 +41,7 @@ export function LibraryView() {
         <header className="flex flex-wrap items-center justify-between gap-4">
           <h1 className="text-3xl font-bold tracking-tight">Broomit</h1>
           <div className="flex flex-wrap gap-2">
+            <AppearanceMenu />
             <BackupMenu onRestored={reload} />
             <NewFolderButton reload={reload} />
             <NewNotebookButton library={library} reload={reload} onCreated={open} />
