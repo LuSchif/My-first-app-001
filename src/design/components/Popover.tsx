@@ -3,6 +3,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   useSyncExternalStore,
@@ -50,17 +51,67 @@ export function PopoverContent({
   className,
   side,
   align = 'center',
+  movable,
 }: {
   children: ReactNode
   className?: string
   side?: 'top' | 'right' | 'bottom' | 'left'
   align?: 'start' | 'center' | 'end'
+  /**
+   * Gives the popover a grip to drag it elsewhere; the name remembers where it was put, so it
+   * opens there again (moved by the same distance from its button).
+   */
+  movable?: string
 }) {
   const close = useClosePopover()
   const defaultSide = useContext(PopoverSideContext)
   const ref = useRef<HTMLDivElement>(null)
   // The app's own keyboard counts as the screen's edge: a popover opens above it, never under it.
   const keyboard = useSyncExternalStore(onKeyboardInset, keyboardInset)
+  const [offset, setOffset] = useState(() => loadOffset(movable))
+  const grab = useRef<{
+    pointerId: number
+    x: number
+    y: number
+    from: Offset
+    rect: DOMRect
+  } | null>(null)
+
+  // A remembered place that would now be off screen (another button, a turned screen) is
+  // pulled back into view.
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!movable || !el) return
+    const r = el.getBoundingClientRect()
+    const dx = clampShift(r.left, r.right, window.innerWidth)
+    const dy = clampShift(r.top, r.bottom, window.innerHeight - keyboard)
+    if (dx || dy) setOffset((o) => ({ x: o.x + dx, y: o.y + dy }))
+  }, [movable, keyboard])
+
+  const onGripDown = (e: React.PointerEvent) => {
+    const el = ref.current
+    if (!el) return
+    e.preventDefault()
+    e.currentTarget.setPointerCapture?.(e.pointerId)
+    const rect = el.getBoundingClientRect()
+    grab.current = { pointerId: e.pointerId, x: e.clientX, y: e.clientY, from: offset, rect }
+  }
+  const onGripMove = (e: React.PointerEvent) => {
+    const g = grab.current
+    if (!g || g.pointerId !== e.pointerId) return
+    // The whole popover stays on screen and above the keyboard.
+    let dx = e.clientX - g.x
+    let dy = e.clientY - g.y
+    dx += clampShift(g.rect.left + dx, g.rect.right + dx, window.innerWidth)
+    dy += clampShift(g.rect.top + dy, g.rect.bottom + dy, window.innerHeight - keyboard)
+    setOffset({ x: g.from.x + dx, y: g.from.y + dy })
+  }
+  const onGripUp = (e: React.PointerEvent) => {
+    const g = grab.current
+    if (!g || g.pointerId !== e.pointerId) return
+    grab.current = null
+    saveOffset(movable, offset)
+  }
 
   // Radix waits for a click before closing on an outside touch, and the canvas cancels touches
   // so no click ever comes. Close on the touch itself instead.
@@ -100,9 +151,57 @@ export function PopoverContent({
           'z-60 max-h-[var(--radix-popover-content-available-height)] w-72 animate-pop-in overflow-y-auto rounded-panel bg-surface-raised p-4 shadow-raised ring-1 ring-line',
           className,
         )}
+        style={movable ? { translate: `${offset.x}px ${offset.y}px` } : undefined}
       >
+        {movable ? (
+          <div
+            role="presentation"
+            title="Drag to move"
+            onPointerDown={onGripDown}
+            onPointerMove={onGripMove}
+            onPointerUp={onGripUp}
+            onPointerCancel={onGripUp}
+            className="-mx-2 -mt-2 mb-1 flex h-6 cursor-grab touch-none items-center justify-center active:cursor-grabbing"
+          >
+            <span className="h-1.5 w-10 rounded-full bg-line-strong" />
+          </div>
+        ) : null}
         {children}
       </RadixPopover.Content>
     </RadixPopover.Portal>
   )
+}
+
+interface Offset {
+  x: number
+  y: number
+}
+
+/** How far to move a span start..end so it lies within 0..limit, with a small margin. */
+function clampShift(start: number, end: number, limit: number): number {
+  const margin = 8
+  if (start < margin) return margin - start
+  if (end > limit - margin) return Math.max(margin - start, limit - margin - end)
+  return 0
+}
+
+function loadOffset(name: string | undefined): Offset {
+  if (!name) return { x: 0, y: 0 }
+  try {
+    const value: unknown = JSON.parse(localStorage.getItem(`broomit.popover.${name}`) ?? 'null')
+    const v = value as Partial<Offset> | null
+    if (v && typeof v.x === 'number' && typeof v.y === 'number') return { x: v.x, y: v.y }
+  } catch {
+    // Not stored: the popover opens at its button.
+  }
+  return { x: 0, y: 0 }
+}
+
+function saveOffset(name: string | undefined, offset: Offset): void {
+  if (!name) return
+  try {
+    localStorage.setItem(`broomit.popover.${name}`, JSON.stringify(offset))
+  } catch {
+    // Not remembered; it opens at its button next time.
+  }
 }

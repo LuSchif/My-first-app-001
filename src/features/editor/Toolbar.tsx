@@ -125,7 +125,9 @@ export function Toolbar({
             }}
           />
         </PopoverTrigger>
-        <PopoverContent className="grid w-80 gap-5">{settings}</PopoverContent>
+        <PopoverContent movable={`tool-${tool}`} className="grid w-80 gap-5">
+          {settings}
+        </PopoverContent>
       </Popover>
     )
 

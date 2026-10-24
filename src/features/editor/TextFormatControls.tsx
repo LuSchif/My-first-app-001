@@ -151,7 +151,7 @@ export function TextFormatControls({
             />
           </button>
         </PopoverTrigger>
-        <PopoverContent className="grid w-80 gap-4">
+        <PopoverContent movable="text-color" className="grid w-80 gap-4">
           <ColorPicker
             value={style.color}
             onChange={(color) => set({ color })}

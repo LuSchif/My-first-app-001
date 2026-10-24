@@ -85,6 +85,8 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
   anywhere, or dropped near an edge to snap to its middle (top, bottom, left, right). At the
   left and right a bar stands upright; bars at the same edge stack; menus open away from the
   edge. Positions are remembered per device (`FloatingPanel.tsx`, `panelLayout.ts`).
+- The text color menu and the tool settings menus have a grip as well: dragged elsewhere, they
+  open there again (kept on screen and above the keyboard).
 
 ## Colors
 
