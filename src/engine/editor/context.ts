@@ -28,6 +28,8 @@ export interface EditorContext {
   zoomAt(anchor: Point, factor: number): void
   /** The part of the screen not covered by toolbars, the color bar or the on-screen keyboard. */
   visibleArea(): { left: number; right: number; top: number; bottom: number }
+  /** A color was used on the page; it joins the recent colors. */
+  rememberColor(color: string): void
   /** A controller's state changed in a way the UI shows. */
   changed(): void
 }

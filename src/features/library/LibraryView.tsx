@@ -71,7 +71,7 @@ export function LibraryView() {
             <h2 className="text-xs font-semibold tracking-[0.14em] text-ink-muted uppercase">
               Recent notebooks
             </h2>
-            <ul className="grid grid-cols-[repeat(auto-fill,minmax(9.5rem,1fr))] gap-x-5 gap-y-7">
+            <ul className="grid grid-cols-[repeat(auto-fill,minmax(9.5rem,1fr))] items-start gap-x-5 gap-y-7">
               {notebooks.map((notebook) => (
                 <NotebookCard
                   key={notebook.id}
@@ -128,19 +128,20 @@ function NotebookCard({
   const light = prefersLightText(notebook.cover)
   const pages = notebook.pageIds.length
   return (
-    <li className="grid gap-2.5">
+    // min-w-0: a long title must not widen its column; every card has the column's width.
+    <li className="grid min-w-0 grid-cols-[minmax(0,1fr)] content-start gap-2.5">
       <button
         type="button"
         onClick={onOpen}
         aria-label={`Open ${notebook.title}`}
         className={cn(
-          'flex aspect-[3/4] flex-col justify-end rounded-r-card rounded-l-md p-3.5 text-left shadow-raised',
+          'flex aspect-[3/4] w-full min-w-0 flex-col justify-end overflow-hidden rounded-r-card rounded-l-md p-3.5 text-left shadow-raised',
           'transition-transform duration-200 ease-gentle hover:-translate-y-0.5 active:scale-[0.98]',
           light ? 'text-white' : 'text-ink',
         )}
         style={{ background: fillToCss(notebook.cover) }}
       >
-        <span className="line-clamp-3 text-lg leading-tight font-bold break-words">
+        <span className="line-clamp-3 text-lg leading-tight font-bold [overflow-wrap:anywhere]">
           {notebook.title}
         </span>
       </button>

@@ -81,8 +81,11 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
 
 - Pen and text use twelve standard colors plus a color wheel; folders and covers use the full
   palette in `src/design/palette.ts`.
-- The editor keeps the five most recent colors (stored per device). Dragging one onto ink or
-  text recolors it; dropping it on empty paper sets the page color (`Page.background`).
+- Each notebook keeps the colors used in it (up to five, stored per device): the bar on the
+  right starts empty and adds a color the first time it is drawn, typed, filled or applied, never
+  twice; picking a color alone does not add it. When full, the oldest one makes room. Dragging
+  one onto ink or text recolors it; dropping it on empty paper sets the page color
+  (`Page.background`).
 
 ## Shapes and fills
 

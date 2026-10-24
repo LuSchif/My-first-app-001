@@ -131,7 +131,6 @@ const SUGGEST_DELAY_MS = 350
 /** Holding a pen or finger still this long on the page offers Paste. */
 const LONG_PRESS_MS = 500
 const LONG_PRESS_SLOP_PX = 8
-const DEFAULT_RECENT_COLORS = ['#3e2d25', '#4a80c0', '#c4473a', '#5f9a4a', '#f2cf4a']
 const RECENT_LIMIT = 5
 
 /** Room kept free above the keyboard for the text format bar. */
@@ -196,6 +195,11 @@ interface DeviceRect {
  * input event draws only a few pixels however long the stroke gets.
  */
 /** Which pages a paper change is for: the page in view, pages added later, or both, or all. */
+/** Colors compare as lowercase hex, so the same color is never listed twice. */
+function normalizeColor(color: string): string {
+  return color.trim().toLowerCase()
+}
+
 export type PaperScope = 'page' | 'page-and-new' | 'new' | 'all'
 
 export class Editor {
@@ -280,7 +284,7 @@ export class Editor {
       editingText: false,
       lassoMode: 'freehand',
       snapRotation: false,
-      recentColors: DEFAULT_RECENT_COLORS,
+      recentColors: [],
       suggest: true,
       suggestion: null,
       selection: null,
@@ -403,7 +407,6 @@ export class Editor {
 
   /** Changes the box being edited, and the style for the next new box. */
   setTextStyle(patch: Partial<TextStyle>): void {
-    if (patch.color) this.rememberColor(patch.color)
     this.text.setStyle(patch)
     this.update({ textStyle: { ...(this.text.style ?? this._state.textStyle), ...patch } })
   }
@@ -722,8 +725,10 @@ export class Editor {
     this.updateBottomInset()
   }
 
+  /** The colors used before in this notebook (kept per device). */
   setRecentColors(colors: string[]): void {
-    if (colors.length > 0) this.update({ recentColors: colors.slice(0, RECENT_LIMIT) })
+    const unique = [...new Set(colors.map(normalizeColor))]
+    this.update({ recentColors: unique.slice(-RECENT_LIMIT) })
   }
 
   /**
@@ -842,15 +847,19 @@ export class Editor {
     return { page, pageIndex, object, region, layerId: usable?.id }
   }
 
+  /**
+   * Adds a color that was just used (drawn, filled, typed, applied) to the recent colors. The
+   * bar fills up one color at a time in the order of first use; each color appears once, and
+   * when it is full the oldest one makes room. Picking a color alone does not count.
+   */
   private rememberColor(color: string): void {
+    const value = normalizeColor(color)
     const current = this._state.recentColors
-    if (current[0] === color) return
-    const next = [color, ...current.filter((c) => c !== color)].slice(0, RECENT_LIMIT)
-    this.update({ recentColors: next })
+    if (current.includes(value)) return
+    this.update({ recentColors: [...current, value].slice(-RECENT_LIMIT) })
   }
 
   setPen(patch: Partial<EditorState['pen']>): void {
-    if (patch.color) this.rememberColor(patch.color)
     this.update({ pen: { ...this._state.pen, ...patch } })
   }
 
@@ -860,7 +869,6 @@ export class Editor {
   }
 
   setHighlighter(patch: Partial<EditorState['highlighter']>): void {
-    if (patch.color) this.rememberColor(patch.color)
     this.update({ highlighter: { ...this._state.highlighter, ...patch } })
   }
 
@@ -1098,6 +1106,7 @@ export class Editor {
         bottom: this.view.height - this.bottomInset,
       }),
       changed: () => this.syncControllers(),
+      rememberColor: (color) => this.rememberColor(color),
     }
   }
 
@@ -1869,6 +1878,7 @@ export class Editor {
       }
       this.paintedByEditor = onTop
       this.history.execute(setPageObjects('Draw', page.id, page.objects, [...page.objects, stroke]))
+      this.rememberColor(stroke.color)
       this.paintedByEditor = false
       // A line made perfectly straight can still complete a table.
       if (this._state.suggest) this.scheduleSuggestion(page.id, stroke, Boolean(snapped))

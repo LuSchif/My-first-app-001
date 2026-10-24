@@ -276,6 +276,9 @@ export class TextController {
       }
     }
     this.ctx.history.execute(commands.length === 1 ? commands[0]! : compound('Text', commands))
+    if (!empty) {
+      for (const run of textRuns(draft)) this.ctx.rememberColor(run.style.color)
+    }
   }
 
   /** Moves the textarea along with the page when the camera changes. */

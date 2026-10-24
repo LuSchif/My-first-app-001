@@ -66,13 +66,14 @@ function EditorSession({ doc, history, autosave }: Loaded) {
   useEffect(() => {
     setImageLoader(getAssetBlob)
     const instance = new Editor(hostRef.current!, doc, history)
-    instance.setRecentColors(loadRecentColors())
-    // Recent colors belong to this device, not to a notebook.
+    const notebookId = doc.notebook.id
+    instance.setRecentColors(loadRecentColors(notebookId))
+    // Each notebook has its own recent colors, kept on this device.
     let saved = instance.state.recentColors
     const stop = instance.subscribe(() => {
       if (instance.state.recentColors === saved) return
       saved = instance.state.recentColors
-      saveRecentColors(saved)
+      saveRecentColors(notebookId, saved)
     })
     setEditor(instance)
     // Text being typed stays above the app's own keyboard.
@@ -120,20 +121,20 @@ function EditorSession({ doc, history, autosave }: Loaded) {
   )
 }
 
-const RECENT_COLORS_KEY = 'broomit.recentColors'
+const recentColorsKey = (notebookId: string) => `broomit.recentColors.${notebookId}`
 
-function loadRecentColors(): string[] {
+function loadRecentColors(notebookId: string): string[] {
   try {
-    const value: unknown = JSON.parse(localStorage.getItem(RECENT_COLORS_KEY) ?? '[]')
+    const value: unknown = JSON.parse(localStorage.getItem(recentColorsKey(notebookId)) ?? '[]')
     return Array.isArray(value) ? value.filter((c): c is string => typeof c === 'string') : []
   } catch {
     return []
   }
 }
 
-function saveRecentColors(colors: string[]): void {
+function saveRecentColors(notebookId: string, colors: string[]): void {
   try {
-    localStorage.setItem(RECENT_COLORS_KEY, JSON.stringify(colors))
+    localStorage.setItem(recentColorsKey(notebookId), JSON.stringify(colors))
   } catch {
     // Private browsing or full storage: recent colors are a convenience and may be lost.
   }

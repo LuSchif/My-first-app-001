@@ -6,7 +6,7 @@ const DRAG_PX = 8
 const LIFT_PX = 44
 
 /**
- * The five most recent colors on the right edge. Tap one to use it; drag one onto ink or text to
+ * The colors used in this notebook (up to five) on the right edge. Tap one to use it; drag one onto ink or text to
  * recolor it, or onto empty paper to color the whole page.
  */
 export function RecentColors({ editor, state }: { editor: Editor; state: EditorState }) {
@@ -24,6 +24,9 @@ export function RecentColors({ editor, state }: { editor: Editor; state: EditorS
     else if (d.moved) editor.dropColor(e.clientX, e.clientY - LIFT_PX, d.color)
     else editor.applyColor(d.color)
   }
+
+  // Empty until the first color is used in this notebook.
+  if (state.recentColors.length === 0) return null
 
   return (
     <>
