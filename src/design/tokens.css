@@ -52,6 +52,8 @@
 
   --animate-pop-in: pop-in 180ms var(--ease-gentle);
   --animate-fade-in: fade-in 180ms var(--ease-gentle);
+  /* Notebooks sliding out of an opened folder. */
+  --animate-slide-out: slide-out 420ms var(--ease-gentle) both;
 
   @keyframes pop-in {
     from {
@@ -62,6 +64,12 @@
   @keyframes fade-in {
     from {
       opacity: 0;
+    }
+  }
+  @keyframes slide-out {
+    from {
+      opacity: 0;
+      transform: translateY(-14px) scale(0.96);
     }
   }
 }

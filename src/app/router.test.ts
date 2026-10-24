@@ -5,6 +5,8 @@ describe('routes', () => {
   it('round-trips notebook routes', () => {
     const route = { name: 'notebook', id: '0b5c2c1e-1d7a-4b55-9f0e-3a3c7f0d2b11' } as const
     expect(parseRoute(routeToHash(route))).toEqual(route)
+    const folder = { name: 'folder', id: 'f-1' } as const
+    expect(parseRoute(routeToHash(folder))).toEqual(folder)
   })
 
   it('falls back to the library', () => {

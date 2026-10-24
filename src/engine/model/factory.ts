@@ -2,6 +2,7 @@ import type { Fill } from './fill.ts'
 import { newId } from './ids.ts'
 import {
   SCHEMA_VERSION,
+  type Folder,
   type LayerDef,
   type Notebook,
   type Page,
@@ -21,6 +22,27 @@ export function createPage(notebookId: string, paper: PaperKind): Page {
     paper,
     objects: [],
     updatedAt: Date.now(),
+  }
+}
+
+/** A new folder at the end of its parent's folders. */
+export function createFolder(options: {
+  name: string
+  fill: Fill
+  icon: string
+  parentId?: string | null
+  order?: number
+}): Folder {
+  const now = Date.now()
+  return {
+    id: newId(),
+    name: options.name,
+    fill: options.fill,
+    icon: options.icon,
+    parentId: options.parentId ?? null,
+    order: options.order ?? now,
+    createdAt: now,
+    updatedAt: now,
   }
 }
 

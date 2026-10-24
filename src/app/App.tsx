@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { TooltipProvider } from '../design/index.ts'
 import { EditorView } from '../features/editor/EditorView.tsx'
+import { FolderView } from '../features/folders/FolderView.tsx'
 import { LibraryView } from '../features/library/LibraryView.tsx'
 import { requestPersistentStorage } from '../storage/db.ts'
 import { usePencilTaps } from '../lib/usePencilTaps.ts'
@@ -23,7 +24,13 @@ export function App() {
 
   return (
     <TooltipProvider>
-      {route.name === 'notebook' ? <EditorView key={route.id} id={route.id} /> : <LibraryView />}
+      {route.name === 'notebook' ? (
+        <EditorView key={route.id} id={route.id} />
+      ) : route.name === 'folder' ? (
+        <FolderView key={route.id} id={route.id} />
+      ) : (
+        <LibraryView />
+      )}
       {ownKeyboard ? <VirtualKeyboard /> : null}
     </TooltipProvider>
   )

@@ -113,7 +113,9 @@ function EditorSession({ doc, history, autosave }: Loaded) {
           doc={doc}
           onBack={async () => {
             await autosave.flush()
-            navigate({ name: 'library' })
+            // Back to where the notebook lives: its folder, or the library.
+            const folderId = doc.notebook.folderId
+            navigate(folderId ? { name: 'folder', id: folderId } : { name: 'library' })
           }}
         />
       ) : null}

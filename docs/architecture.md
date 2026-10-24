@@ -79,6 +79,25 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
 - The keyboard's height (`lib/keyboardInset.ts`, CSS `--kb-height`) shrinks the visible area,
   so dialogs and the canvas keep the field in view.
 
+## Library and folders
+
+- The dashboard has a search over folder and notebook names, the six most recently edited
+  notebooks, the top-level folders and the notebooks in no folder (or all of them); folders and
+  notebooks have their own sort order (folders: own order, name, recently edited).
+- A folder has a name, a fill (one color, or a linear or radial gradient with any number of
+  stops and a direction) and an icon from four groups (school, study, work, personal). Folders
+  can hold folders (`parentId`); their order among siblings is `order`.
+- A tap on a folder opens it in place: the front tips open and its three latest notebooks slide
+  out with their first page, title and date. A double tap, or "Open folder" in that preview,
+  shows the folder's own page (`#/folder/<id>`) with its folders and all its notebooks. So on
+  touch, previewing and opening never get in each other's way.
+- Holding a folder or notebook (or dragging it with a mouse) picks it up: dropped on a folder it
+  goes inside; dropped at a folder's left or right edge, a folder is sorted there; dropped on the
+  notebooks area or the "Library" step of a folder path, it leaves its folder. Every card also has
+  "Move to…" in its menu. Deleting a folder either keeps its contents (they move up) or deletes
+  everything in it; duplicating copies all its folders and notebooks.
+- New notebooks choose their folder (or make one) and can have a freely designed cover.
+
 ## Workspace
 
 - The tool bar, the text format bar and the recent colors bar can be dragged by their grip
@@ -176,7 +195,7 @@ The editor was moved ahead of the dashboard (packages 2–3) so the tools can be
 | 1a      | Project setup: Vite, TypeScript, Tailwind, oxlint, Prettier, Vitest, CI | Done        |
 | 1b      | Design system: tokens, typefaces, base components, broom icon           | Done        |
 | 1c      | Document model, Dexie storage, command system                           | Done        |
-| 2a–2b   | Dashboard, folders, folder preview animation, folder view               |             |
+| 2a–2b   | Dashboard, folders, folder preview animation, folder view               | Done        |
 | 3       | Notebook creation dialog with cover designer and paper carousel         |             |
 | 4a–4c   | Engine: camera, pages, paper, fineliner, highlighter, undo, autosave    | Done        |
 | 5a–5d   | Broom, lasso and transforms, text boxes, layers, PWA, backup            | Done        |

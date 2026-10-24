@@ -1,7 +1,8 @@
+import { Paintbrush } from 'lucide-react'
 import { useState } from 'react'
 import { createNotebook } from '../../engine/model/factory.ts'
 import { fillToCss, type Fill } from '../../engine/model/fill.ts'
-import type { PaperKind } from '../../engine/model/types.ts'
+import type { Folder, Id, PaperKind } from '../../engine/model/types.ts'
 import { cn } from '../../lib/cn.ts'
 import {
   Button,
@@ -11,7 +12,9 @@ import {
   TextField,
 } from '../../design/index.ts'
 import { createNotebookRecord } from '../../storage/notebooks.ts'
+import { FillEditor } from '../folders/FillEditor.tsx'
 import { PAPER_OPTIONS, paperPreviewStyle } from '../paper.ts'
+import { FolderField } from './FolderField.tsx'
 
 const COVERS: { name: string; fill: Fill }[] = [
   { name: 'Mocha', fill: { type: 'solid', color: '#795a46' } },
@@ -21,14 +24,30 @@ const COVERS: { name: string; fill: Fill }[] = [
   ...GRADIENT_PRESETS,
 ]
 
-/**
- * Quick notebook creation: title, paper and cover. The full configuration flow with folders and
- * the cover designer replaces this in work package 3.
- */
-export function NewNotebookDialog({ onCreated }: { onCreated: (id: string) => void }) {
+/** Creating a notebook: title, folder, paper and cover (from the presets or designed freely). */
+export function NewNotebookDialog({
+  onCreated,
+  folders,
+  folderId = null,
+  onFoldersChanged,
+}: {
+  onCreated: (id: string) => void
+  folders: readonly Folder[]
+  /** The folder chosen at first, e.g. the one it is created from. */
+  folderId?: Id | null
+  /** A folder was made from inside this dialog. */
+  onFoldersChanged?: () => void
+}) {
   const [title, setTitle] = useState('')
   const [paper, setPaper] = useState<PaperKind>('lined')
   const [cover, setCover] = useState<Fill>(COVERS[0]!.fill)
+  const [customCover, setCustomCover] = useState(false)
+  const [folder, setFolder] = useState<Id | null>(folderId)
+  const [extraFolders, setExtraFolders] = useState<Folder[]>([])
+  const allFolders = [
+    ...folders,
+    ...extraFolders.filter((f) => !folders.some((g) => g.id === f.id)),
+  ]
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -39,7 +58,7 @@ export function NewNotebookDialog({ onCreated }: { onCreated: (id: string) => vo
     setBusy(true)
     setError(null)
     try {
-      const { notebook, pages } = createNotebook({ title: name, paper, cover })
+      const { notebook, pages } = createNotebook({ title: name, paper, cover, folderId: folder })
       await createNotebookRecord(notebook, pages)
       onCreated(notebook.id)
     } catch (err) {
@@ -57,6 +76,17 @@ export function NewNotebookDialog({ onCreated }: { onCreated: (id: string) => vo
           placeholder="e.g. Biology"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
+        />
+
+        <FolderField
+          folders={allFolders}
+          value={folder}
+          onChange={setFolder}
+          onCreated={(created) => {
+            setExtraFolders((list) => [...list, created])
+            setFolder(created.id)
+            onFoldersChanged?.()
+          }}
         />
 
         <fieldset className="grid gap-2">
@@ -98,12 +128,24 @@ export function NewNotebookDialog({ onCreated }: { onCreated: (id: string) => vo
                   key={c.name}
                   label={c.name}
                   fill={c.fill}
-                  selected={cover === c.fill}
-                  onSelect={() => setCover(c.fill)}
+                  selected={!customCover && cover === c.fill}
+                  onSelect={() => {
+                    setCustomCover(false)
+                    setCover(c.fill)
+                  }}
                 />
               ))}
+              <button
+                type="button"
+                aria-pressed={customCover}
+                onClick={() => setCustomCover(!customCover)}
+                className="m-1 flex h-9 items-center gap-1.5 rounded-full px-3 text-sm font-semibold ring-1 ring-line hover:bg-hover aria-pressed:bg-ink aria-pressed:text-ink-inverse"
+              >
+                <Paintbrush size={16} /> Design
+              </button>
             </div>
           </div>
+          {customCover ? <FillEditor value={cover} onChange={setCover} /> : null}
         </fieldset>
 
         {error ? <p className="text-sm text-danger">{error}</p> : null}
