@@ -33,6 +33,8 @@ export interface LayerDef {
   opacity: number
   /** A clipping mask: shows only where the layer below has content. */
   clip?: boolean
+  /** A layer made for one text box; it is named after the text and goes away with it. */
+  kind?: 'text'
 }
 
 export interface Notebook {
@@ -45,6 +47,8 @@ export interface Notebook {
   pageIds: Id[]
   /** Bottom to top. */
   layers: LayerDef[]
+  /** Color of the background layer below all others; the paper color when absent. */
+  background?: string
   createdAt: number
   updatedAt: number
 }

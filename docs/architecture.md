@@ -37,10 +37,11 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
   dropped, then a 1€ filter removes jitter. The live stroke is drawn once per frame, one frame
   ahead of the pen (browser prediction or velocity extrapolation), clearing only its own area.
 - **Ink**: strokes keep a constant width chosen with the size control; pen pressure does not
-  change it. While drawing, ink follows a Catmull-Rom curve through the smoothed samples. When
-  the pen lifts, the stroke becomes a vector path (`geometry/fitCurve.ts`): a centripetal
-  Catmull-Rom spline through few anchor points on the line, with corners kept. The path tool
-  edits these anchors and their handles. Pens can draw solid, dashed or dotted lines.
+  change it. Ink follows a Catmull-Rom curve through the smoothed samples, and the finished
+  stroke looks exactly as it did while drawing: nothing is refitted when the pen lifts. Only
+  the path tool turns a stroke into an editable vector path (`geometry/fitCurve.ts`) with few
+  anchors; straight lines get two, and straight segments stay straight. Pens can draw solid,
+  dashed or dotted lines.
 - **Text and tables**: rendered on the canvas at rest; edited through a DOM overlay positioned
   with the same transform, so typing feels native.
 
@@ -102,6 +103,9 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
   selections. Hidden or locked layers cannot be changed, and the editor says so.
 - Every layer change (add, delete with content, reorder, rename, show, lock, opacity) is an
   undoable command. Layers below full opacity are drawn as a whole, then faded.
+- Every notebook has a background layer below all others: a color (white for new notebooks).
+- A new text box gets its own text layer, named after the text, right above the active layer.
+  Text on text layers can be tapped and selected from any layer.
 - A layer can be a clipping mask: it shows only where the nearest unclipped layer below has
   content (`render/layers.ts`).
 

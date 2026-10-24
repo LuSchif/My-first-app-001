@@ -7,6 +7,7 @@ import {
   editablePath,
   insertAnchor,
   isClosedPath,
+  isStraightSegment,
   isSmooth,
   moveAnchor,
   moveHandle,
@@ -17,11 +18,23 @@ import {
 const path = [0, 0, 30, 0, 70, 0, 100, 0, 130, 0, 170, 0, 200, 0]
 
 describe('path editing', () => {
-  it('moves an anchor with its handles', () => {
-    const moved = moveAnchor(path, 1, 0, 20)
+  it('moves an anchor with its handles on a curve', () => {
+    const curve = [0, 0, 30, 20, 70, 20, 100, 0, 130, -20, 170, -20, 200, 0]
+    const moved = moveAnchor(curve, 1, 0, 20)
     expect(moved.slice(anchorIndex(1), anchorIndex(1) + 2)).toEqual([100, 20])
-    expect(moved.slice(4, 6)).toEqual([70, 20])
-    expect(moved.slice(8, 10)).toEqual([130, 20])
+    expect(moved.slice(4, 6)).toEqual([70, 40])
+    expect(moved.slice(8, 10)).toEqual([130, 0])
+  })
+
+  it('keeps straight segments straight when an anchor moves', () => {
+    const moved = moveAnchor(path, 2, 0, 60)
+    expect(isStraightSegment(moved, 1)).toBe(true)
+    expect(isStraightSegment(moved, 0)).toBe(true)
+  })
+
+  it('makes a nearly straight drawn line a single straight segment', () => {
+    const wobbly = Array.from({ length: 30 }, (_, i) => [i * 10, Math.sin(i) * 0.8]).flat()
+    expect(anchorCount(editablePath({ points: wobbly }))).toBe(2)
   })
 
   it('keeps a smooth point smooth when a handle turns', () => {

@@ -38,6 +38,13 @@ function twins(path: readonly number[], i: number): number[] {
 
 /** Moves an anchor and its handles by (dx, dy). */
 export function moveAnchor(path: readonly number[], i: number, dx: number, dy: number): number[] {
+  // Straight segments next to the anchor stay straight lines when it moves.
+  const straight = new Set<number>()
+  for (const a of twins(path, i)) {
+    for (const seg of [a - 1, a]) {
+      if (seg >= 0 && seg < anchorCount(path) - 1 && isStraightSegment(path, seg)) straight.add(seg)
+    }
+  }
   const out = [...path]
   const touched = new Set<number>()
   for (const a of twins(path, i)) {
@@ -48,7 +55,36 @@ export function moveAnchor(path: readonly number[], i: number, dx: number, dy: n
       out[k + 1]! += dy
     }
   }
+  for (const seg of straight) straighten(out, seg)
   return out
+}
+
+/** Whether a segment's handles lie on the line between its anchors. */
+export function isStraightSegment(path: readonly number[], seg: number): boolean {
+  const i = 2 + 6 * seg
+  const ax = path[i - 2]!
+  const ay = path[i - 1]!
+  const bx = path[i + 4]!
+  const by = path[i + 5]!
+  const length = Math.hypot(bx - ax, by - ay)
+  if (length < 1e-6) return true
+  const off = (x: number, y: number) =>
+    Math.abs((bx - ax) * (y - ay) - (by - ay) * (x - ax)) / length
+  const tolerance = Math.max(0.3, length * 0.01)
+  return off(path[i]!, path[i + 1]!) < tolerance && off(path[i + 2]!, path[i + 3]!) < tolerance
+}
+
+/** Puts a segment's handles a third of the way in from each end: a straight line. */
+function straighten(path: number[], seg: number): void {
+  const i = 2 + 6 * seg
+  const ax = path[i - 2]!
+  const ay = path[i - 1]!
+  const bx = path[i + 4]!
+  const by = path[i + 5]!
+  path[i] = ax + (bx - ax) / 3
+  path[i + 1] = ay + (by - ay) / 3
+  path[i + 2] = ax + ((bx - ax) * 2) / 3
+  path[i + 3] = ay + ((by - ay) * 2) / 3
 }
 
 /** The handle across the anchor from (i, side), joining the two ends of a closed path. */
@@ -209,7 +245,40 @@ export function editablePath(stroke: {
   if (stroke.path && stroke.path.length >= 8) return [...stroke.path]
   const pts = [...stroke.points]
   if (stroke.closed && pts.length >= 4) pts.push(pts[0]!, pts[1]!)
-  if (stroke.straight) {
+  // A line drawn (nearly) straight becomes one straight segment between its ends.
+  if (!stroke.closed && nearlyStraight(pts)) {
+    return straightPath([pts[0]!, pts[1]!, pts[pts.length - 2]!, pts[pts.length - 1]!])
+  }
+  if (stroke.straight) return straightPath(pts)
+  // Few anchors, so editing stays simple; more can be added by tapping the line.
+  return fitPath(pts, { tolerance: EDIT_TOLERANCE })
+}
+
+/** How loosely an editable path follows a drawn stroke, in points. */
+const EDIT_TOLERANCE = 2.5
+
+function nearlyStraight(pts: readonly number[]): boolean {
+  const n = pts.length
+  if (n < 4) return true
+  const ax = pts[0]!
+  const ay = pts[1]!
+  const bx = pts[n - 2]!
+  const by = pts[n - 1]!
+  const length = Math.hypot(bx - ax, by - ay)
+  if (length < 10) return false
+  let worst = 0
+  for (let i = 2; i + 1 < n - 2; i += 2) {
+    worst = Math.max(
+      worst,
+      Math.abs((bx - ax) * (pts[i + 1]! - ay) - (by - ay) * (pts[i]! - ax)) / length,
+    )
+  }
+  return worst < Math.max(1.5, length * 0.03)
+}
+
+/** Straight segments through the points, as a path. */
+function straightPath(pts: readonly number[]): number[] {
+  {
     const out = [pts[0]!, pts[1]!]
     for (let i = 2; i + 1 < pts.length; i += 2) {
       const ax = pts[i - 2]!
@@ -227,7 +296,6 @@ export function editablePath(stroke: {
     }
     return out
   }
-  return fitPath(pts, { tolerance: 0.5 })
 }
 
 function segment(path: readonly number[], s: number): number[][] {

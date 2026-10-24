@@ -25,7 +25,10 @@ const MAX_LEAN = (14 * Math.PI) / 180
 const MERGE_PT = 8
 const MEET_PT = 14
 /** A grid line must run across at least this share of the table. */
-const SPAN = 0.75
+const SPAN = 0.6
+/** Smallest table, in points; smaller crossings are handwriting (a t, a +, a #). */
+const MIN_WIDTH = 80
+const MIN_HEIGHT = 50
 
 interface Segment {
   id: string
@@ -125,8 +128,24 @@ function gridLines(segments: Segment[], from: number, to: number): number[] | nu
 }
 
 /**
+ * The cell edges in one direction: the drawn lines plus the table's outer edges, unless a line
+ * already sits at (or close to) that edge. Tiny strips at the edges are not cells.
+ */
+function withEdges(lines: number[], from: number, to: number): number[] {
+  const gaps = lines.slice(1).map((v, i) => v - lines[i]!)
+  const typical = gaps.length
+    ? gaps.sort((a, b) => a - b)[Math.floor(gaps.length / 2)]! * 0.3
+    : (to - from) * 0.15
+  const near = Math.max(MERGE_PT * 2, typical)
+  const out = [...lines]
+  if (out[0]! - from > near) out.unshift(from)
+  if (to - out[out.length - 1]! > near) out.push(to)
+  return out
+}
+
+/**
  * The table that the stroke `lastId` completes, among nearby strokes. A table needs at least
- * two cells, with every line running (almost) all the way across.
+ * two cells and three lines, each running most of the way across.
  */
 export function detectTable(sources: readonly TableSource[], lastId: string): DrawnTable | null {
   const segments: Segment[] = []
@@ -152,19 +171,20 @@ export function detectTable(sources: readonly TableSource[], lastId: string): Dr
   const grid = [...inGrid]
   const hs = grid.filter((s) => s.dir === 'h')
   const vs = grid.filter((s) => s.dir === 'v')
-  if (hs.length < 2 || vs.length < 2) return null
-  const minX = Math.min(...vs.map((s) => s.at))
-  const maxX = Math.max(...vs.map((s) => s.at))
-  const minY = Math.min(...hs.map((s) => s.at))
-  const maxY = Math.max(...hs.map((s) => s.at))
-  if (maxX - minX < 30 || maxY - minY < 20) return null
-  // Lines must not stick out far past the frame.
-  if (hs.some((s) => s.a < minX - MEET_PT * 2 || s.b > maxX + MEET_PT * 2)) return null
-  if (vs.some((s) => s.a < minY - MEET_PT * 2 || s.b > maxY + MEET_PT * 2)) return null
+  if (hs.length < 1 || vs.length < 1) return null
+  // The table reaches as far as its lines do; it may have no frame at all (a header line with
+  // column dividers, or a # grid).
+  const minX = Math.min(...hs.map((s) => s.a), ...vs.map((s) => s.at))
+  const maxX = Math.max(...hs.map((s) => s.b), ...vs.map((s) => s.at))
+  const minY = Math.min(...vs.map((s) => s.a), ...hs.map((s) => s.at))
+  const maxY = Math.max(...vs.map((s) => s.b), ...hs.map((s) => s.at))
+  if (maxX - minX < MIN_WIDTH || maxY - minY < MIN_HEIGHT) return null
 
-  const ys = gridLines(hs, minX, maxX)
-  const xs = gridLines(vs, minY, maxY)
-  if (!xs || !ys || xs.length < 2 || ys.length < 2) return null
+  const lineYs = gridLines(hs, minX, maxX)
+  const lineXs = gridLines(vs, minY, maxY)
+  if (!lineXs || !lineYs || lineXs.length + lineYs.length < 3) return null
+  const xs = withEdges(lineXs, minX, maxX)
+  const ys = withEdges(lineYs, minY, maxY)
   if ((xs.length - 1) * (ys.length - 1) < 2) return null
   return { ids: [...new Set(grid.map((s) => s.id))], xs, ys }
 }

@@ -52,6 +52,8 @@ export function renderScene(
   view: View,
   /** Objects drawn elsewhere right now, e.g. a selection being moved or text being edited. */
   hidden: ReadonlySet<string> = new Set(),
+  /** The notebook's background color; a page's own color wins. */
+  background?: string,
 ): void {
   const { dpr } = view
   ctx.setTransform(1, 0, 0, 1, 0, 0)
@@ -69,7 +71,7 @@ export function renderScene(
     ctx.shadowColor = 'rgba(62, 45, 37, 0.14)'
     ctx.shadowBlur = 18 * dpr
     ctx.shadowOffsetY = 3 * dpr
-    ctx.fillStyle = page.background ?? PAPER_STYLE.paper
+    ctx.fillStyle = page.background ?? background ?? PAPER_STYLE.paper
     ctx.fillRect(o.x, o.y, PAGE_SIZE.width, PAGE_SIZE.height)
     ctx.restore()
 

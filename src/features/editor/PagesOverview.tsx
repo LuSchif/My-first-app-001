@@ -46,6 +46,10 @@ export function PagesOverview({
     (fn) => doc.subscribe(fn),
     () => doc.notebook.layers,
   )
+  const background = useSyncExternalStore(
+    (fn) => doc.subscribe(fn),
+    () => doc.notebook.background,
+  )
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -100,7 +104,7 @@ export function PagesOverview({
                 index === currentIndex ? 'ring-3 ring-caramel' : 'ring-1 ring-line',
               )}
             >
-              <Thumbnail page={page} layers={layers} />
+              <Thumbnail page={page} layers={layers} background={background} />
             </button>
             <div className="flex items-center justify-between">
               <span className="text-sm font-semibold tabular-nums">Page {index + 1}</span>
@@ -231,7 +235,15 @@ function PageActionList({
 }
 
 /** A small picture of a page, redrawn when the page changes. */
-function Thumbnail({ page, layers }: { page: Page; layers: readonly LayerDef[] }) {
+function Thumbnail({
+  page,
+  layers,
+  background,
+}: {
+  page: Page
+  layers: readonly LayerDef[]
+  background: string | undefined
+}) {
   const ref = useRef<HTMLCanvasElement>(null)
   useEffect(() => {
     const canvas = ref.current
@@ -240,13 +252,13 @@ function Thumbnail({ page, layers }: { page: Page; layers: readonly LayerDef[] }
     const scale = (THUMB_WIDTH * dpr) / PAGE_SIZE.width
     canvas.width = Math.round(PAGE_SIZE.width * scale)
     canvas.height = Math.round(PAGE_SIZE.height * scale)
-    const draw = () => drawPage(canvas.getContext('2d')!, page, layers, scale)
+    const draw = () => drawPage(canvas.getContext('2d')!, page, layers, scale, background)
     draw()
     let alive = true
     void preloadPictures([page]).then(() => alive && draw())
     return () => {
       alive = false
     }
-  }, [page, layers])
+  }, [page, layers, background])
   return <canvas ref={ref} className="block aspect-[595/842] w-full bg-paper" aria-hidden="true" />
 }

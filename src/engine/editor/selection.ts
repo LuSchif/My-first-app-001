@@ -232,7 +232,25 @@ export function flipObject(
       y: fy(c.y) - object.height / 2,
       rotation: normalizeAngle(-object.rotation),
     }
-    if (moved.type !== 'image') return moved
+    if (moved.type === 'table') {
+      // A table is mirrored by reversing its columns or rows; its text stays readable.
+      if (axis === 'horizontal') {
+        return {
+          ...moved,
+          columns: [...moved.columns].reverse(),
+          cells: moved.cells.map((row) => [...row].reverse()),
+        }
+      }
+      return { ...moved, rows: [...moved.rows].reverse(), cells: [...moved.cells].reverse() }
+    }
+    if (moved.type === 'chart') {
+      if (axis === 'vertical') return moved
+      return {
+        ...moved,
+        labels: [...moved.labels].reverse(),
+        series: moved.series.map((s) => ({ ...s, values: [...s.values].reverse() })),
+      }
+    }
     return {
       ...moved,
       flipX: axis === 'horizontal' ? !moved.flipX : moved.flipX,

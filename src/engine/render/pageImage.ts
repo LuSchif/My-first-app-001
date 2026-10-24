@@ -18,10 +18,11 @@ export function drawPage(
   page: Page,
   layers: readonly LayerDef[],
   scale: number,
+  background?: string,
 ): void {
   ctx.save()
   ctx.setTransform(scale, 0, 0, scale, 0, 0)
-  ctx.fillStyle = page.background ?? PAPER_STYLE.paper
+  ctx.fillStyle = page.background ?? background ?? PAPER_STYLE.paper
   ctx.fillRect(0, 0, PAGE_SIZE.width, PAGE_SIZE.height)
   ctx.beginPath()
   ctx.rect(0, 0, PAGE_SIZE.width, PAGE_SIZE.height)
@@ -36,10 +37,11 @@ export function renderPage(
   page: Page,
   layers: readonly LayerDef[],
   scale: number,
+  background?: string,
 ): HTMLCanvasElement {
   const canvas = document.createElement('canvas')
   canvas.width = Math.round(PAGE_SIZE.width * scale)
   canvas.height = Math.round(PAGE_SIZE.height * scale)
-  drawPage(canvas.getContext('2d')!, page, layers, scale)
+  drawPage(canvas.getContext('2d')!, page, layers, scale, background)
   return canvas
 }

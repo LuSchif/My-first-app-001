@@ -73,7 +73,9 @@ export class NotebookDocument {
     this.dirtyPages.add(page.id)
   }
 
-  updateNotebook(patch: Partial<Pick<Notebook, 'title' | 'layers' | 'cover' | 'folderId'>>): void {
+  updateNotebook(
+    patch: Partial<Pick<Notebook, 'title' | 'layers' | 'cover' | 'folderId' | 'background'>>,
+  ): void {
     this._notebook = { ...this._notebook, ...patch }
     this.notebookDirty = true
     this.emit({ type: 'notebook' })

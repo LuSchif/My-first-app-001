@@ -114,6 +114,8 @@ export class SelectionController {
   private readonly ctx: EditorContext
   private selection: Selection | null = null
   private drag: Drag | null = null
+  /** A change shown as a preview, waiting to be recorded for undo. */
+  private editing: { pageId: Id; before: CanvasObject[] } | null = null
   private lasso: Lasso | null = null
   /** Last position of the finger dragging the selection, for starting a pinch from it. */
   private lastFinger: Point | null = null
@@ -164,6 +166,7 @@ export class SelectionController {
   // ---------- Pointer input ----------
 
   pointerDown(e: PointerEvent): void {
+    this.commitEdit('Edit')
     const screen = this.ctx.screenPos(e)
     const sel = this.selection
     if (sel) {
@@ -257,6 +260,7 @@ export class SelectionController {
   }
 
   clear(): void {
+    this.commitEdit('Edit')
     if (!this.selection && !this.lasso) {
       // A finished lasso that caught nothing may still be on the overlay.
       this.draw()
@@ -283,13 +287,36 @@ export class SelectionController {
     this.ctx.changed()
   }
 
-  recolor(color: string): void {
+  /**
+   * Shows a change to the selected objects right away, e.g. while a slider moves. `commitEdit`
+   * records everything since the first preview as one undo step.
+   */
+  previewEdit(edit: (object: CanvasObject) => CanvasObject): void {
     const sel = this.selection
     const page = sel && this.ctx.doc.page(sel.pageId)
     if (!sel || !page) return
+    if (this.editing?.pageId !== page.id) this.editing = { pageId: page.id, before: page.objects }
     const ids = new Set(sel.ids)
-    const after = page.objects.map((o) => (ids.has(o.id) ? recolor(o, color) : o))
-    this.ctx.history.execute(setPageObjects('Color', page.id, page.objects, after))
+    this.ctx.doc.setObjects(
+      page.id,
+      this.editing.before.map((o) => (ids.has(o.id) ? edit(o) : o)),
+    )
+    // The frame follows, e.g. a thicker outline.
+    this.select(sel.pageId, sel.ids)
+  }
+
+  commitEdit(label: string): void {
+    const editing = this.editing
+    if (!editing) return
+    this.editing = null
+    const page = this.ctx.doc.page(editing.pageId)
+    if (!page || page.objects === editing.before) return
+    this.ctx.history.record(setPageObjects(label, page.id, editing.before, page.objects))
+  }
+
+  recolor(color: string, commit = true): void {
+    this.previewEdit((o) => recolor(o, color))
+    if (commit) this.commitEdit('Color')
   }
 
   /** The selected object, when exactly one is selected. */
@@ -300,6 +327,7 @@ export class SelectionController {
 
   /** Replaces the single selected object with a changed version of it (same id). */
   replaceSingle(next: CanvasObject, label: string): void {
+    this.commitEdit('Edit')
     const sel = this.selection
     const page = sel && this.ctx.doc.page(sel.pageId)
     if (!sel || !page || sel.ids.length !== 1 || sel.ids[0] !== next.id) return
@@ -310,19 +338,14 @@ export class SelectionController {
   }
 
   /** Adds, changes or removes the contour around every selected object. */
-  setOutline(outline: Outline | null): void {
-    const sel = this.selection
-    const page = sel && this.ctx.doc.page(sel.pageId)
-    if (!sel || !page) return
-    const ids = new Set(sel.ids)
-    const after = page.objects.map((o) => (ids.has(o.id) ? withOutline(o, outline) : o))
-    this.ctx.history.execute(setPageObjects('Outline', page.id, page.objects, after))
-    // The frame grows or shrinks with the contour.
-    this.select(sel.pageId, sel.ids)
+  setOutline(outline: Outline | null, commit = true): void {
+    this.previewEdit((o) => withOutline(o, outline))
+    if (commit) this.commitEdit('Outline')
   }
 
   /** Moves the selected objects onto another layer, on top of what is already there. */
   moveToLayer(layerId: Id): void {
+    this.commitEdit('Edit')
     const sel = this.selection
     const page = sel && this.ctx.doc.page(sel.pageId)
     if (!sel || !page) return
@@ -333,6 +356,7 @@ export class SelectionController {
   }
 
   deleteSelection(): void {
+    this.commitEdit('Edit')
     const sel = this.selection
     const page = sel && this.ctx.doc.page(sel.pageId)
     if (!sel || !page) return
@@ -346,6 +370,7 @@ export class SelectionController {
 
   /** Mirrors the selection in place, around its center. */
   flip(axis: 'horizontal' | 'vertical'): void {
+    this.commitEdit('Edit')
     const sel = this.selection
     const page = sel && this.ctx.doc.page(sel.pageId)
     if (!sel || !page) return
@@ -365,11 +390,13 @@ export class SelectionController {
   }
 
   cut(): void {
+    this.commitEdit('Edit')
     this.copy()
     this.deleteSelection()
   }
 
   duplicate(): void {
+    this.commitEdit('Edit')
     const sel = this.selection
     if (!sel) return
     this.insertCopies(sel.pageId, this.selectedObjects(), PASTE_OFFSET, 'Duplicate')
@@ -385,11 +412,27 @@ export class SelectionController {
     this.insertCopies(pageId, clipboard.objects, offset, 'Paste')
   }
 
-  private insertCopies(pageId: Id, objects: CanvasObject[], offset: number, label: string): void {
+  /** Pastes so the copied objects are centered on (x, y) of the page. */
+  pasteAt(pageId: Id, x: number, y: number): void {
+    if (!clipboard) return
+    const b = boundsOf(clipboard.objects)
+    if (!b) return
+    const dx = x - (b.minX + b.maxX) / 2
+    const dy = y - (b.minY + b.maxY) / 2
+    this.insertCopies(pageId, clipboard.objects, { dx, dy }, 'Paste')
+  }
+
+  private insertCopies(
+    pageId: Id,
+    objects: CanvasObject[],
+    offset: number | { dx: number; dy: number },
+    label: string,
+  ): void {
     const page = this.ctx.doc.page(pageId)
     const layer = this.ctx.activeLayer()
     if (!page || !layer || layer.locked) return
-    const shift: Transform = { ...IDENTITY, cx: 0, cy: 0, dx: offset, dy: offset }
+    const { dx, dy } = typeof offset === 'number' ? { dx: offset, dy: offset } : offset
+    const shift: Transform = { ...IDENTITY, cx: 0, cy: 0, dx, dy }
     const copies = objects.map((o) => ({
       ...transformObject(o, shift),
       id: newId(),
@@ -528,7 +571,15 @@ export class SelectionController {
       this.clear()
       return
     }
-    const candidates = page.objects.filter((o) => o.layerId === layer.id)
+    // Text boxes on their own text layers are selectable too, like in a layout app.
+    const textLayers = new Set(
+      this.ctx.doc.notebook.layers
+        .filter((l) => l.kind === 'text' && l.visible && !l.locked)
+        .map((l) => l.id),
+    )
+    const candidates = page.objects.filter(
+      (o) => o.layerId === layer.id || textLayers.has(o.layerId),
+    )
     let ids: Id[]
     if (lasso.screenLength < TAP_PX) {
       // A tap selects the topmost object under the pen.

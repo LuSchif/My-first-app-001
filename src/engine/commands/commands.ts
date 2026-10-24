@@ -46,6 +46,15 @@ export function setLayers(label: string, before: LayerDef[], after: LayerDef[]):
   }
 }
 
+/** Changes the color of the notebook's background layer. */
+export function setNotebookBackground(before: string | undefined, after: string): Command {
+  return {
+    label: 'Background',
+    apply: (doc) => doc.updateNotebook({ background: after }),
+    revert: (doc) => doc.updateNotebook({ background: before }),
+  }
+}
+
 /** Inserts new pages at `index` in the page order. */
 export function insertPages(label: string, index: number, pages: Page[]): Command {
   let before: Id[] = []

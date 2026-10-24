@@ -3,13 +3,13 @@ import {
   insertPages,
   removePage,
   setLayers,
+  setNotebookBackground,
   setPageBackground,
   setPageObjects,
 } from '../commands/commands.ts'
 import type { History } from '../commands/History.ts'
 import type { NotebookDocument } from '../document/NotebookDocument.ts'
 import { eraseFromPoints, strokeTouchesCircle } from '../geometry/erase.ts'
-import { fitPath } from '../geometry/fitCurve.ts'
 import { intersects } from '../geometry/rect.ts'
 import type { Camera, Point } from '../geometry/camera.ts'
 import { StrokeSampler } from '../input/StrokeSampler.ts'
@@ -22,8 +22,10 @@ import {
   type BoxFrame,
   type LayerDef,
   type Outline,
+  type Page,
   type StrokeDash,
   type StrokeObject,
+  type TextObject,
   type TextStyle,
 } from '../model/types.ts'
 import { contentHeight, PAGE_PITCH, pageIndexAt, pageOrigin } from '../render/layout.ts'
@@ -101,8 +103,12 @@ export interface EditorState {
   layers: LayerDef[]
   /** The layer new ink, text and selections belong to. */
   activeLayerId: Id
+  /** Color of the background layer below all others, or null for the paper color. */
+  background: string | null
   /** A short message, e.g. why the pen does nothing on a hidden layer. */
   notice: string | null
+  /** Where a long press offers to paste, in screen pixels. */
+  pasteMenu: { x: number; y: number } | null
 }
 
 const HIGHLIGHTER_OPACITY = 0.45
@@ -112,12 +118,13 @@ const SIDE_MARGIN = 24
 /** Resting the pen this long after drawing a shape turns it into the perfect shape. */
 const HOLD_MS = 550
 const HOLD_SLOP_PX = 4
-/** How closely a finished stroke's vector path follows the pen, in screen pixels. */
-const FIT_TOLERANCE_PX = 1.2
 const MIN_HOLD_SHAPE = 30
 
 /** Pause after a stroke before looking for shapes to offer. */
 const SUGGEST_DELAY_MS = 350
+/** Holding a pen or finger still this long on the page offers Paste. */
+const LONG_PRESS_MS = 500
+const LONG_PRESS_SLOP_PX = 8
 const DEFAULT_RECENT_COLORS = ['#3e2d25', '#4a80c0', '#c4473a', '#5f9a4a', '#f2cf4a']
 const RECENT_LIMIT = 5
 
@@ -203,8 +210,20 @@ export class Editor {
   private pending: { pageId: Id; layerId: Id; suggestion: Suggestion } | null = null
   private suggestTimer: ReturnType<typeof setTimeout> | null = null
   private noticeTimer: ReturnType<typeof setTimeout> | null = null
+  /** The tool to go back to when typing in a text box opened by a pen tap ends. */
+  private returnTool: ToolId | null = null
+  private longPress: {
+    timer: ReturnType<typeof setTimeout>
+    pointerId: number
+    x: number
+    y: number
+  } | null = null
+  /** The page spot a long press chose for pasting. */
+  private pasteTarget: { pageId: Id; x: number; y: number } | null = null
   /** Layers before an opacity drag started, so the whole drag is one undo step. */
   private opacityBefore: LayerDef[] | null = null
+  /** The background color before a color wheel drag started. */
+  private backgroundEdit: { before: string | undefined } | null = null
 
   private camera: Camera = { offsetX: 0, offsetY: TOP_INSET, zoom: 1 }
   private view: View = { width: 0, height: 0, dpr: 1 }
@@ -254,8 +273,10 @@ export class Editor {
       pathEdit: null,
       hasClipboard: false,
       layers: doc.notebook.layers,
+      background: doc.notebook.background ?? null,
       activeLayerId: doc.notebook.layers[doc.notebook.layers.length - 1]?.id ?? '',
       notice: null,
+      pasteMenu: null,
     }
 
     // The canvases are positioned inside the host; keep the host's own positioning if it has one.
@@ -386,9 +407,15 @@ export class Editor {
     this.selection.flip(axis)
   }
 
-  recolorSelection(color: string): void {
-    this.rememberColor(color)
-    this.selection.recolor(color)
+  /** Recolors the selection; with `commit` false it is a preview until `commitSelectionEdit`. */
+  recolorSelection(color: string, commit = true): void {
+    if (commit) this.rememberColor(color)
+    this.selection.recolor(color, commit)
+  }
+
+  /** Records the previewed change to the selection as one undo step. */
+  commitSelectionEdit(label = 'Edit'): void {
+    this.selection.commitEdit(label)
   }
 
   setSelectionScaling(on: boolean): void {
@@ -433,6 +460,27 @@ export class Editor {
     this.history.execute(setLayers('Layer', before, patchLayer(before, id, patch)))
   }
 
+  /**
+   * Colors the background layer. While a color wheel moves, `commit` is false and the color is
+   * only shown; the final call records one undo step.
+   */
+  setBackground(color: string, commit: boolean): void {
+    this.backgroundEdit ??= { before: this.doc.notebook.background }
+    if (!commit) {
+      this.doc.updateNotebook({ background: color })
+      return
+    }
+    const { before } = this.backgroundEdit
+    this.backgroundEdit = null
+    this.history.execute(setNotebookBackground(before, color))
+  }
+
+  /** Records the background color shown by the last preview. */
+  commitBackground(): void {
+    const color = this.doc.notebook.background
+    if (this.backgroundEdit && color) this.setBackground(color, true)
+  }
+
   /** Shows a new layer opacity while its slider moves; `commit` records it for undo. */
   setLayerOpacity(id: Id, opacity: number, commit: boolean): void {
     this.opacityBefore ??= this.doc.notebook.layers
@@ -471,9 +519,10 @@ export class Editor {
   }
 
   /** Adds, changes or removes the contour around the selection. */
-  setSelectionOutline(outline: Outline | null): void {
-    if (outline) this.rememberColor(outline.color)
-    this.selection.setOutline(outline)
+  /** Adds, changes or removes the outline; with `commit` false it is a live preview. */
+  setSelectionOutline(outline: Outline | null, commit = true): void {
+    if (outline && commit) this.rememberColor(outline.color)
+    this.selection.setOutline(outline, commit)
   }
 
   /** Path tool: removes the selected anchor point. */
@@ -496,6 +545,54 @@ export class Editor {
 
   copySelection(): void {
     this.selection.copy()
+    this.showNotice('Copied. Hold your pen or finger on the page to paste.')
+  }
+
+  /** Pastes the copied objects where the long press was. */
+  pasteHere(): void {
+    const target = this.pasteTarget
+    this.closePasteMenu()
+    if (!target) return
+    this.setTool('lasso')
+    this.selection.pasteAt(target.pageId, target.x, target.y)
+  }
+
+  closePasteMenu(): void {
+    this.pasteTarget = null
+    if (this._state.pasteMenu) this.update({ pasteMenu: null })
+  }
+
+  /**
+   * A pen or finger resting on the page offers to paste what was copied. Moving more than a
+   * few pixels, or lifting, cancels it.
+   */
+  private armLongPress(e: PointerEvent): void {
+    this.cancelLongPress()
+    if (!this.selection.hasClipboard) return
+    const p = this.screenPos(e)
+    const timer = setTimeout(() => this.firePasteMenu(), LONG_PRESS_MS)
+    this.longPress = { timer, pointerId: e.pointerId, x: p.x, y: p.y }
+  }
+
+  private cancelLongPress(): void {
+    if (!this.longPress) return
+    clearTimeout(this.longPress.timer)
+    this.longPress = null
+  }
+
+  private firePasteMenu(): void {
+    const press = this.longPress
+    this.longPress = null
+    if (!press) return
+    const hit = this.pageAt(press)
+    if (!hit) return
+    // The press was not meant as a dot, a lasso or a new text box.
+    this.cancelSession()
+    this.selection.clear()
+    this.textTap = null
+    this.panning = false
+    this.pasteTarget = { pageId: hit.page.id, x: hit.x, y: hit.y }
+    this.update({ pasteMenu: { x: press.x, y: press.y } })
   }
 
   cutSelection(): void {
@@ -753,6 +850,7 @@ export class Editor {
   undo(): void {
     if (this.session || this.selection.busy) return
     this.text.finish()
+    this.selection.commitEdit('Edit')
     this.dismissSuggestion()
     this.history.undo()
   }
@@ -760,6 +858,7 @@ export class Editor {
   redo(): void {
     if (this.session || this.selection.busy) return
     this.text.finish()
+    this.selection.commitEdit('Edit')
     this.dismissSuggestion()
     this.history.redo()
   }
@@ -843,6 +942,7 @@ export class Editor {
   dispose(): void {
     this.text.finish()
     if (this.noticeTimer) clearTimeout(this.noticeTimer)
+    this.cancelLongPress()
     this.cleanups.forEach((fn) => fn())
     this.sceneCanvas.remove()
     this.inkLayer.remove()
@@ -880,6 +980,8 @@ export class Editor {
   }
 
   private syncLayers(): void {
+    const background = this.doc.notebook.background ?? null
+    if (background !== this._state.background) this.update({ background })
     const layers = this.doc.notebook.layers
     if (layers === this._state.layers) return
     const active = layers.find((l) => l.id === this._state.activeLayerId)
@@ -920,14 +1022,7 @@ export class Editor {
       camera: () => this.camera,
       view: () => this.view,
       screenPos: (e) => this.screenPos(e),
-      pageAt: (screen) => {
-        const w = this.toWorld(screen)
-        const index = pageIndexAt(w.x, w.y, this.doc.notebook.pageIds.length)
-        const page = this.doc.pageList[index]
-        if (!page) return null
-        const o = pageOrigin(index)
-        return { index, page, x: w.x - o.x, y: w.y - o.y }
-      },
+      pageAt: (screen) => this.pageAt(screen),
       pageIndexOf: (id) => this.doc.notebook.pageIds.indexOf(id),
       toScreen: (index, x, y) => {
         const o = pageOrigin(index)
@@ -949,6 +1044,11 @@ export class Editor {
   private syncControllers(): void {
     if (this.text.isEditing !== this._state.editingText) {
       queueMicrotask(() => this.updateBottomInset())
+    }
+    if (!this.text.isEditing && this.returnTool) {
+      const tool = this.returnTool
+      this.returnTool = null
+      if (this._state.tool === 'text') this.update({ tool })
     }
     this.update({
       selection: this.selection.info(),
@@ -1055,6 +1155,7 @@ export class Editor {
         this.camera,
         this.view,
         this.hidden,
+        this.doc.notebook.background,
       )
     })
   }
@@ -1070,6 +1171,16 @@ export class Editor {
     return { x: (p.x - c.offsetX) / c.zoom, y: (p.y - c.offsetY) / c.zoom }
   }
 
+  /** The page under a screen point, with the point in that page's coordinates. */
+  private pageAt(screen: Point): { index: number; page: Page; x: number; y: number } | null {
+    const w = this.toWorld(screen)
+    const index = pageIndexAt(w.x, w.y, this.doc.notebook.pageIds.length)
+    const page = this.doc.pageList[index]
+    if (!page) return null
+    const o = pageOrigin(index)
+    return { index, page, x: w.x - o.x, y: w.y - o.y }
+  }
+
   private onPointerDown(e: PointerEvent): void {
     // Taps inside the text field place the caret; leave them to the browser.
     if (e.target === this.text.element) return
@@ -1077,6 +1188,10 @@ export class Editor {
     this.hostRect = this.host.getBoundingClientRect()
     this.momentum = null
     if (e.pointerType === 'pen') this.penSeen = true
+    this.closePasteMenu()
+    // A second finger is a gesture, not a long press.
+    if (e.pointerType !== 'touch' || this.touches.size === 0) this.armLongPress(e)
+    else this.cancelLongPress()
 
     // A second finger joins a finger already moving the selection: two-finger rotate.
     if (e.pointerType === 'touch' && this._state.tool === 'lasso' && this.selection.touchDragging) {
@@ -1187,14 +1302,48 @@ export class Editor {
     const o = pageOrigin(index)
     const x = w.x - o.x
     const y = w.y - o.y
-    const hit = [...page.objects]
-      .reverse()
-      .find((obj) => obj.layerId === layer.id && obj.type === 'text' && hitsObject(obj, x, y, 4))
-    if (hit?.type === 'text') this.text.edit(page.id, hit)
+    const hit = this.textAt(page, x, y)
+    if (hit) this.text.edit(page.id, hit)
     else if (!wasEditing) this.text.create(page.id, x, y, this._state.textStyle)
   }
 
+  /**
+   * The topmost text box at a page point that can be edited: on the active layer, or on its
+   * own text layer, as long as that layer is visible and not locked.
+   */
+  private textAt(page: Page, x: number, y: number): TextObject | null {
+    const editable = (layerId: Id) => {
+      const layer = this.doc.notebook.layers.find((l) => l.id === layerId)
+      return (
+        !!layer &&
+        !layerBlock(layer) &&
+        (layer.id === this._state.activeLayerId || layer.kind === 'text')
+      )
+    }
+    const hit = [...page.objects]
+      .reverse()
+      .find((obj) => obj.type === 'text' && editable(obj.layerId) && hitsObject(obj, x, y, 4))
+    return hit?.type === 'text' ? hit : null
+  }
+
+  /** Opens the text of a text layer for editing, scrolling to it first. */
+  editLayerText(layerId: Id): void {
+    const index = this.doc.pageList.findIndex((p) => p.objects.some((o) => o.layerId === layerId))
+    const page = this.doc.pageList[index]
+    const object = page?.objects.find((o) => o.layerId === layerId && o.type === 'text')
+    if (!page || object?.type !== 'text') return
+    this.selection.clear()
+    this.update({ tool: 'text' })
+    this.scrollToPage(index)
+    this.text.edit(page.id, object)
+  }
+
   private onPointerMove(e: PointerEvent): void {
+    const press = this.longPress
+    if (press?.pointerId === e.pointerId) {
+      const p = this.screenPos(e)
+      if (Math.hypot(p.x - press.x, p.y - press.y) > LONG_PRESS_SLOP_PX) this.cancelLongPress()
+    }
     if (this.selection.pointerMove(e)) return
     if (this.paths.pointerMove(e)) return
     if (this.laser.move(e)) return
@@ -1239,6 +1388,7 @@ export class Editor {
   }
 
   private onPointerEnd(e: PointerEvent): void {
+    if (this.longPress?.pointerId === e.pointerId) this.cancelLongPress()
     this.selection.pointerUp(e)
     this.paths.pointerUp(e)
     this.laser.up(e)
@@ -1569,6 +1719,13 @@ export class Editor {
     s.holdTimer = setTimeout(() => this.snapToPerfect(s), HOLD_MS)
   }
 
+  /** Whether drawn points stayed within a few screen pixels: a tap, not a stroke. */
+  private isTap(points: readonly number[]): boolean {
+    const b = boundsOfPoints(points)
+    const zoom = this.camera.zoom
+    return (b.maxX - b.minX) * zoom < TAP_SLOP_PX && (b.maxY - b.minY) * zoom < TAP_SLOP_PX
+  }
+
   private drawnPoints(s: InkSession): number[] {
     const raw: number[] = []
     for (const p of s.sampler.finalPoints()) {
@@ -1610,14 +1767,23 @@ export class Editor {
     const snapped = s.snapped
     const points = snapped ? snapped.points : this.drawnPoints(s)
     const page = this.doc.page(s.pageId)
+    // A pen tap on a text box opens it for typing instead of leaving a dot.
+    if (page && !snapped && this.isTap(points)) {
+      const b = boundsOfPoints(points)
+      const hit = this.textAt(page, (b.minX + b.maxX) / 2, (b.minY + b.maxY) / 2)
+      if (hit) {
+        this.clearArea(this.wet, s.wetDirty)
+        this.clearTip()
+        this.returnTool = this._state.tool
+        this.update({ tool: 'text' })
+        this.text.edit(page.id, hit)
+        return
+      }
+    }
     if (page && points.length >= 2) {
       const stroke: StrokeObject = snapped
         ? { ...s.stroke, points, closed: snapped.closed, straight: snapped.straight }
-        : {
-            ...s.stroke,
-            points,
-            path: fitPath(points, { tolerance: FIT_TOLERANCE_PX / this.camera.zoom }),
-          }
+        : { ...s.stroke, points }
       const layers = this.doc.notebook.layers.filter((l) => l.visible)
       const top = layers[layers.length - 1]
       const onTop = top?.id === stroke.layerId && top.opacity >= 1 && !top.clip

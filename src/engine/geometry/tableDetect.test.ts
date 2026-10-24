@@ -47,6 +47,22 @@ describe('detectTable', () => {
     expect(table.ys).toHaveLength(2)
   })
 
+  it('finds an open table: a header line with column dividers, as drawn by hand', () => {
+    const sources = [
+      line('h', 735, 715, 1005, 712),
+      line('a', 795, 665, 790, 880),
+      line('b', 912, 668, 902, 852),
+      line('c', 988, 662, 980, 845),
+    ]
+    const table = detectTable(sources, 'c')!
+    expect(table).not.toBeNull()
+    // Columns: the strip before the first divider, two between them; the 20 pt rest at the right
+    // is too thin to be a column of its own.
+    expect(table.xs).toHaveLength(4)
+    expect(table.ys).toHaveLength(3)
+    expect(Math.round(table.ys[1]!)).toBeGreaterThan(705)
+  })
+
   it('ignores a single rectangle, a cross and handwriting', () => {
     const rect = [
       line('t', 0, 0, 100, 0),

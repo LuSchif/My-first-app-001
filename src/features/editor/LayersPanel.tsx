@@ -7,12 +7,27 @@ import {
   Lock,
   LockOpen,
   Plus,
+  TextCursorInput,
   Trash2,
+  Type,
 } from 'lucide-react'
 import { useState } from 'react'
 import type { Editor, EditorState } from '../../engine/editor/Editor.ts'
 import type { LayerDef } from '../../engine/model/types.ts'
-import { Button, IconButton, Slider, Switch, TextField } from '../../design/index.ts'
+import {
+  Button,
+  ColorPicker,
+  ColorSwatch,
+  IconButton,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  Slider,
+  Switch,
+  TextField,
+  useClosePopover,
+} from '../../design/index.ts'
+import { PAPER_STYLE } from '../../engine/render/paper.ts'
 import { cn } from '../../lib/cn.ts'
 
 /**
@@ -40,6 +55,7 @@ export function LayersPanel({ editor, state }: { editor: Editor; state: EditorSt
             active={layer.id === state.activeLayerId}
           />
         ))}
+        <BackgroundRow editor={editor} color={state.background ?? PAPER_STYLE.paper} />
       </ul>
       {active ? (
         <ActiveLayerSettings
@@ -53,6 +69,67 @@ export function LayersPanel({ editor, state }: { editor: Editor; state: EditorSt
         />
       ) : null}
     </div>
+  )
+}
+
+/** The background below all layers, like in Procreate: a color you can change at any time. */
+function BackgroundRow({ editor, color }: { editor: Editor; color: string }) {
+  return (
+    <li className="flex items-center gap-2 rounded-control py-1 pr-1 pl-3 ring-1 ring-line">
+      <span className="flex-1 text-sm font-semibold">Background</span>
+      <Popover>
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            aria-label="Background color"
+            className="grid size-11 place-items-center rounded-control hover:bg-hover"
+          >
+            <span
+              className="size-7 rounded-md ring-1 ring-line-strong"
+              style={{ background: color }}
+            />
+          </button>
+        </PopoverTrigger>
+        <PopoverContent align="end" className="grid w-80 gap-3">
+          <p className="text-sm font-semibold">Background color</p>
+          <ColorSwatch
+            label="White"
+            fill={{ type: 'solid', color: '#ffffff' }}
+            selected={color === '#ffffff'}
+            onSelect={() => editor.setBackground('#ffffff', true)}
+          />
+          <ColorPicker
+            value={color}
+            onChange={(next) => editor.setBackground(next, false)}
+            onCommit={() => editor.commitBackground()}
+          />
+        </PopoverContent>
+      </Popover>
+    </li>
+  )
+}
+
+/** Opens the text of a text layer on the page, ready to type. */
+function EditTextButton({
+  editor,
+  layer,
+  active,
+}: {
+  editor: Editor
+  layer: LayerDef
+  active: boolean
+}) {
+  const close = useClosePopover()
+  return (
+    <IconButton
+      label={`Edit text: ${layer.name}`}
+      icon={<TextCursorInput size={18} />}
+      className={cn(active && 'text-ink-inverse hover:bg-white/10')}
+      onClick={() => {
+        close()
+        editor.editLayerText(layer.id)
+      }}
+    />
   )
 }
 
@@ -70,6 +147,9 @@ function LayerRow({ editor, layer, active }: { editor: Editor; layer: LayerDef; 
         onClick={() => editor.setActiveLayer(layer.id)}
         className="flex min-h-11 min-w-0 flex-1 items-center px-3 text-left"
       >
+        {layer.kind === 'text' ? (
+          <Type size={16} aria-label="Text layer" className="mr-1.5 shrink-0 opacity-75" />
+        ) : null}
         {layer.clip ? (
           <CornerLeftDown
             size={16}
@@ -81,6 +161,9 @@ function LayerRow({ editor, layer, active }: { editor: Editor; layer: LayerDef; 
           {layer.name}
         </span>
       </button>
+      {layer.kind === 'text' ? (
+        <EditTextButton editor={editor} layer={layer} active={active} />
+      ) : null}
       <IconButton
         label={layer.visible ? `Hide ${layer.name}` : `Show ${layer.name}`}
         icon={layer.visible ? <Eye size={18} /> : <EyeOff size={18} />}

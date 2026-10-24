@@ -43,6 +43,7 @@ export function createNotebook(options: {
     paper: options.paper,
     pageIds: [page.id],
     layers: [createLayer('Layer 1')],
+    background: '#ffffff',
     createdAt: now,
     updatedAt: now,
   }

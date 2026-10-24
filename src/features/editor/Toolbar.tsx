@@ -34,7 +34,6 @@ import {
   PopoverTrigger,
   Slider,
   Switch,
-  useClosePopover,
 } from '../../design/index.ts'
 import { useVisualViewportBottom } from '../../lib/useVisualViewport.ts'
 import type { Autosave } from '../../storage/Autosave.ts'
@@ -44,7 +43,7 @@ import { PagesOverview } from './PagesOverview.tsx'
 import { LayersPanel } from './LayersPanel.tsx'
 import { RecentColors } from './RecentColors.tsx'
 import { PathMenu } from './PathMenu.tsx'
-import { PasteButton, SelectionMenu } from './SelectionMenu.tsx'
+import { PasteButton, PasteMenu, SelectionMenu } from './SelectionMenu.tsx'
 import { SuggestionChip } from './SuggestionChip.tsx'
 import { TextFormatControls } from './TextFormatControls.tsx'
 
@@ -233,6 +232,7 @@ export function Toolbar({
       <RecentColors editor={editor} state={state} />
       <SuggestionChip editor={editor} state={state} />
       <PasteButton editor={editor} state={state} />
+      <PasteMenu editor={editor} state={state} />
       {state.notice ? (
         <div
           role="status"
@@ -271,7 +271,6 @@ const LASER_COLORS = [
 ] as const
 
 function LaserSettings({ editor, state }: { editor: Editor; state: EditorState }) {
-  const close = useClosePopover()
   return (
     <>
       <p className="text-sm text-ink-muted">
@@ -286,7 +285,6 @@ function LaserSettings({ editor, state }: { editor: Editor; state: EditorState }
             selected={state.laserColor === color}
             onSelect={() => {
               editor.setLaserColor(color)
-              close()
             }}
           />
         ))}
@@ -296,12 +294,10 @@ function LaserSettings({ editor, state }: { editor: Editor; state: EditorState }
 }
 
 function TextSettings({ editor, state }: { editor: Editor; state: EditorState }) {
-  const close = useClosePopover()
-  return <TextFormatControls editor={editor} style={state.textStyle} onChoice={close} />
+  return <TextFormatControls editor={editor} style={state.textStyle} />
 }
 
 function LassoSettings({ editor, state }: { editor: Editor; state: EditorState }) {
-  const close = useClosePopover()
   const modes = [
     ['freehand', 'Freehand', 'Draw a loop around what you want', <Lasso key="f" size={20} />],
     ['rect', 'Rectangle', 'Drag a box over what you want', <SquareDashed key="r" size={20} />],
@@ -315,7 +311,6 @@ function LassoSettings({ editor, state }: { editor: Editor; state: EditorState }
           aria-pressed={state.lassoMode === mode}
           onClick={() => {
             editor.setLassoMode(mode)
-            close()
           }}
           className={cn(
             'flex min-h-11 items-center gap-3 rounded-control px-3 py-2 text-left ring-1 ring-line',
@@ -339,7 +334,6 @@ function LassoSettings({ editor, state }: { editor: Editor; state: EditorState }
           checked={state.snapRotation}
           onChange={(on) => {
             editor.setSnapRotation(on)
-            close()
           }}
         />
       </div>
@@ -361,7 +355,6 @@ function dashArray(dash: StrokeDash | null, width: number): string | undefined {
 
 function PenSettings({ editor, state }: { editor: Editor; state: EditorState }) {
   const { pen } = state
-  const close = useClosePopover()
   return (
     <>
       <svg
@@ -388,7 +381,6 @@ function PenSettings({ editor, state }: { editor: Editor; state: EditorState }) 
             aria-pressed={pen.dash === dash}
             onClick={() => {
               editor.setPen({ dash })
-              close()
             }}
             className="flex min-h-11 flex-col items-center justify-center gap-1 rounded-control px-2 text-xs font-semibold ring-1 ring-line aria-pressed:bg-ink aria-pressed:text-ink-inverse aria-pressed:ring-ink"
           >
@@ -415,7 +407,6 @@ function PenSettings({ editor, state }: { editor: Editor; state: EditorState }) 
         max={10}
         step={0.5}
         onChange={(width) => editor.setPen({ width })}
-        onCommit={close}
         format={(v) => `${v} pt`}
       />
       <Slider
@@ -424,14 +415,9 @@ function PenSettings({ editor, state }: { editor: Editor; state: EditorState }) 
         min={10}
         max={100}
         onChange={(v) => editor.setPen({ opacity: v / 100 })}
-        onCommit={close}
         format={(v) => `${v}%`}
       />
-      <ColorPicker
-        value={pen.color}
-        onChange={(color) => editor.setPen({ color })}
-        onCommit={close}
-      />
+      <ColorPicker value={pen.color} onChange={(color) => editor.setPen({ color })} />
       <div className="border-t border-line pt-2">
         <Switch
           label="Shape and fill suggestions"
@@ -439,7 +425,6 @@ function PenSettings({ editor, state }: { editor: Editor; state: EditorState }) 
           checked={state.suggest}
           onChange={(on) => {
             editor.setSuggest(on)
-            close()
           }}
         />
       </div>
@@ -449,7 +434,6 @@ function PenSettings({ editor, state }: { editor: Editor; state: EditorState }) 
 
 function HighlighterSettings({ editor, state }: { editor: Editor; state: EditorState }) {
   const { highlighter } = state
-  const close = useClosePopover()
   return (
     <>
       <Slider
@@ -458,7 +442,6 @@ function HighlighterSettings({ editor, state }: { editor: Editor; state: EditorS
         min={6}
         max={40}
         onChange={(width) => editor.setHighlighter({ width })}
-        onCommit={close}
         format={(v) => `${v} pt`}
       />
       <div role="group" aria-label="Highlighter colors" className="flex flex-wrap">
@@ -470,7 +453,6 @@ function HighlighterSettings({ editor, state }: { editor: Editor; state: EditorS
             selected={highlighter.color === color}
             onSelect={() => {
               editor.setHighlighter({ color })
-              close()
             }}
           />
         ))}
@@ -481,7 +463,6 @@ function HighlighterSettings({ editor, state }: { editor: Editor; state: EditorS
 
 function BroomSettings({ editor, state }: { editor: Editor; state: EditorState }) {
   const { broom } = state
-  const close = useClosePopover()
   const modes = [
     ['precise', 'Precise', 'Sweeps away only what it touches'],
     ['stroke', 'Whole strokes', 'Removes every stroke it touches'],
@@ -494,7 +475,6 @@ function BroomSettings({ editor, state }: { editor: Editor; state: EditorState }
         min={4}
         max={80}
         onChange={(size) => editor.setBroom({ size })}
-        onCommit={close}
         format={(v) => `${v} pt`}
       />
       <div role="group" aria-label="Broom mode" className="grid gap-1.5">
@@ -505,7 +485,6 @@ function BroomSettings({ editor, state }: { editor: Editor; state: EditorState }
             aria-pressed={broom.mode === mode}
             onClick={() => {
               editor.setBroom({ mode })
-              close()
             }}
             className={cn(
               'flex min-h-11 items-center justify-between gap-3 rounded-control px-3 py-2 text-left ring-1 ring-line',

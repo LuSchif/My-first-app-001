@@ -36,7 +36,7 @@ export async function exportPages(
   const layers = doc.notebook.layers
   const jpegs: Blob[] = []
   for (const page of pages) {
-    const canvas = renderPage(page, layers, EXPORT_SCALE)
+    const canvas = renderPage(page, layers, EXPORT_SCALE, doc.notebook.background)
     jpegs.push(await toJpeg(canvas))
     // Free the memory of each big canvas right away; iPad limits canvas memory.
     canvas.width = canvas.height = 0

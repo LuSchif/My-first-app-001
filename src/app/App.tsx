@@ -3,10 +3,12 @@ import { TooltipProvider } from '../design/index.ts'
 import { EditorView } from '../features/editor/EditorView.tsx'
 import { LibraryView } from '../features/library/LibraryView.tsx'
 import { requestPersistentStorage } from '../storage/db.ts'
+import { usePencilTaps } from '../lib/usePencilTaps.ts'
 import { useRoute } from './router.ts'
 
 export function App() {
   const route = useRoute()
+  usePencilTaps()
 
   useEffect(() => {
     void requestPersistentStorage()

@@ -6,9 +6,8 @@ import {
   FlipVertical2,
   Layers,
   Scaling,
-  BetweenHorizontalEnd,
+  Grid3x3,
   ChartColumn,
-  BetweenVerticalEnd,
   Scissors,
   Table2,
   SquareRoundCorner,
@@ -25,9 +24,9 @@ import {
   PopoverTrigger,
   Slider,
   Switch,
-  useClosePopover,
 } from '../../design/index.ts'
-import { addColumn, addRow } from '../../engine/model/table.ts'
+import { addColumn, addRow, removeColumn, removeRow } from '../../engine/model/table.ts'
+import { Stepper } from './Stepper.tsx'
 import type { Outline } from '../../engine/model/types.ts'
 import { ChartEditor } from './ChartEditor.tsx'
 import { TableEditor } from './TableEditor.tsx'
@@ -148,9 +147,16 @@ export function SelectionMenu({ editor, state }: { editor: Editor; state: Editor
       >
         <FlipVertical2 size={18} />
       </MenuButton>
-      <MenuButton label="Flip vertically" iconOnly onClick={() => editor.flipSelection('vertical')}>
-        <FlipHorizontal2 size={18} />
-      </MenuButton>
+      {/* A chart has no top-to-bottom mirror image that still reads as a chart. */}
+      {sel.boxKind === 'chart' ? null : (
+        <MenuButton
+          label="Flip vertically"
+          iconOnly
+          onClick={() => editor.flipSelection('vertical')}
+        >
+          <FlipHorizontal2 size={18} />
+        </MenuButton>
+      )}
       <MenuButton label="Delete" onClick={() => editor.deleteSelection()}>
         <Trash2 size={18} />
       </MenuButton>
@@ -163,25 +169,53 @@ function TableActions({ editor }: { editor: Editor }) {
   const [editing, setEditing] = useState(false)
   const table = editor.selectedObject()
   if (table?.type !== 'table') return null
+  const resize = (next: typeof table, label: string) => editor.updateSelectedObject(next, label)
   return (
     <>
       <MenuButton label="Edit table" onClick={() => setEditing(true)}>
         <Table2 size={18} />
       </MenuButton>
-      <MenuButton
-        label="Add column"
-        iconOnly
-        onClick={() => editor.updateSelectedObject(addColumn(table), 'Add column')}
-      >
-        <BetweenVerticalEnd size={18} />
-      </MenuButton>
-      <MenuButton
-        label="Add row"
-        iconOnly
-        onClick={() => editor.updateSelectedObject(addRow(table), 'Add row')}
-      >
-        <BetweenHorizontalEnd size={18} />
-      </MenuButton>
+      <Popover>
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            className="flex h-11 items-center gap-1.5 rounded-control px-3 text-sm font-semibold hover:bg-white/10 active:bg-white/15"
+          >
+            <Grid3x3 size={18} />
+            Rows &amp; columns
+          </button>
+        </PopoverTrigger>
+        <PopoverContent className="grid w-72 gap-3">
+          <Stepper
+            label="Columns"
+            value={table.columns.length}
+            min={1}
+            max={20}
+            onChange={(n) =>
+              resize(
+                n > table.columns.length ? addColumn(table) : removeColumn(table, n),
+                n > table.columns.length ? 'Add column' : 'Remove column',
+              )
+            }
+          />
+          <Stepper
+            label="Rows"
+            value={table.rows.length}
+            min={1}
+            max={60}
+            onChange={(n) =>
+              resize(
+                n > table.rows.length ? addRow(table) : removeRow(table, n),
+                n > table.rows.length ? 'Add row' : 'Remove row',
+              )
+            }
+          />
+          <p className="text-xs text-ink-muted">
+            A new column is added on the right, a new row at the bottom, each as wide or tall as the
+            last one. Removing takes the last one away.
+          </p>
+        </PopoverContent>
+      </Popover>
       <TableEditor editor={editor} table={table} open={editing} onOpenChange={setEditing} />
     </>
   )
@@ -205,8 +239,6 @@ const DEFAULT_OUTLINE: Outline = { color: '#3e2d25', width: 2 }
 
 /** Turns the contour around the selection on or off, and sets its thickness and color. */
 function OutlineControls({ editor, outline }: { editor: Editor; outline: Outline | null }) {
-  const close = useClosePopover()
-  const [width, setWidth] = useState<number | null>(null)
   const current = outline ?? DEFAULT_OUTLINE
   return (
     <>
@@ -218,24 +250,21 @@ function OutlineControls({ editor, outline }: { editor: Editor; outline: Outline
       />
       {outline ? (
         <>
+          {/* Changes show live while dragging and become one undo step on release. */}
           <Slider
             label="Thickness"
-            value={width ?? outline.width}
+            value={outline.width}
             min={0.5}
             max={12}
             step={0.5}
-            onChange={setWidth}
-            onCommit={(w) => {
-              setWidth(null)
-              editor.setSelectionOutline({ ...outline, width: w })
-              close()
-            }}
+            onChange={(width) => editor.setSelectionOutline({ ...outline, width }, false)}
+            onCommit={() => editor.commitSelectionEdit('Outline')}
             format={(v) => `${v} pt`}
           />
           <ColorPicker
             value={outline.color}
-            onChange={(color) => editor.setSelectionOutline({ ...outline, color })}
-            onCommit={close}
+            onChange={(color) => editor.setSelectionOutline({ ...outline, color }, false)}
+            onCommit={() => editor.commitSelectionEdit('Outline')}
           />
         </>
       ) : null}
@@ -244,12 +273,11 @@ function OutlineControls({ editor, outline }: { editor: Editor; outline: Outline
 }
 
 function SelectionColor({ editor, color }: { editor: Editor; color: string }) {
-  const close = useClosePopover()
   return (
     <ColorPicker
       value={color}
-      onChange={(next) => editor.recolorSelection(next)}
-      onCommit={close}
+      onChange={(next) => editor.recolorSelection(next, false)}
+      onCommit={() => editor.commitSelectionEdit('Color')}
     />
   )
 }
@@ -281,6 +309,30 @@ function MenuButton({
       {children}
       {iconOnly ? null : label}
     </button>
+  )
+}
+
+/** After a long press on the page: pastes what was copied right there. */
+export function PasteMenu({ editor, state }: { editor: Editor; state: EditorState }) {
+  const at = state.pasteMenu
+  if (!at) return null
+  return (
+    <div
+      role="menu"
+      aria-label="Paste"
+      className="absolute z-20 flex -translate-x-1/2 animate-pop-in items-center gap-0.5 rounded-panel bg-ink p-1 text-ink-inverse shadow-overlay"
+      style={{ left: `clamp(6rem, ${at.x}px, calc(100% - 6rem))`, top: Math.max(72, at.y - 64) }}
+    >
+      <button
+        type="button"
+        role="menuitem"
+        onClick={() => editor.pasteHere()}
+        className="flex h-11 items-center gap-2 rounded-control px-4 text-sm font-semibold hover:bg-white/10 active:bg-white/15"
+      >
+        <ClipboardPaste size={18} />
+        Paste
+      </button>
+    </div>
   )
 }
 

@@ -1,6 +1,14 @@
-import { setPageObjects } from '../commands/commands.ts'
+import { compound, setLayers, setPageObjects, type Command } from '../commands/commands.ts'
+import { createLayer } from '../model/factory.ts'
 import { newId } from '../model/ids.ts'
-import { PAGE_SIZE, type Id, type TextObject, type TextStyle } from '../model/types.ts'
+import {
+  PAGE_SIZE,
+  type Id,
+  type LayerDef,
+  type Page,
+  type TextObject,
+  type TextStyle,
+} from '../model/types.ts'
 import { FONT_STACKS, layoutText, textCenter } from '../render/text.ts'
 import type { EditorContext } from './context.ts'
 
@@ -40,6 +48,9 @@ export class TextController {
     this.ctx = ctx
     const area = document.createElement('textarea')
     area.setAttribute('aria-label', 'Text')
+    // No password, card or address suggestions: they add a bar above the keyboard.
+    area.setAttribute('autocomplete', 'off')
+    area.setAttribute('enterkeyhint', 'enter')
     area.spellcheck = true
     Object.assign(area.style, {
       position: 'absolute',
@@ -130,19 +141,61 @@ export class TextController {
     this.ctx.setHidden(new Set())
 
     const page = this.ctx.doc.page(e.pageId)
-    if (page) {
-      const empty = e.draft.text.trim() === ''
-      let after = page.objects
-      if (e.original && empty) after = page.objects.filter((o) => o.id !== e.draft.id)
-      else if (e.original) after = page.objects.map((o) => (o.id === e.draft.id ? e.draft : o))
-      else if (!empty) after = [...page.objects, e.draft]
-      const label = empty ? 'Delete text' : e.original ? 'Edit text' : 'Add text'
-      if (after !== page.objects && !sameText(e.original, e.draft)) {
-        this.ctx.history.execute(setPageObjects(label, page.id, page.objects, after))
-      }
-    }
+    if (page && !sameText(e.original, e.draft)) this.commit(page, e)
     this.ctx.requestRender()
     this.ctx.changed()
+  }
+
+  /**
+   * Saves the edit as one undo step. A new text box gets a text layer of its own, right above
+   * the active layer and named after the text; when a text box is emptied, its layer goes too.
+   */
+  private commit(page: Page, e: Editing): void {
+    const empty = e.draft.text.trim() === ''
+    const layers = this.ctx.doc.notebook.layers
+    const commands: Command[] = []
+    let draft = e.draft
+    if (!e.original) {
+      if (empty) return
+      const active = this.ctx.activeLayer()
+      const layer: LayerDef = { ...createLayer(textLayerName(draft.text)), kind: 'text' }
+      const index = layers.findIndex((l) => l.id === active?.id)
+      const after = [...layers]
+      after.splice(index < 0 ? after.length : index + 1, 0, layer)
+      commands.push(setLayers('Add text', layers, after))
+      draft = { ...draft, layerId: layer.id }
+      commands.push(setPageObjects('Add text', page.id, page.objects, [...page.objects, draft]))
+    } else {
+      const layer = layers.find((l) => l.id === draft.layerId)
+      const ownLayer = layer?.kind === 'text'
+      if (empty) {
+        const after = page.objects.filter((o) => o.id !== draft.id)
+        commands.push(setPageObjects('Delete text', page.id, page.objects, after))
+        const othersOnLayer = this.ctx.doc.pageList.some((p) =>
+          p.objects.some((o) => o.layerId === draft.layerId && o.id !== draft.id),
+        )
+        if (ownLayer && !othersOnLayer && layers.length > 1) {
+          commands.push(
+            setLayers(
+              'Delete text',
+              layers,
+              layers.filter((l) => l !== layer),
+            ),
+          )
+        }
+      } else {
+        const after = page.objects.map((o) => (o.id === draft.id ? draft : o))
+        commands.push(setPageObjects('Edit text', page.id, page.objects, after))
+        // A text layer still named after the old text follows the new text.
+        if (ownLayer && layer.name === textLayerName(e.original.text)) {
+          const renamed = layers.map((l) =>
+            l === layer ? { ...l, name: textLayerName(draft.text) } : l,
+          )
+          commands.push(setLayers('Edit text', layers, renamed))
+        }
+      }
+    }
+    this.ctx.history.execute(commands.length === 1 ? commands[0]! : compound('Text', commands))
   }
 
   /** Moves the textarea along with the page when the camera changes. */
@@ -232,4 +285,10 @@ export class TextController {
 
 function sameText(a: TextObject | null, b: TextObject): boolean {
   return a !== null && a.text === b.text && JSON.stringify(a.style) === JSON.stringify(b.style)
+}
+
+/** A text layer's name: the start of its first line. */
+export function textLayerName(text: string): string {
+  const line = text.trim().split('\n')[0]!.trim()
+  return line.length > 24 ? `${line.slice(0, 23)}…` : line || 'Text'
 }
