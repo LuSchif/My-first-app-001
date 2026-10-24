@@ -26,7 +26,7 @@ const FILTERS = [
 ] as const
 
 /**
- * The dashboard: search, the most recently edited notebooks, the folders, and the notebooks
+ * The dashboard: search, the folders, the most recently edited notebooks, and the notebooks
  * that are in no folder (or all of them). Folders and notebooks can be sorted and filtered.
  */
 export function LibraryView() {
@@ -106,12 +106,6 @@ function Dashboard({ library, reload }: { library: Library; reload: () => void }
 
   return (
     <>
-      {library.folders.length > 0 && recent.length > 0 ? (
-        <Section title="Recent">
-          <NotebookGrid notebooks={recent} library={library} reload={reload} />
-        </Section>
-      ) : null}
-
       <Section
         title="Folders"
         actions={
@@ -131,6 +125,12 @@ function Dashboard({ library, reload }: { library: Library; reload: () => void }
           newFolderParent={null}
         />
       </Section>
+
+      {library.folders.length > 0 && recent.length > 0 ? (
+        <Section title="Recent">
+          <NotebookGrid notebooks={recent} library={library} reload={reload} />
+        </Section>
+      ) : null}
 
       <Section
         title="Notebooks"

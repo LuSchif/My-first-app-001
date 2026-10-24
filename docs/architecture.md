@@ -81,8 +81,9 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
 
 ## Library and folders
 
-- The dashboard has a search over folder and notebook names, the six most recently edited
-  notebooks, the top-level folders and the notebooks in no folder (or all of them); folders and
+- The dashboard has a search over folder and notebook names, then, top to bottom, the
+  top-level folders, the six most recently edited notebooks and the notebooks in no folder (or
+  all of them); folders and
   notebooks have their own sort order (folders: own order, name, recently edited).
 - A folder has a name, a fill (one color, or a linear or radial gradient with any number of
   stops and a direction) and an icon from four groups (school, study, work, personal). Folders
