@@ -1,9 +1,8 @@
-import { Paintbrush } from 'lucide-react'
+import { BookmarkPlus, Paintbrush, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { createNotebook } from '../../engine/model/factory.ts'
-import { fillToCss, type Fill } from '../../engine/model/fill.ts'
+import type { Fill } from '../../engine/model/fill.ts'
 import type { Folder, Id, PaperKind } from '../../engine/model/types.ts'
-import { cn } from '../../lib/cn.ts'
 import {
   Button,
   ColorSwatch,
@@ -13,7 +12,10 @@ import {
 } from '../../design/index.ts'
 import { createNotebookRecord } from '../../storage/notebooks.ts'
 import { FillEditor } from '../folders/FillEditor.tsx'
-import { PAPER_OPTIONS, paperPreviewStyle } from '../paper.ts'
+import { PAPER_OPTIONS } from '../paper.ts'
+import { loadCoverDesigns, removeCoverDesign, saveCoverDesign } from './coverDesigns.ts'
+import { NotebookPreview } from './NotebookPreview.tsx'
+import { PaperCarousel } from './PaperCarousel.tsx'
 import { FolderField } from './FolderField.tsx'
 
 const COVERS: { name: string; fill: Fill }[] = [
@@ -48,6 +50,7 @@ export function NewNotebookDialog({
     ...folders,
     ...extraFolders.filter((f) => !folders.some((g) => g.id === f.id)),
   ]
+  const [designs, setDesigns] = useState(loadCoverDesigns)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -68,85 +71,114 @@ export function NewNotebookDialog({
     }
   }
 
+  const sameFill = (a: Fill, b: Fill) => JSON.stringify(a) === JSON.stringify(b)
+  const saved = designs.some((d) => sameFill(d, cover))
+
   return (
-    <DialogContent title="New notebook">
+    <DialogContent title="New notebook" className="w-[min(60rem,calc(100%-2rem))]">
       <form className="grid gap-6" onSubmit={submit}>
-        <TextField
-          label="Title"
-          placeholder="e.g. Biology"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-        />
-
-        <FolderField
-          folders={allFolders}
-          value={folder}
-          onChange={setFolder}
-          onCreated={(created) => {
-            setExtraFolders((list) => [...list, created])
-            setFolder(created.id)
-            onFoldersChanged?.()
-          }}
-        />
-
-        <fieldset className="grid gap-2">
-          <legend className="mb-2 text-sm font-medium">Paper</legend>
-          <div className="grid grid-cols-5 gap-3">
-            {PAPER_OPTIONS.map((option) => (
-              <button
-                key={option.kind}
-                type="button"
-                aria-pressed={paper === option.kind}
-                onClick={() => setPaper(option.kind)}
-                className="group grid gap-1.5 text-sm"
-              >
-                <span
-                  className={cn(
-                    'aspect-[3/4] w-full rounded-lg shadow-soft ring-1 ring-line transition-shadow',
-                    'group-aria-pressed:ring-2 group-aria-pressed:ring-ink',
-                  )}
-                  style={paperPreviewStyle(option.kind)}
-                />
-                <span className="text-ink-muted group-aria-pressed:font-semibold group-aria-pressed:text-ink">
-                  {option.label}
-                </span>
-              </button>
-            ))}
+        <div className="grid items-start gap-6 md:grid-cols-[minmax(0,15rem)_minmax(0,1fr)]">
+          {/* Live preview: follows every change on the right. */}
+          <div className="grid justify-items-center gap-3 rounded-panel bg-surface-sunken px-4 py-6 md:sticky md:top-0">
+            <NotebookPreview title={title.trim()} cover={cover} paper={paper} width={170} />
+            <p className="text-center text-sm text-ink-muted">
+              {PAPER_OPTIONS.find((o) => o.kind === paper)?.label} paper
+              {folder ? ` · in ${allFolders.find((f) => f.id === folder)?.name ?? ''}` : ''}
+            </p>
           </div>
-        </fieldset>
 
-        <fieldset className="grid gap-2">
-          <legend className="mb-1 text-sm font-medium">Cover</legend>
-          <div className="flex items-center gap-4">
-            <span
-              className="aspect-[3/4] w-14 shrink-0 rounded-r-lg rounded-l-sm shadow-raised"
-              style={{ background: fillToCss(cover) }}
+          <div className="grid min-w-0 gap-6">
+            <TextField
+              label="Title"
+              placeholder="e.g. Biology"
+              value={title}
+              maxLength={80}
+              onChange={(e) => setTitle(e.target.value)}
             />
-            <div role="group" aria-label="Cover colors" className="flex min-w-0 flex-wrap">
-              {COVERS.map((c) => (
-                <ColorSwatch
-                  key={c.name}
-                  label={c.name}
-                  fill={c.fill}
-                  selected={!customCover && cover === c.fill}
-                  onSelect={() => {
-                    setCustomCover(false)
-                    setCover(c.fill)
-                  }}
-                />
-              ))}
-              <button
-                type="button"
-                aria-pressed={customCover}
-                onClick={() => setCustomCover(!customCover)}
-                className="m-1 flex h-9 items-center gap-1.5 rounded-full px-3 text-sm font-semibold ring-1 ring-line hover:bg-hover aria-pressed:bg-ink aria-pressed:text-ink-inverse"
-              >
-                <Paintbrush size={16} /> Design
-              </button>
+
+            <FolderField
+              folders={allFolders}
+              value={folder}
+              onChange={setFolder}
+              onCreated={(created) => {
+                setExtraFolders((list) => [...list, created])
+                setFolder(created.id)
+                onFoldersChanged?.()
+              }}
+            />
+
+            <fieldset className="grid min-w-0 gap-2">
+              <legend className="mb-1 text-sm font-medium">Cover</legend>
+              <div role="group" aria-label="Cover colors" className="flex min-w-0 flex-wrap">
+                {COVERS.map((c) => (
+                  <ColorSwatch
+                    key={c.name}
+                    label={c.name}
+                    fill={c.fill}
+                    selected={!customCover && sameFill(cover, c.fill)}
+                    onSelect={() => {
+                      setCustomCover(false)
+                      setCover(c.fill)
+                    }}
+                  />
+                ))}
+                <button
+                  type="button"
+                  aria-pressed={customCover}
+                  onClick={() => setCustomCover(!customCover)}
+                  className="m-1 flex h-9 items-center gap-1.5 rounded-full px-3 text-sm font-semibold ring-1 ring-line hover:bg-hover aria-pressed:bg-ink aria-pressed:text-ink-inverse"
+                >
+                  <Paintbrush size={16} /> Design
+                </button>
+              </div>
+              {designs.length ? (
+                <div className="grid gap-1">
+                  <p className="text-xs font-semibold tracking-wide text-ink-muted uppercase">
+                    Your designs
+                  </p>
+                  <div role="group" aria-label="Your designs" className="flex min-w-0 flex-wrap">
+                    {designs.map((d, i) => (
+                      <ColorSwatch
+                        key={i}
+                        label={`Your design ${i + 1}`}
+                        fill={d}
+                        selected={sameFill(cover, d)}
+                        onSelect={() => setCover(d)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+              {customCover ? (
+                <div className="grid gap-3 rounded-card bg-surface p-4 ring-1 ring-line">
+                  <FillEditor value={cover} onChange={setCover} />
+                  <div className="flex justify-end gap-2">
+                    {saved ? (
+                      <Button
+                        icon={<Trash2 size={16} />}
+                        onClick={() => setDesigns(removeCoverDesign(cover))}
+                      >
+                        Remove from your designs
+                      </Button>
+                    ) : (
+                      <Button
+                        icon={<BookmarkPlus size={16} />}
+                        onClick={() => setDesigns(saveCoverDesign(cover))}
+                      >
+                        Save design
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              ) : null}
+            </fieldset>
+
+            <div className="grid gap-1">
+              <span className="text-sm font-medium">Paper</span>
+              <PaperCarousel value={paper} onChange={setPaper} />
             </div>
           </div>
-          {customCover ? <FillEditor value={cover} onChange={setCover} /> : null}
-        </fieldset>
+        </div>
 
         {error ? <p className="text-sm text-danger">{error}</p> : null}
 
