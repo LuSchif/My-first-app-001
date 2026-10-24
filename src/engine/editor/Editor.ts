@@ -4,8 +4,11 @@ import {
   removePage,
   setLayers,
   setNotebookBackground,
+  setNotebookPaper,
   setPageBackground,
   setPageObjects,
+  setPagePaper,
+  type Command,
 } from '../commands/commands.ts'
 import type { History } from '../commands/History.ts'
 import type { NotebookDocument } from '../document/NotebookDocument.ts'
@@ -23,6 +26,7 @@ import {
   type LayerDef,
   type Outline,
   type Page,
+  type PaperKind,
   type StrokeDash,
   type StrokeObject,
   type TextObject,
@@ -191,6 +195,9 @@ interface DeviceRect {
  * the stroke in progress ("wet" grows, "tip" holds the short end that still changes), so each
  * input event draws only a few pixels however long the stroke gets.
  */
+/** Which pages a paper change is for: the page in view, pages added later, or both, or all. */
+export type PaperScope = 'page' | 'page-and-new' | 'new' | 'all'
+
 export class Editor {
   private readonly host: HTMLElement
   private readonly doc: NotebookDocument
@@ -909,6 +916,26 @@ export class Editor {
     this.history.execute(setPageObjects('Insert', page.id, page.objects, [...page.objects, object]))
     this.setTool('lasso')
     this.selection.select(page.id, [object.id])
+  }
+
+  /**
+   * Changes the paper: of the page in view, of the pages added from now on, or of every page.
+   * One step to undo.
+   */
+  setPaper(kind: PaperKind, scope: PaperScope): void {
+    const commands: Command[] = []
+    const pages =
+      scope === 'all'
+        ? this.doc.pageList
+        : scope === 'new'
+          ? []
+          : [this.doc.pageList[this._state.pageIndex]].filter((p) => p !== undefined)
+    for (const page of pages) {
+      if (page.paper !== kind) commands.push(setPagePaper(page.id, page.paper, kind))
+    }
+    const notebook = this.doc.notebook.paper
+    if (scope !== 'page' && notebook !== kind) commands.push(setNotebookPaper(notebook, kind))
+    if (commands.length) this.history.execute(compound('Paper', commands))
   }
 
   addPageAfterCurrent(): void {

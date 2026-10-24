@@ -1,4 +1,4 @@
-import type { CanvasObject, Id, Notebook, Page } from '../model/types.ts'
+import type { CanvasObject, Id, Notebook, Page, PaperKind } from '../model/types.ts'
 
 export type DocumentChange = { type: 'page'; pageId: Id } | { type: 'notebook' }
 
@@ -61,6 +61,15 @@ export class NotebookDocument {
     this.emit({ type: 'page', pageId })
   }
 
+  setPaper(pageId: Id, paper: PaperKind): void {
+    const page = this.pages.get(pageId)
+    if (!page) return
+    this.pages.set(pageId, { ...page, paper, updatedAt: Date.now() })
+    this.dirtyPages.add(pageId)
+    this.notebookDirty = true
+    this.emit({ type: 'page', pageId })
+  }
+
   /** Replaces the page order; pages listed here that are not loaded yet must be added first. */
   setPageIds(pageIds: Id[]): void {
     this._notebook = { ...this._notebook, pageIds }
@@ -74,7 +83,9 @@ export class NotebookDocument {
   }
 
   updateNotebook(
-    patch: Partial<Pick<Notebook, 'title' | 'layers' | 'cover' | 'folderId' | 'background'>>,
+    patch: Partial<
+      Pick<Notebook, 'title' | 'layers' | 'cover' | 'folderId' | 'background' | 'paper'>
+    >,
   ): void {
     this._notebook = { ...this._notebook, ...patch }
     this.notebookDirty = true

@@ -57,12 +57,20 @@ export function useVirtualKeyboard(): boolean {
     // (a text box moves with the page) once per frame.
     let frame = 0
     const redraw = () => {
-      cancelAnimationFrame(frame)
+      frame = 0
       const field = keyboardState().field
       showMirror(field, selection())
       if (field) frame = requestAnimationFrame(redraw)
     }
-    const stopWatching = onKeyboardChange(redraw)
+    // While typing, the next frame shows the change: a burst of keys costs one redraw.
+    const stopWatching = onKeyboardChange(() => {
+      if (!keyboardState().field) {
+        cancelAnimationFrame(frame)
+        redraw()
+      } else if (!frame) {
+        frame = requestAnimationFrame(redraw)
+      }
+    })
 
     const fieldAt = (target: EventTarget | null): Field | null => {
       const el = (target as Element | null)?.closest?.('input, textarea')

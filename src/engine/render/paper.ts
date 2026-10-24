@@ -8,6 +8,8 @@ export const PAPER_STYLE = {
   dot: 'rgba(121, 90, 70, 0.42)',
   lined: { top: 96, gap: 24, bottom: 48, margin: 64 },
   grid: { size: 5 * MM },
+  /** Staves of five lines; `gap` is the space between two lines of a staff. */
+  music: { top: 72, gap: 7, pitch: 58, bottom: 48, side: 40 },
 } as const
 
 /**
@@ -46,6 +48,25 @@ export function drawPaper(ctx: CanvasRenderingContext2D, kind: PaperKind, zoom: 
     for (let y = offY; y <= height; y += g) {
       ctx.moveTo(0, y)
       ctx.lineTo(width, y)
+    }
+    ctx.stroke()
+  } else if (kind === 'music') {
+    const m = PAPER_STYLE.music
+    const staff = m.gap * 4
+    ctx.lineWidth = hair
+    ctx.strokeStyle = PAPER_STYLE.rule
+    ctx.beginPath()
+    for (let top = m.top; top + staff <= height - m.bottom; top += m.pitch) {
+      for (let line = 0; line < 5; line++) {
+        const y = top + line * m.gap
+        ctx.moveTo(m.side, y)
+        ctx.lineTo(width - m.side, y)
+      }
+      // Each staff starts and ends with a bar line.
+      ctx.moveTo(m.side, top)
+      ctx.lineTo(m.side, top + staff)
+      ctx.moveTo(width - m.side, top)
+      ctx.lineTo(width - m.side, top + staff)
     }
     ctx.stroke()
   } else if (kind === 'dotted') {

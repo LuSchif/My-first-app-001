@@ -11,7 +11,7 @@ export type Id = string
 /** Bump when the stored shape changes, and add a migration in storage/db.ts. */
 export const SCHEMA_VERSION = 1
 
-export type PaperKind = 'lined' | 'grid' | 'dotted' | 'blank'
+export type PaperKind = 'lined' | 'grid' | 'dotted' | 'music' | 'blank'
 
 export interface Folder {
   id: Id
@@ -43,6 +43,7 @@ export interface Notebook {
   title: string
   folderId: Id | null
   cover: Fill
+  /** The paper new pages get; each page keeps its own. */
   paper: PaperKind
   pageIds: Id[]
   /** Bottom to top. */

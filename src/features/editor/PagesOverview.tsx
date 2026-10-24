@@ -1,8 +1,8 @@
 import { Copy, FilePlus2, LoaderCircle, MoreHorizontal, Share, Trash2 } from 'lucide-react'
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import type { NotebookDocument } from '../../engine/document/NotebookDocument.ts'
-import type { Editor } from '../../engine/editor/Editor.ts'
-import { PAGE_SIZE, type LayerDef, type Page } from '../../engine/model/types.ts'
+import type { Editor, PaperScope } from '../../engine/editor/Editor.ts'
+import { PAGE_SIZE, type LayerDef, type Page, type PaperKind } from '../../engine/model/types.ts'
 import { drawPage, preloadPictures } from '../../engine/render/pageImage.ts'
 import {
   Button,
@@ -14,6 +14,7 @@ import {
   useClosePopover,
 } from '../../design/index.ts'
 import { cn } from '../../lib/cn.ts'
+import { PAPER_OPTIONS, paperPreviewStyle } from '../paper.ts'
 import { exportPages, type ExportFormat } from './exporting.ts'
 
 const THUMB_WIDTH = 168
@@ -24,9 +25,16 @@ const FORMATS: { format: ExportFormat; label: string; hint: string }[] = [
   { format: 'broomit', label: 'Broomit', hint: 'To keep editing in Broomit' },
 ]
 
+const SCOPES: { scope: PaperScope; label: string }[] = [
+  { scope: 'page', label: 'This page' },
+  { scope: 'page-and-new', label: 'This page and new pages' },
+  { scope: 'new', label: 'New pages' },
+  { scope: 'all', label: 'All pages' },
+]
+
 /**
- * Every page of the notebook at a glance: jump to a page, add, duplicate or delete pages, and
- * export single pages or the whole notebook.
+ * Every page of the notebook at a glance: jump to a page, add, duplicate or delete pages, change
+ * the paper, and export single pages or the whole notebook.
  */
 export function PagesOverview({
   editor,
@@ -50,6 +58,10 @@ export function PagesOverview({
     (fn) => doc.subscribe(fn),
     () => doc.notebook.background,
   )
+  const newPaper = useSyncExternalStore(
+    (fn) => doc.subscribe(fn),
+    () => doc.notebook.paper,
+  )
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -68,6 +80,12 @@ export function PagesOverview({
 
   return (
     <DialogContent title="Pages" className="w-[min(64rem,calc(100%-2rem))]">
+      <PaperPicker
+        editor={editor}
+        pageNumber={currentIndex + 1}
+        pagePaper={pages[currentIndex]?.paper ?? newPaper}
+        newPaper={newPaper}
+      />
       <div className="mb-5 flex flex-wrap items-center gap-2">
         <span className="mr-1 text-sm font-semibold">Export notebook</span>
         {FORMATS.map(({ format, label }) => (
@@ -130,6 +148,77 @@ export function PagesOverview({
         </li>
       </ul>
     </DialogContent>
+  )
+}
+
+/**
+ * The paper of the page in view and of pages added later, so one notebook can mix papers
+ * (grid on page 1, dotted on page 2).
+ */
+function PaperPicker({
+  editor,
+  pageNumber,
+  pagePaper,
+  newPaper,
+}: {
+  editor: Editor
+  pageNumber: number
+  pagePaper: PaperKind
+  newPaper: PaperKind
+}) {
+  const [scope, setScope] = useState<PaperScope>('page-and-new')
+  const shown = scope === 'new' ? newPaper : pagePaper
+  const label = (kind: PaperKind) => PAPER_OPTIONS.find((o) => o.kind === kind)?.label ?? kind
+  return (
+    <section
+      aria-label="Paper"
+      className="mb-5 grid gap-3 rounded-card bg-surface p-4 ring-1 ring-line"
+    >
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h3 className="text-sm font-semibold">Paper</h3>
+        <p className="text-xs text-ink-muted">
+          Page {pageNumber}: {label(pagePaper)} · New pages: {label(newPaper)}
+        </p>
+      </div>
+      <div role="radiogroup" aria-label="Change paper for" className="flex flex-wrap gap-1.5">
+        {SCOPES.map((s) => (
+          <button
+            key={s.scope}
+            type="button"
+            role="radio"
+            aria-checked={scope === s.scope}
+            onClick={() => setScope(s.scope)}
+            className={cn(
+              'h-9 rounded-full px-3.5 text-sm font-semibold ring-1 ring-line transition-colors',
+              scope === s.scope
+                ? 'bg-ink text-ink-inverse ring-ink'
+                : 'text-ink-muted hover:bg-hover',
+            )}
+          >
+            {s.scope === 'page' ? `Page ${pageNumber}` : s.label}
+          </button>
+        ))}
+      </div>
+      <div className="grid grid-cols-5 gap-3">
+        {PAPER_OPTIONS.map((option) => (
+          <button
+            key={option.kind}
+            type="button"
+            aria-pressed={shown === option.kind}
+            onClick={() => editor.setPaper(option.kind, scope)}
+            className="group grid gap-1.5 text-sm"
+          >
+            <span
+              className="aspect-[3/2] w-full rounded-lg shadow-soft ring-1 ring-line transition-shadow group-aria-pressed:ring-2 group-aria-pressed:ring-ink"
+              style={paperPreviewStyle(option.kind)}
+            />
+            <span className="text-ink-muted group-aria-pressed:font-semibold group-aria-pressed:text-ink">
+              {option.label}
+            </span>
+          </button>
+        ))}
+      </div>
+    </section>
   )
 }
 

@@ -90,7 +90,7 @@ export function VirtualKeyboard() {
       aria-label="Broomit Keyboard"
       // Stays usable while a dialog blocks the page behind it.
       style={{ pointerEvents: 'auto', touchAction: 'none', WebkitTouchCallout: 'none' }}
-      className="fixed inset-x-0 bottom-0 z-[70] grid gap-1 bg-surface-sunken/97 px-1 pt-1.5 pb-[calc(6px+env(safe-area-inset-bottom))] shadow-overlay backdrop-blur select-none"
+      className="fixed inset-x-0 bottom-0 z-[70] grid gap-1 bg-surface-sunken/97 px-1 pt-1.5 pb-[calc(14px+env(safe-area-inset-bottom))] shadow-overlay backdrop-blur select-none"
     >
       <div className="mx-auto flex w-full max-w-[64rem] items-center gap-1 px-1">
         <span className="mr-auto truncate text-sm font-semibold text-ink">Broomit Keyboard</span>
@@ -197,15 +197,34 @@ interface KeyHandler {
 const keyHandlers = new WeakMap<Element, KeyHandler>()
 
 /** How far from a key a touch at the keyboard's edge may land and still press it. */
-const NEAREST_KEY_PX = 28
+const NEAREST_KEY_PX = 60
+/** A touch and a pointer event this close in time and place are the same finger. */
+const SAME_PRESS_MS = 250
+const SAME_PRESS_PX = 24
 
 /**
- * Feeds touches on the keyboard straight to the keys. Touch events report every finger
- * separately and at once, which keeps up with fast typing; all touches are cancelled, so
- * iPadOS cannot read quick taps as a double-tap zoom, a scroll or a text selection.
+ * Feeds touches on the keyboard straight to the keys, on touch-down. Each finger is read from
+ * two sources, touch events and pointer events, and whichever reports it first presses the
+ * key; the other is recognized as the same finger. So a tap one source drops (which iPadOS
+ * does now and then when typing fast) still counts. All touches are cancelled, so iPadOS
+ * cannot read quick taps as a double-tap zoom, a scroll or a text selection.
  */
 function routeTouches(keyboard: HTMLElement): () => void {
-  const pressed = new Map<number, Element>()
+  /** Finger ids from both sources ('t3', 'p12') to the press they started. */
+  const fingers = new Map<string, Press>()
+  const recent: Press[] = []
+  let nextId = 1
+
+  interface Press {
+    id: number
+    key: Element
+    x: number
+    y: number
+    time: number
+    sources: Set<'t' | 'p'>
+    ended: boolean
+  }
+
   const keyAt = (x: number, y: number): Element | null => {
     const hit = document.elementFromPoint(x, y)?.closest('[data-key]')
     if (hit && keyboard.contains(hit)) return hit
@@ -224,43 +243,101 @@ function routeTouches(keyboard: HTMLElement): () => void {
     }
     return best
   }
-  const onStart = (e: TouchEvent) => {
+
+  const begin = (source: 't' | 'p', finger: number, x: number, y: number) => {
+    const name = `${source}${finger}`
+    if (fingers.has(name)) return
+    const now = performance.now()
+    // The same finger, already reported by the other source.
+    const same = recent.find(
+      (p) =>
+        !p.sources.has(source) &&
+        now - p.time < SAME_PRESS_MS &&
+        Math.hypot(p.x - x, p.y - y) < SAME_PRESS_PX,
+    )
+    if (same) {
+      same.sources.add(source)
+      if (!same.ended) fingers.set(name, same)
+      return
+    }
+    const key = keyAt(x, y)
+    if (!key || (key as HTMLButtonElement).disabled) return
+    const press: Press = {
+      id: nextId++,
+      key,
+      x,
+      y,
+      time: now,
+      sources: new Set([source]),
+      ended: false,
+    }
+    fingers.set(name, press)
+    recent.push(press)
+    while (recent.length > 20) recent.shift()
+    key.setAttribute('data-down', '')
+    keyHandlers.get(key)?.down(press.id, x)
+  }
+  const moveTo = (source: 't' | 'p', finger: number, x: number) => {
+    const press = fingers.get(`${source}${finger}`)
+    if (press && !press.ended) keyHandlers.get(press.key)?.move?.(press.id, x)
+  }
+  const end = (source: 't' | 'p', finger: number, cancelled: boolean) => {
+    const name = `${source}${finger}`
+    const press = fingers.get(name)
+    fingers.delete(name)
+    if (!press || press.ended) return
+    // A cancelled report from one source does not undo a press the other still follows.
+    if (cancelled && [...fingers.values()].includes(press)) return
+    press.ended = true
+    for (const [other, p] of fingers) if (p === press) fingers.delete(other)
+    if (![...fingers.values()].some((p) => p.key === press.key)) {
+      press.key.removeAttribute('data-down')
+    }
+    const handler = keyHandlers.get(press.key)
+    if (cancelled) handler?.cancel?.(press.id)
+    else handler?.up?.(press.id)
+  }
+
+  const onTouchStart = (e: TouchEvent) => {
     e.preventDefault()
-    for (const t of Array.from(e.changedTouches)) {
-      const key = keyAt(t.clientX, t.clientY)
-      if (!key || (key as HTMLButtonElement).disabled) continue
-      pressed.set(t.identifier, key)
-      key.setAttribute('data-down', '')
-      keyHandlers.get(key)?.down(t.identifier, t.clientX)
-    }
+    for (const t of Array.from(e.changedTouches)) begin('t', t.identifier, t.clientX, t.clientY)
   }
-  const onMove = (e: TouchEvent) => {
+  const onTouchMove = (e: TouchEvent) => {
     e.preventDefault()
+    for (const t of Array.from(e.changedTouches)) moveTo('t', t.identifier, t.clientX)
+  }
+  const onTouchEnd = (e: TouchEvent) => {
     for (const t of Array.from(e.changedTouches)) {
-      const key = pressed.get(t.identifier)
-      if (key) keyHandlers.get(key)?.move?.(t.identifier, t.clientX)
+      end('t', t.identifier, e.type === 'touchcancel')
     }
   }
-  const onEnd = (e: TouchEvent) => {
-    for (const t of Array.from(e.changedTouches)) {
-      const key = pressed.get(t.identifier)
-      if (!key) continue
-      pressed.delete(t.identifier)
-      if (![...pressed.values()].includes(key)) key.removeAttribute('data-down')
-      const handler = keyHandlers.get(key)
-      if (e.type === 'touchcancel') handler?.cancel?.(t.identifier)
-      else handler?.up?.(t.identifier)
-    }
+  // A mouse or trackpad is handled by the keys themselves (useKey).
+  const finger = (e: PointerEvent) => e.pointerType !== 'mouse'
+  const onPointerDown = (e: PointerEvent) => {
+    if (finger(e)) begin('p', e.pointerId, e.clientX, e.clientY)
   }
-  keyboard.addEventListener('touchstart', onStart, { passive: false })
-  keyboard.addEventListener('touchmove', onMove, { passive: false })
-  keyboard.addEventListener('touchend', onEnd)
-  keyboard.addEventListener('touchcancel', onEnd)
+  const onPointerMove = (e: PointerEvent) => {
+    if (finger(e)) moveTo('p', e.pointerId, e.clientX)
+  }
+  const onPointerUp = (e: PointerEvent) => {
+    if (finger(e)) end('p', e.pointerId, e.type === 'pointercancel')
+  }
+
+  const listeners: [string, (e: never) => void, AddEventListenerOptions?][] = [
+    ['touchstart', onTouchStart, { passive: false }],
+    ['touchmove', onTouchMove, { passive: false }],
+    ['touchend', onTouchEnd],
+    ['touchcancel', onTouchEnd],
+    ['pointerdown', onPointerDown],
+    ['pointermove', onPointerMove],
+    ['pointerup', onPointerUp],
+    ['pointercancel', onPointerUp],
+  ]
+  for (const [type, fn, options] of listeners) {
+    keyboard.addEventListener(type, fn as EventListener, options)
+  }
   return () => {
-    keyboard.removeEventListener('touchstart', onStart)
-    keyboard.removeEventListener('touchmove', onMove)
-    keyboard.removeEventListener('touchend', onEnd)
-    keyboard.removeEventListener('touchcancel', onEnd)
+    for (const [type, fn] of listeners) keyboard.removeEventListener(type, fn as EventListener)
   }
 }
 

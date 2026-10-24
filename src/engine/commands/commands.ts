@@ -1,5 +1,5 @@
 import type { NotebookDocument } from '../document/NotebookDocument.ts'
-import type { CanvasObject, Id, LayerDef, Page } from '../model/types.ts'
+import type { CanvasObject, Id, LayerDef, Page, PaperKind } from '../model/types.ts'
 
 /** A reversible change to a document. */
 export interface Command {
@@ -34,6 +34,23 @@ export function setPageBackground(
     label: 'Page color',
     apply: (doc) => doc.setBackground(pageId, after),
     revert: (doc) => doc.setBackground(pageId, before),
+  }
+}
+
+export function setPagePaper(pageId: Id, before: PaperKind, after: PaperKind): Command {
+  return {
+    label: 'Paper',
+    apply: (doc) => doc.setPaper(pageId, after),
+    revert: (doc) => doc.setPaper(pageId, before),
+  }
+}
+
+/** Changes the paper that new pages get. */
+export function setNotebookPaper(before: PaperKind, after: PaperKind): Command {
+  return {
+    label: 'Paper',
+    apply: (doc) => doc.updateNotebook({ paper: after }),
+    revert: (doc) => doc.updateNotebook({ paper: before }),
   }
 }
 

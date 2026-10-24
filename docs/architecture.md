@@ -64,6 +64,9 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
 - A selection has two handles; dragging one moves that end of the selection.
 - The name shown is "Broomit Keyboard".
 - There is no switch back to the system keyboard: on iPad it would bring the bar back.
+- Each finger is read from touch events and from pointer events; whichever reports it first
+  presses the key, so a tap one source drops still counts. A tap up to 60 px off the keys goes
+  to the nearest key.
 - Keys read touch events directly (every finger separately, on touch-down, also the space
   bar), so fast typing with overlapping fingers keeps every letter in order. Each key's touch
   area covers the gaps around it, and touches on the keyboard are cancelled, so iPadOS cannot
@@ -121,6 +124,12 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
   (`model/table.ts`).
 - Charts can be stacked, show average lines, and be sorted or transposed (`model/chart.ts`).
 - Outlines sit outside, centered on or inside the edge (`render/outline.ts`).
+
+## Paper
+
+- Every page keeps its own paper (lined, grid, dotted, music, blank); the notebook's paper is
+  the one new pages get. The page overview changes the paper of the page in view, of new pages,
+  of both, or of all pages, as one undo step.
 
 ## Export
 

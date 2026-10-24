@@ -61,7 +61,7 @@ export function NewNotebookDialog({ onCreated }: { onCreated: (id: string) => vo
 
         <fieldset className="grid gap-2">
           <legend className="mb-2 text-sm font-medium">Paper</legend>
-          <div className="grid grid-cols-4 gap-3">
+          <div className="grid grid-cols-5 gap-3">
             {PAPER_OPTIONS.map((option) => (
               <button
                 key={option.kind}
