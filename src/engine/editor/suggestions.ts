@@ -13,7 +13,17 @@ import {
 import { detectTable } from '../geometry/tableDetect.ts'
 import { withPoints } from '../model/factory.ts'
 import { DEFAULT_TABLE_STYLE, tableFromGrid } from '../model/table.ts'
-import type { CanvasObject, FillObject, Id, StrokeObject } from '../model/types.ts'
+import type { CanvasObject, FillObject, Id, PaperKind, StrokeObject } from '../model/types.ts'
+import { PAPER_STYLE } from '../render/paper.ts'
+import {
+  CLEF_LABEL,
+  clefStrokes,
+  detectClef,
+  type ClefKind,
+  type ClefStroke,
+  type Staves,
+} from '../geometry/clefs.ts'
+import { PAGE_SIZE } from '../model/types.ts'
 
 /** Strokes smaller than this (in points) are handwriting, not shapes. */
 const MIN_SHAPE_SIZE = 36
@@ -26,6 +36,8 @@ export type Suggestion =
   | { kind: 'fill'; region: Region; color: string; opacity: number; removeIds: Id[] }
   /** Hand-drawn grid lines become a table with the same spacing. */
   | { kind: 'table'; strokeIds: Id[]; xs: number[]; ys: number[]; color: string; width: number }
+  /** A hand-drawn clef on music paper becomes a clean one on its staff line. */
+  | { kind: 'clef'; strokeIds: Id[]; clef: ClefKind; strokes: ClefStroke[] }
 
 /** The strokes a suggestion changes or relies on. */
 export function suggestionIds(s: Suggestion): Id[] {
@@ -37,6 +49,7 @@ export function suggestionIds(s: Suggestion): Id[] {
 export function suggestionBounds(s: Suggestion): Rect {
   if (s.kind === 'fill') return boundsOfPoints(s.region.points)
   if (s.kind === 'shape') return boundsOfPoints(s.shape.points)
+  if (s.kind === 'clef') return boundsOfPoints(s.strokes.flatMap((c) => c.points))
   return {
     minX: s.xs[0]!,
     minY: s.ys[0]!,
@@ -48,6 +61,7 @@ export function suggestionBounds(s: Suggestion): Rect {
 export function suggestionLabel(s: Suggestion): string {
   if (s.kind === 'fill') return 'Auto fill'
   if (s.kind === 'shape') return `Auto shape · ${s.shape.label}`
+  if (s.kind === 'clef') return `Clean clef · ${CLEF_LABEL[s.clef]}`
   return `Auto table · ${s.ys.length - 1} × ${s.xs.length - 1}`
 }
 
@@ -102,7 +116,13 @@ export function suggestFor(
   stroke: StrokeObject,
   /** Only look for a table, e.g. after a line that was already made perfectly straight. */
   tableOnly = false,
+  /** The page's paper: on music paper, clefs are recognized. */
+  paper?: PaperKind,
 ): Suggestion | null {
+  if (paper === 'music' && !tableOnly) {
+    const clef = clefFor(objects, stroke)
+    if (clef) return clef
+  }
   const pts = stroke.points
   let cx = 0
   let cy = 0
@@ -174,6 +194,59 @@ export function suggestFor(
   return shape ? { kind: 'shape', strokeIds: [stroke.id], shape } : null
 }
 
+/** The staves on music paper. */
+export const MUSIC_STAVES: Staves = (() => {
+  const m = PAPER_STYLE.music
+  let count = 0
+  while (m.top + count * m.pitch + 4 * m.gap <= PAGE_SIZE.height - m.bottom) count++
+  return { top: m.top, gap: m.gap, pitch: m.pitch, count }
+})()
+
+/** How many of the latest strokes are looked at together for a clef (a bass clef has three). */
+const CLEF_GROUP = 6
+
+/**
+ * A clef drawn with the latest stroke: the newest strokes close to it are tried together, the
+ * most of them first, so a clef drawn in parts (a hook, then two dots) is found as a whole.
+ */
+function clefFor(objects: readonly CanvasObject[], stroke: StrokeObject): Suggestion | null {
+  const g = MUSIC_STAVES.gap
+  const recent: StrokeObject[] = []
+  let area = boundsOfPoints(stroke.points)
+  for (let i = objects.length - 1; i >= 0 && recent.length < CLEF_GROUP; i--) {
+    const o = objects[i]!
+    if (o.type !== 'stroke' || o.layerId !== stroke.layerId || o.tool !== 'pen') continue
+    const b = boundsOfPoints(o.points)
+    const near = {
+      minX: area.minX - 3 * g,
+      minY: area.minY - 4 * g,
+      maxX: area.maxX + 3 * g,
+      maxY: area.maxY + 4 * g,
+    }
+    if (o.id !== stroke.id && !intersects(b, near)) break
+    recent.push(o)
+    area = {
+      minX: Math.min(area.minX, b.minX),
+      minY: Math.min(area.minY, b.minY),
+      maxX: Math.max(area.maxX, b.maxX),
+      maxY: Math.max(area.maxY, b.maxY),
+    }
+  }
+  if (!recent.length || recent[0]!.id !== stroke.id) return null
+  for (let k = recent.length; k >= 1; k--) {
+    const group = recent.slice(0, k).reverse()
+    const found = detectClef(group, MUSIC_STAVES)
+    if (!found) continue
+    return {
+      kind: 'clef',
+      strokeIds: group.map((s) => s.id),
+      clef: found.kind,
+      strokes: clefStrokes(found.kind, found.x, found.staffTop, g, stroke.width),
+    }
+  }
+  return null
+}
+
 export function fillFor(
   region: Region,
   color: string,
@@ -215,6 +288,23 @@ export function applySuggestion(
     const at = objects.findIndex((o) => strokeIds.includes(o.id))
     const kept = objects.filter((o) => !strokeIds.includes(o.id))
     kept.splice(Math.max(0, Math.min(at, kept.length)), 0, table)
+    return kept
+  }
+  if (suggestion.kind === 'clef') {
+    const { strokeIds } = suggestion
+    const first = objects.find((o) => o.id === strokeIds[strokeIds.length - 1])
+    if (first?.type !== 'stroke') return [...objects]
+    const { path: _path, closed: _closed, straight: _straight, dash: _dash, ...ink } = first
+    const clean: StrokeObject[] = suggestion.strokes.map((c) => ({
+      ...ink,
+      id: newId(),
+      points: c.points,
+      widths: c.widths,
+    }))
+    // The clean clef takes the place of the first drawn part.
+    const at = objects.findIndex((o) => strokeIds.includes(o.id))
+    const kept = objects.filter((o) => !strokeIds.includes(o.id))
+    kept.splice(Math.max(0, Math.min(at, kept.length)), 0, ...clean)
     return kept
   }
   if (suggestion.kind === 'shape') {

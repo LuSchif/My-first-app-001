@@ -137,6 +137,34 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
 - The shape analysis runs 350 ms after the pen lifts and only over nearby strokes, so it never
   costs time while writing.
 
+- On music paper, a hand-drawn treble, bass, alto or tenor clef (also drawn in parts, like a
+  hook and two dots) offers a clean clef on the staff line it belongs to
+  (`engine/geometry/clefs.ts`). Clean clefs are strokes with thick and thin parts.
+
+## Pens and tools
+
+- The fountain pen stores a width per point (`StrokeObject.widths`): wide across the nib's
+  angled edge, thin along it, wider with more pen pressure (`engine/geometry/nib.ts`). Such a
+  stroke is filled as the union of circles and the bands between them; the broom keeps each
+  remaining point's width.
+- Tape is a straight `StrokeObject` with `tool: 'tape'`; a finger double tap peels it off or
+  sticks it back on (`revealed`), saved but not undoable, since it is a way of looking at the
+  page.
+- The eyedropper reads the page once per touch and hands the color to the tool used before.
+- The laser trail, broom dust and tape animations draw on an effects canvas of their own with
+  one animation loop that stops when idle (`FxLayer.ts`). No canvas shadows: blurring each
+  frame made the laser lag.
+- New text on ruled paper takes the line spacing as its line height and rests on the lines
+  (Auto align).
+- The control center (gear in the editor) switches features and toolbar tools on and off; the
+  choice is kept per device (`editor/features.ts`).
+
+## Appearance
+
+- Themes are built from one accent color (presets or any color), light or dark, by overriding
+  the color tokens of `tokens.css` on the root element (`design/theme.ts`). Pages stay paper
+  colored; the editor's desk follows `--color-desk`.
+
 ## Data safety
 
 - Autosave writes per page, shortly after each change and on `pagehide`.

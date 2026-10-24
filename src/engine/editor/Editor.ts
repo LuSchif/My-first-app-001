@@ -113,7 +113,11 @@ export interface EditorState {
   /** What the control center has switched on. */
   features: Features
   /** The offer currently shown, placed near what it would change. */
-  suggestion: { kind: 'shape' | 'fill' | 'table'; label: string; rect: ScreenRect } | null
+  suggestion: {
+    kind: 'shape' | 'fill' | 'table' | 'clef'
+    label: string
+    rect: ScreenRect
+  } | null
   selection: SelectionInfo | null
   /** The stroke being edited with the path tool. */
   pathEdit: PathEditInfo | null
@@ -774,9 +778,10 @@ export class Editor {
     this.suggestTimer = setTimeout(() => {
       this.suggestTimer = null
       if (this.session) return
-      const objects = this.doc.page(pageId)?.objects
+      const page = this.doc.page(pageId)
+      const objects = page?.objects
       if (!objects?.some((o) => o.id === stroke.id)) return
-      const suggestion = suggestFor(objects, stroke, tableOnly)
+      const suggestion = suggestFor(objects, stroke, tableOnly, page?.paper)
       if (suggestion) this.offer(pageId, stroke.layerId, suggestion)
     }, SUGGEST_DELAY_MS)
   }
