@@ -30,10 +30,19 @@ export function DialogContent({
           e.preventDefault()
           ;(e.currentTarget as HTMLElement | null)?.focus()
         }}
+        // Typing on the app's own keyboard is part of using the dialog, not a tap outside it.
+        onPointerDownOutside={(e) => {
+          if ((e.target as Element | null)?.closest?.('[data-virtual-keyboard]')) e.preventDefault()
+        }}
+        onInteractOutside={(e) => {
+          if ((e.target as Element | null)?.closest?.('[data-virtual-keyboard]')) e.preventDefault()
+        }}
         // Radix expects either a Description or an explicit "no description".
         {...(description ? {} : { 'aria-describedby': undefined })}
         className={cn(
-          'fixed top-1/2 left-1/2 z-50 max-h-[calc(100%-2rem)] w-[min(36rem,calc(100%-2rem))]',
+          // Centered in the space above the app's own keyboard, when it is open.
+          'fixed top-[calc((100%-var(--kb-height,0px))/2)] left-1/2 z-50 w-[min(36rem,calc(100%-2rem))]',
+          'max-h-[calc(100%-2rem-var(--kb-height,0px))]',
           '-translate-x-1/2 -translate-y-1/2 overflow-y-auto',
           'animate-pop-in rounded-panel bg-surface-raised p-6 shadow-overlay',
           className,

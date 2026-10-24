@@ -5,12 +5,17 @@ import { LibraryView } from '../features/library/LibraryView.tsx'
 import { requestPersistentStorage } from '../storage/db.ts'
 import { usePencilTaps } from '../lib/usePencilTaps.ts'
 import { useRequestedFocus } from '../lib/useRequestedFocus.ts'
+import { useVirtualKeyboard } from '../features/keyboard/useVirtualKeyboard.ts'
+import { VirtualKeyboard } from '../features/keyboard/VirtualKeyboard.tsx'
 import { useRoute } from './router.ts'
 
 export function App() {
   const route = useRoute()
   usePencilTaps()
-  useRequestedFocus()
+  // On iPad, Broomit's own keyboard takes over text fields; elsewhere fields only take focus
+  // when tapped.
+  const ownKeyboard = useVirtualKeyboard()
+  useRequestedFocus(!ownKeyboard)
 
   useEffect(() => {
     void requestPersistentStorage()
@@ -19,6 +24,7 @@ export function App() {
   return (
     <TooltipProvider>
       {route.name === 'notebook' ? <EditorView key={route.id} id={route.id} /> : <LibraryView />}
+      {ownKeyboard ? <VirtualKeyboard /> : null}
     </TooltipProvider>
   )
 }

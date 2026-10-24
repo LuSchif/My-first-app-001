@@ -45,6 +45,18 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
 - **Text and tables**: rendered on the canvas at rest; edited through a DOM overlay positioned
   with the same transform, so typing feels native.
 
+## Keyboard
+
+- On iPad, iPadOS shows only a shortcut bar (and Chrome an autofill bar) instead of the full
+  keyboard when a Pencil or a hardware keyboard is around, so Broomit brings its own on-screen
+  keyboard (`features/keyboard`). Text fields there are never focused: tapping one makes it the
+  keyboard's target, and keys write into it with input events React sees.
+- German QWERTZ with umlauts and ß, number and symbol pages, shift and caps lock. A hardware
+  keyboard types into the same field. Typing always goes to the end of the field.
+- "Use the iPad keyboard instead" turns this off per device (`broomit.virtualKeyboard`).
+- The keyboard's height (`lib/keyboardInset.ts`, CSS `--kb-height`) shrinks the visible area,
+  so dialogs and the canvas keep the field in view.
+
 ## Colors
 
 - Pen and text use twelve standard colors plus a color wheel; folders and covers use the full

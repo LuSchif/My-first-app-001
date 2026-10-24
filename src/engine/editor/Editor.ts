@@ -209,6 +209,8 @@ export class Editor {
   private textTap: { pointerId: number; x: number; y: number } | null = null
   /** Screen pixels at the bottom hidden by the keyboard and format bar while typing. */
   private bottomInset = 0
+  /** Height of the app's own on-screen keyboard, when it is open. */
+  private keyboardInset = 0
   private pending: { pageId: Id; layerId: Id; suggestion: Suggestion } | null = null
   private suggestTimer: ReturnType<typeof setTimeout> | null = null
   private noticeTimer: ReturnType<typeof setTimeout> | null = null
@@ -704,6 +706,13 @@ export class Editor {
     this.update({ suggestion: { kind: s.kind, label: suggestionLabel(s), rect } })
   }
 
+  /** The app's own keyboard opened, closed or changed height. */
+  setKeyboardInset(px: number): void {
+    if (px === this.keyboardInset) return
+    this.keyboardInset = px
+    this.updateBottomInset()
+  }
+
   setRecentColors(colors: string[]): void {
     if (colors.length > 0) this.update({ recentColors: colors.slice(0, RECENT_LIMIT) })
   }
@@ -1074,7 +1083,9 @@ export class Editor {
     let inset = 0
     if (this.text.isEditing) {
       const vv = window.visualViewport
-      const visibleBottom = vv ? vv.offsetTop + vv.height - this.hostRect.top : this.view.height
+      const viewportBottom = vv ? vv.offsetTop + vv.height - this.hostRect.top : this.view.height
+      // The app's own keyboard (on iPad) covers the bottom without shrinking the viewport.
+      const visibleBottom = Math.min(viewportBottom, this.view.height - this.keyboardInset)
       inset = Math.max(0, this.view.height - visibleBottom) + FORMAT_BAR_SPACE
     }
     if (inset === this.bottomInset && !this.text.isEditing) return

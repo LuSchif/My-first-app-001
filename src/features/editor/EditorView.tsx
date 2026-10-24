@@ -5,6 +5,7 @@ import { NotebookDocument } from '../../engine/document/NotebookDocument.ts'
 import { Editor } from '../../engine/editor/Editor.ts'
 import { Button } from '../../design/index.ts'
 import { useFixedViewport } from '../../lib/useFixedViewport.ts'
+import { keyboardInset, onKeyboardInset } from '../../lib/keyboardInset.ts'
 import { Autosave } from '../../storage/Autosave.ts'
 import { setImageLoader } from '../../engine/render/images.ts'
 import { getAssetBlob, loadNotebook, saveChanges } from '../../storage/notebooks.ts'
@@ -74,7 +75,10 @@ function EditorSession({ doc, history, autosave }: Loaded) {
       saveRecentColors(saved)
     })
     setEditor(instance)
+    // Text being typed stays above the app's own keyboard.
+    const stopInset = onKeyboardInset(() => instance.setKeyboardInset(keyboardInset()))
     return () => {
+      stopInset()
       stop()
       instance.dispose()
     }

@@ -120,9 +120,21 @@ export class TextController {
 
   /** Focuses the text field again if something else took focus while it is being edited. */
   refocus(): void {
-    if (this.editing && document.activeElement !== this.textarea) {
-      this.textarea.focus({ preventScroll: true })
+    if (this.editing && document.activeElement !== this.textarea) this.focusField()
+  }
+
+  /**
+   * Asks for typing into the text box. With the app's own keyboard (on iPad) the field is never
+   * focused, so iPadOS shows no bar of its own; the keyboard listens for this event instead.
+   */
+  private focusField(): void {
+    if (document.documentElement.hasAttribute('data-virtual-keyboard')) {
+      this.textarea.dispatchEvent(new Event('broomit:type', { bubbles: true }))
+      return
     }
+    this.textarea.focus({ preventScroll: true })
+    const end = this.textarea.value.length
+    this.textarea.setSelectionRange(end, end)
   }
 
   setStyle(patch: Partial<TextStyle>): void {
@@ -140,6 +152,7 @@ export class TextController {
     this.editing = null
     this.textarea.style.display = 'none'
     this.textarea.blur()
+    this.textarea.dispatchEvent(new Event('broomit:done', { bubbles: true }))
     this.ctx.setHidden(new Set())
 
     const page = this.ctx.doc.page(e.pageId)
@@ -242,9 +255,7 @@ export class TextController {
     this.textarea.style.display = 'block'
     this.ctx.setHidden(new Set([draft.id]))
     this.position()
-    this.textarea.focus({ preventScroll: true })
-    const end = this.textarea.value.length
-    this.textarea.setSelectionRange(end, end)
+    this.focusField()
     this.ctx.requestRender()
     this.ctx.changed()
     this.ensureVisible()

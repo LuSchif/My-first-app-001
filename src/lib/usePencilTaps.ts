@@ -49,49 +49,11 @@ export function usePencilTaps(): void {
       }, 80)
     }
 
-    // A Pencil tap into a form field: iPadOS would start handwriting (Scribble) with only a bar
-    // above the keyboard area. Taking the touch and focusing the field on release asks for the
-    // keyboard instead.
-    let pencilField: HTMLInputElement | HTMLTextAreaElement | null = null
-    const formField = (target: EventTarget | null) => {
-      const field = (target as Element | null)?.closest?.('input, textarea')
-      if (!(field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement)) return null
-      // The text box on the page handles its own taps.
-      if (field.dataset.allowFocus !== undefined) return null
-      if (
-        field instanceof HTMLInputElement &&
-        /^(checkbox|radio|range|file|button)$/.test(field.type)
-      ) {
-        return null
-      }
-      return field
-    }
-    const onTouchStart = (e: TouchEvent) => {
-      const touch = e.changedTouches[0] as (Touch & { touchType?: string }) | undefined
-      if (touch?.touchType !== 'stylus') return
-      const field = formField(e.target)
-      if (!field) return
-      e.preventDefault()
-      pencilField = field
-    }
-    const onTouchEnd = () => {
-      const field = pencilField
-      pencilField = null
-      if (!field || !field.isConnected) return
-      field.focus({ preventScroll: true })
-      const end = field.value.length
-      field.setSelectionRange?.(end, end)
-    }
-
     document.addEventListener('pointerdown', onDown, true)
     document.addEventListener('pointerup', onUp, true)
-    document.addEventListener('touchstart', onTouchStart, { capture: true, passive: false })
-    document.addEventListener('touchend', onTouchEnd, true)
     return () => {
       document.removeEventListener('pointerdown', onDown, true)
       document.removeEventListener('pointerup', onUp, true)
-      document.removeEventListener('touchstart', onTouchStart, { capture: true })
-      document.removeEventListener('touchend', onTouchEnd, true)
     }
   }, [])
 }

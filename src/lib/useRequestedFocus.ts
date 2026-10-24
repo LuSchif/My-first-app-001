@@ -9,8 +9,9 @@ const TAP_WINDOW_MS = 1200
  * a dialog appearing) would show it without being asked. Fields that are focused on purpose by
  * code, like the text box on the page, carry `data-allow-focus`.
  */
-export function useRequestedFocus(): void {
+export function useRequestedFocus(enabled = true): void {
   useEffect(() => {
+    if (!enabled) return
     let last: { target: Element; time: number } | null = null
     let keyAt = 0
 
@@ -44,5 +45,5 @@ export function useRequestedFocus(): void {
       document.removeEventListener('keydown', onKeyDown, true)
       document.removeEventListener('focusin', onFocusIn, true)
     }
-  }, [])
+  }, [enabled])
 }

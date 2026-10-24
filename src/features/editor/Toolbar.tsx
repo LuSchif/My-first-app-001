@@ -285,6 +285,8 @@ function FormatBar({ editor, state }: { editor: Editor; state: EditorState }) {
   const bottom = useVisualViewportBottom()
   return (
     <div
+      // Using the format bar keeps the keyboard open.
+      data-keep-keyboard=""
       className="pointer-events-auto fixed inset-x-0 z-20 mx-auto w-fit max-w-[calc(100%-24px)] rounded-panel bg-surface-raised/95 p-1.5 shadow-overlay backdrop-blur"
       style={{ top: bottom - 68 - 12 }}
     >
