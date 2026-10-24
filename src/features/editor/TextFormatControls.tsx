@@ -85,7 +85,7 @@ export function TextFormatControls({
             <ChevronDown size={16} />
           </button>
         </PopoverTrigger>
-        <PopoverContent className="grid w-56 gap-1 p-2">
+        <PopoverContent movable="text-font" className="grid w-56 gap-1 p-2">
           {(Object.keys(FONT_LABELS) as FontFamily[]).map((font) => (
             <button
               key={font}
@@ -180,7 +180,7 @@ export function TextFormatControls({
             <ChevronDown size={14} />
           </button>
         </PopoverTrigger>
-        <PopoverContent className="grid w-72 gap-4">
+        <PopoverContent movable="text-align" className="grid w-72 gap-4">
           <div role="group" aria-label="Alignment" className="flex gap-1">
             <Toggle
               label="Align left"

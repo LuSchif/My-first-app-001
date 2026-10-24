@@ -246,7 +246,7 @@ export function Toolbar({
                 ) : null}
               </button>
             </PopoverTrigger>
-            <PopoverContent align="end" className="w-80">
+            <PopoverContent movable="layers" align="end" className="w-80">
               <LayersPanel editor={editor} state={state} />
             </PopoverContent>
           </Popover>

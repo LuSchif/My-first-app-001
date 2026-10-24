@@ -253,7 +253,7 @@ function menuItems(
             Outline
           </button>
         </PopoverTrigger>
-        <PopoverContent className="grid w-80 gap-4">
+        <PopoverContent movable="selection-outline" className="grid w-80 gap-4">
           <OutlineControls editor={editor} outline={sel.outline} />
         </PopoverContent>
       </Popover>
@@ -286,7 +286,7 @@ function menuItems(
               Layer
             </button>
           </PopoverTrigger>
-          <PopoverContent className="grid w-64 gap-1">
+          <PopoverContent movable="selection-layer" className="grid w-64 gap-1">
             <p className="px-1 pb-1 text-sm font-semibold">Move to layer</p>
             {[...state.layers].reverse().map((layer) => (
               <PopoverClose key={layer.id} asChild>
@@ -388,7 +388,7 @@ function RowsAndColumns({ editor, table }: { editor: Editor; table: TableObject 
           Rows &amp; columns
         </button>
       </PopoverTrigger>
-      <PopoverContent className="grid w-72 gap-3">
+      <PopoverContent movable="selection-rows-columns" className="grid w-72 gap-3">
         <Stepper
           label="Columns"
           value={table.columns.length}
@@ -452,7 +452,7 @@ function MakeChart({ editor, table }: { editor: Editor; table: TableObject }) {
           Make chart
         </button>
       </PopoverTrigger>
-      <PopoverContent className="grid w-72 gap-3">
+      <PopoverContent movable="selection-make-chart" className="grid w-72 gap-3">
         <p className="text-sm font-semibold">Show this table as a chart</p>
         <div className="grid grid-cols-2 gap-2">
           {CHART_KINDS.map(({ kind, label }) => (

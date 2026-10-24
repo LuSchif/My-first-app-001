@@ -43,7 +43,7 @@ export function InsertTools({ editor, notebookId }: { editor: Editor; notebookId
         <PopoverTrigger asChild>
           <IconButton label="Table" icon={<Table2 {...ICON} />} />
         </PopoverTrigger>
-        <PopoverContent className="grid w-72 gap-3">
+        <PopoverContent movable="insert-table" className="grid w-72 gap-3">
           <TableSettings editor={editor} />
         </PopoverContent>
       </Popover>
@@ -51,7 +51,7 @@ export function InsertTools({ editor, notebookId }: { editor: Editor; notebookId
         <PopoverTrigger asChild>
           <IconButton label="Chart" icon={<ChartColumn {...ICON} />} />
         </PopoverTrigger>
-        <PopoverContent className="grid w-72 gap-3">
+        <PopoverContent movable="insert-chart" className="grid w-72 gap-3">
           <ChartChoice editor={editor} />
         </PopoverContent>
       </Popover>

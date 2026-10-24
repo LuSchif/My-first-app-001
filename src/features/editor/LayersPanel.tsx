@@ -134,7 +134,7 @@ function BackgroundRow({ editor, color }: { editor: Editor; color: string }) {
             />
           </button>
         </PopoverTrigger>
-        <PopoverContent align="end" className="grid w-80 gap-3">
+        <PopoverContent movable="background-color" align="end" className="grid w-80 gap-3">
           <p className="text-sm font-semibold">Background color</p>
           <ColorSwatch
             label="White"
