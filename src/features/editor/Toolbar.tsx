@@ -1,6 +1,8 @@
 import {
   Check,
   ChevronLeft,
+  ChevronsLeft,
+  ChevronsRight,
   CloudAlert,
   EyeOff,
   Highlighter,
@@ -38,7 +40,8 @@ import {
 import { useVisualViewportBottom } from '../../lib/useVisualViewport.ts'
 import type { Autosave } from '../../storage/Autosave.ts'
 import type { NotebookDocument } from '../../engine/document/NotebookDocument.ts'
-import { InsertMenu } from './InsertMenu.tsx'
+import { InsertTools } from './InsertMenu.tsx'
+import { useExpanded } from './useExpanded.ts'
 import { PagesOverview } from './PagesOverview.tsx'
 import { LayersPanel } from './LayersPanel.tsx'
 import { RecentColors } from './RecentColors.tsx'
@@ -79,6 +82,7 @@ export function Toolbar({
   )
   const [panel, setPanel] = useState<ToolId | 'pages' | 'layers' | null>(null)
   const activeLayer = state.layers.find((l) => l.id === state.activeLayerId)
+  const [expanded, setExpanded] = useExpanded('broomit.toolbarExpanded')
 
   // The first tap selects a tool; tapping the selected tool again opens its settings.
   const toolButton = (tool: ToolId, label: string, icon: ReactNode, settings?: ReactNode) =>
@@ -112,9 +116,22 @@ export function Toolbar({
   return (
     <>
       <div className="pointer-events-none absolute inset-x-0 top-0 flex flex-wrap items-start justify-between gap-2 px-[max(12px,env(safe-area-inset-left))] pt-[calc(10px+env(safe-area-inset-top))]">
-        <div className="pointer-events-auto flex min-w-0 items-center gap-1 rounded-panel bg-surface-raised/95 p-1.5 pr-4 shadow-raised backdrop-blur">
+        <div
+          className={cn(
+            'pointer-events-auto flex min-w-0 items-center gap-1 rounded-panel bg-surface-raised/95 p-1.5 shadow-raised backdrop-blur',
+            !expanded && 'pr-4',
+          )}
+        >
           <IconButton label="All notebooks" icon={<ChevronLeft {...ICON} />} onClick={onBack} />
-          <span className="max-w-[16ch] truncate font-semibold sm:max-w-[24ch]">{title}</span>
+          {/* With all tools shown, the bars give up words so everything stays on one row. */}
+          <span
+            className={cn(
+              'truncate font-semibold',
+              expanded ? 'sr-only' : 'max-w-[16ch] sm:max-w-[24ch]',
+            )}
+          >
+            {title}
+          </span>
         </div>
 
         <div
@@ -156,14 +173,24 @@ export function Toolbar({
             </>,
           )}
           {toolButton('path', 'Edit paths', <PenTool {...ICON} />)}
-          {toolButton(
-            'laser',
-            'Laser pointer',
-            <LaserBroomIcon size={22} />,
-            <LaserSettings editor={editor} state={state} />,
-          )}
+          {expanded ? (
+            <>
+              {toolButton(
+                'laser',
+                'Laser pointer',
+                <LaserBroomIcon size={22} />,
+                <LaserSettings editor={editor} state={state} />,
+              )}
+              <InsertTools editor={editor} notebookId={doc.notebook.id} />
+            </>
+          ) : null}
+          <IconButton
+            label={expanded ? 'Fewer tools' : 'More tools'}
+            icon={expanded ? <ChevronsLeft {...ICON} /> : <ChevronsRight {...ICON} />}
+            aria-expanded={expanded}
+            onClick={() => setExpanded(!expanded)}
+          />
           <span className="mx-1 h-7 w-px bg-line" />
-          <InsertMenu editor={editor} notebookId={doc.notebook.id} />
           <IconButton
             label="Undo"
             icon={<Undo2 {...ICON} />}
@@ -179,7 +206,7 @@ export function Toolbar({
         </div>
 
         <div className="pointer-events-auto flex items-center gap-1 rounded-panel bg-surface-raised/95 p-1.5 shadow-raised backdrop-blur">
-          <SaveStatus autosave={autosave} />
+          <SaveStatus autosave={autosave} compact={expanded} />
           <Popover
             open={panel === 'layers'}
             onOpenChange={(open) => setPanel(open ? 'layers' : null)}
@@ -212,7 +239,15 @@ export function Toolbar({
                 className="flex h-11 items-center gap-1.5 rounded-control px-3 text-sm font-semibold tabular-nums hover:bg-hover"
               >
                 <LayoutGrid size={18} />
-                Page {state.pageIndex + 1} of {state.pageCount}
+                {expanded ? (
+                  <span aria-label={`Page ${state.pageIndex + 1} of ${state.pageCount}`}>
+                    {state.pageIndex + 1}/{state.pageCount}
+                  </span>
+                ) : (
+                  <>
+                    Page {state.pageIndex + 1} of {state.pageCount}
+                  </>
+                )}
               </button>
             </DialogTrigger>
             {panel === 'pages' ? (
@@ -503,7 +538,7 @@ function BroomSettings({ editor, state }: { editor: Editor; state: EditorState }
   )
 }
 
-function SaveStatus({ autosave }: { autosave: Autosave }) {
+function SaveStatus({ autosave, compact }: { autosave: Autosave; compact: boolean }) {
   const status = useSyncExternalStore(
     (fn) => autosave.subscribe(fn),
     () => autosave.status,
@@ -522,7 +557,7 @@ function SaveStatus({ autosave }: { autosave: Autosave }) {
   return (
     <span className="flex items-center gap-1.5 px-2 text-xs text-ink-muted" role="status">
       {saving ? <LoaderCircle size={14} className="animate-spin" /> : <Check size={14} />}
-      {saving ? 'Saving' : 'Saved'}
+      <span className={cn(compact && 'sr-only')}>{saving ? 'Saving' : 'Saved'}</span>
     </span>
   )
 }

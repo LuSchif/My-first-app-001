@@ -50,6 +50,8 @@ export class TextController {
     area.setAttribute('aria-label', 'Text')
     // No password, card or address suggestions: they add a bar above the keyboard.
     area.setAttribute('autocomplete', 'off')
+    // The editor focuses this field itself after a tap on the page.
+    area.dataset.allowFocus = ''
     area.setAttribute('enterkeyhint', 'enter')
     area.spellcheck = true
     Object.assign(area.style, {

@@ -131,6 +131,8 @@ const RECENT_LIMIT = 5
 /** Room kept free above the keyboard for the text format bar. */
 const FORMAT_BAR_SPACE = 84
 const TWO_FINGER_TAP_MS = 280
+/** The second tap of a two- or three-finger double tap must come within this time. */
+const DOUBLE_TAP_MS = 450
 const TAP_SLOP_PX = 12
 
 interface InkSession {
@@ -238,6 +240,7 @@ export class Editor {
   private gesture: { cx: number; cy: number; dist: number; count: number } | null = null
   private panning = false
   private tap: { start: number; maxTouches: number; moved: number } | null = null
+  private lastGestureTap: { fingers: number; time: number } | null = null
   private momentum: { vx: number; vy: number; last: number } | null = null
   private velocity: { vx: number; vy: number; t: number } = { vx: 0, vy: 0, t: 0 }
   private mousePan: { id: number; x: number; y: number } | null = null
@@ -1520,11 +1523,22 @@ export class Editor {
   }
 
   /** A quick two-finger tap undoes, a three-finger tap redoes, as in other note apps. */
+  /**
+   * A double tap with two fingers undoes, with three fingers redoes. A single tap does nothing,
+   * so resting fingers on the screen never changes the page by accident.
+   */
   private finishTap(time: number): void {
     const tap = this.tap
     if (!tap || time - tap.start > TWO_FINGER_TAP_MS || tap.moved > TAP_SLOP_PX) return
-    if (tap.maxTouches === 2) this.undo()
-    else if (tap.maxTouches === 3) this.redo()
+    if (tap.maxTouches !== 2 && tap.maxTouches !== 3) return
+    const last = this.lastGestureTap
+    if (last && last.fingers === tap.maxTouches && time - last.time < DOUBLE_TAP_MS) {
+      this.lastGestureTap = null
+      if (tap.maxTouches === 2) this.undo()
+      else this.redo()
+      return
+    }
+    this.lastGestureTap = { fingers: tap.maxTouches, time }
   }
 
   private startMomentum(time: number): void {

@@ -80,8 +80,10 @@ export function PopoverContent({
         align={align}
         sideOffset={10}
         collisionPadding={16}
-        // Focus going back to the trigger would pop up its tooltip after every choice.
+        // Focus going back to the trigger would pop up its tooltip after every choice, and focus
+        // moving into the menu could land on a text field and bring up the keyboard.
         onCloseAutoFocus={(e) => e.preventDefault()}
+        onOpenAutoFocus={(e) => e.preventDefault()}
         className={cn(
           'z-60 w-72 animate-pop-in rounded-panel bg-surface-raised p-4 shadow-raised ring-1 ring-line',
           className,
