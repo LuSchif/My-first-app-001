@@ -78,6 +78,8 @@ import {
 } from './layers.ts'
 import { SelectionController, type LassoMode, type SelectionInfo } from './SelectionController.ts'
 import { DEFAULT_TEXT_STYLE, TextController } from './TextController.ts'
+import { BroomDust } from './BroomDust.ts'
+import { FxLayer } from './FxLayer.ts'
 import { LaserPointer } from './LaserPointer.ts'
 import { PathController, type PathEditInfo } from './PathController.ts'
 import { DEFAULT_FEATURES, type Features } from './features.ts'
@@ -232,6 +234,9 @@ export class Editor {
   private readonly text: TextController
   private readonly paths: PathController
   private readonly laser: LaserPointer
+  /** Laser trail and broom dust. */
+  private readonly fx: FxLayer
+  private readonly dust = new BroomDust()
   private hidden: ReadonlySet<Id> = new Set()
   private textTap: { pointerId: number; x: number; y: number } | null = null
   /** Screen pixels at the bottom hidden by the keyboard and format bar while typing. */
@@ -328,7 +333,10 @@ export class Editor {
     // Selection frames and the lasso path draw above the ink.
     this.overlayCanvas = makeCanvas()
     this.overlayCanvas.style.pointerEvents = 'none'
-    host.append(this.sceneCanvas, this.inkLayer, this.overlayCanvas)
+    const fxCanvas = makeCanvas()
+    fxCanvas.style.pointerEvents = 'none'
+    this.fx = new FxLayer(fxCanvas, () => this.view)
+    host.append(this.sceneCanvas, this.inkLayer, this.overlayCanvas, fxCanvas)
 
     this.scene = this.sceneCanvas.getContext('2d', { alpha: false })!
     // desynchronized asks for a low-latency path where the browser has one.
@@ -339,7 +347,9 @@ export class Editor {
     this.selection = new SelectionController(context)
     this.text = new TextController(context)
     this.paths = new PathController(context)
-    this.laser = new LaserPointer(context)
+    this.laser = new LaserPointer(context, () => this.fx.request())
+    this.fx.add(this.laser)
+    this.fx.add(this.dust)
 
     this.listen(host, 'pointerdown', (e) => this.onPointerDown(e))
     this.listen(host, 'pointermove', (e) => this.onPointerMove(e))
@@ -1050,6 +1060,7 @@ export class Editor {
     this.sceneCanvas.remove()
     this.inkLayer.remove()
     this.overlayCanvas.remove()
+    this.fx.dispose()
     this.text.element.remove()
     this.listeners.clear()
   }
@@ -1248,7 +1259,8 @@ export class Editor {
     const first = this.view.width === 0
     const dpr = window.devicePixelRatio || 1
     this.view = { width: rect.width, height: rect.height, dpr }
-    for (const c of [this.sceneCanvas, this.wetCanvas, this.tipCanvas, this.overlayCanvas]) {
+    const canvases = [this.sceneCanvas, this.wetCanvas, this.tipCanvas, this.overlayCanvas]
+    for (const c of [...canvases, this.fx.canvas]) {
       c.width = Math.round(rect.width * dpr)
       c.height = Math.round(rect.height * dpr)
     }
@@ -2079,15 +2091,32 @@ export class Editor {
     const steps = Math.max(1, Math.ceil(Math.hypot(to.x - from.x, to.y - from.y) / (radius / 2)))
     const layer = this.activeLayer()
     if (!layer || layer.locked || !layer.visible) return
+    let swept: string | null = null
     for (let i = 1; i <= steps; i++) {
       const t = i / steps
-      this.eraseAt(s, layer.id, from.x + (to.x - from.x) * t, from.y + (to.y - from.y) * t, radius)
+      const x = from.x + (to.x - from.x) * t
+      const y = from.y + (to.y - from.y) * t
+      swept = this.eraseAt(s, layer.id, x, y, radius) ?? swept
     }
-    if (steps === 1 && from === to) this.eraseAt(s, layer.id, to.x, to.y, radius)
+    if (steps === 1 && from === to) swept = this.eraseAt(s, layer.id, to.x, to.y, radius)
+    if (swept && this._state.features.broomDust) {
+      const c = this.camera
+      const at = { x: to.x * c.zoom + c.offsetX, y: to.y * c.zoom + c.offsetY }
+      this.dust.puff(at, to.x - from.x, to.y - from.y, swept, radius * 2 * c.zoom)
+      this.fx.request()
+    }
     s.last = to
   }
 
-  private eraseAt(s: EraseSession, layerId: Id, wx: number, wy: number, radius: number): void {
+  /** Sweeps one spot; returns the color of something it swept away, if anything. */
+  private eraseAt(
+    s: EraseSession,
+    layerId: Id,
+    wx: number,
+    wy: number,
+    radius: number,
+  ): string | null {
+    let swept: string | null = null
     const pageCount = this.doc.notebook.pageIds.length
     // The broom can overlap two pages near a gap; check both neighbours.
     const near = Math.floor(wy / PAGE_PITCH)
@@ -2110,6 +2139,7 @@ export class Editor {
           (hitsObject(object, cx, cy, 0) || strokeTouchesCircle(object.points, cx, cy, radius))
         ) {
           changed = true
+          swept = object.color
           continue
         }
         // The broom sweeps ink; text boxes are removed with the lasso.
@@ -2124,8 +2154,10 @@ export class Editor {
         // Reaching half the line width counts as touching the visible ink.
         const reach = radius + object.width / 2
         if (this._state.broom.mode === 'stroke') {
-          if (strokeTouchesCircle(object.points, cx, cy, reach)) changed = true
-          else next.push(object)
+          if (strokeTouchesCircle(object.points, cx, cy, reach)) {
+            changed = true
+            swept = object.color
+          } else next.push(object)
           continue
         }
         const pieces = eraseFromStroke(object.points, object.widths, cx, cy, reach)
@@ -2134,6 +2166,7 @@ export class Editor {
           continue
         }
         changed = true
+        swept = object.color
         for (const piece of pieces) {
           next.push({ ...withPoints(object, piece.points, piece.widths), id: newId() })
         }
@@ -2142,6 +2175,7 @@ export class Editor {
       if (!s.before.has(page.id)) s.before.set(page.id, page.objects)
       this.doc.setObjects(page.id, next)
     }
+    return swept
   }
 
   private finishErase(s: EraseSession): void {
@@ -2153,28 +2187,18 @@ export class Editor {
     this.history.record(compound('Erase', commands))
   }
 
-  /** The broom itself marks where it sweeps; a ring shows the reach when it is larger. */
+  /** The broom itself marks where it sweeps: its head is as wide as the sweep. */
   private drawBroomCursor(screen: Point): void {
     this.clearTip()
     const { dpr } = this.view
     const r = (this._state.broom.size / 2) * this.camera.zoom
-    const icon = 30
+    // The head spans about half the icon's height.
+    const icon = Math.max(22, r * 4)
     this.inkLayer.style.opacity = '1'
     this.inkLayer.style.mixBlendMode = 'normal'
     this.tip.setTransform(dpr, 0, 0, dpr, 0, 0)
-    if (r > icon / 3) {
-      this.tip.beginPath()
-      this.tip.arc(screen.x, screen.y, r, 0, Math.PI * 2)
-      this.tip.fillStyle = 'rgba(185, 139, 101, 0.1)'
-      this.tip.fill()
-      this.tip.lineWidth = 1.25
-      this.tip.setLineDash([4, 4])
-      this.tip.strokeStyle = 'rgba(62, 45, 37, 0.45)'
-      this.tip.stroke()
-      this.tip.setLineDash([])
-    }
     drawBroom(this.tip, screen.x, screen.y, icon)
-    const reach = Math.max(r, icon) + 6
+    const reach = icon + 6
     this.tipDirty = {
       x: Math.floor((screen.x - reach) * dpr),
       y: Math.floor((screen.y - reach) * dpr),

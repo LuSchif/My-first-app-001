@@ -1,10 +1,13 @@
 import type { Point } from '../geometry/camera.ts'
 import { drawBroom } from '../render/broomGlyph.ts'
 import type { EditorContext } from './context.ts'
+import type { FxPainter } from './FxLayer.ts'
 
 /** How long the trail stays visible behind the pointer. */
-const FADE_MS = 900
-const TRAIL_PX = 5
+const FADE_MS = 800
+const CORE_PX = 4
+const GLOW_PX = 14
+const BROOM_PX = 34
 
 interface TrailPoint {
   /** World coordinates, so the trail stays on the page while it scrolls. */
@@ -16,19 +19,23 @@ interface TrailPoint {
 }
 
 /**
- * Points at things while presenting: a glowing line that follows the pen and fades away, led by
- * a small broom. It never changes the notebook.
+ * Points at things while presenting: a glowing line in the laser color that follows the pen and
+ * fades away, led by a broom of the same color. It never changes the notebook.
+ *
+ * It draws on the effects layer with plain strokes (a wide, faint one for the glow under a
+ * narrow, bright one), never a canvas shadow: blurred shadows cost far too much per frame.
  */
-export class LaserPointer {
+export class LaserPointer implements FxPainter {
   private readonly ctx: EditorContext
+  private readonly request: () => void
   color = '#e0533f'
   private trail: TrailPoint[] = []
   private pointerId: number | null = null
   private head: Point | null = null
-  private frame = 0
 
-  constructor(ctx: EditorContext) {
+  constructor(ctx: EditorContext, request: () => void) {
     this.ctx = ctx
+    this.request = request
   }
 
   get busy(): boolean {
@@ -38,12 +45,18 @@ export class LaserPointer {
   down(e: PointerEvent): void {
     this.pointerId = e.pointerId
     this.add(e, true)
+    this.head = this.ctx.screenPos(e)
+    this.request()
   }
 
   move(e: PointerEvent): boolean {
     if (e.pointerId !== this.pointerId) return false
     const events = e.getCoalescedEvents?.() ?? []
     for (const ev of events.length ? events : [e]) this.add(ev, false)
+    // The broom leads where the pen is about to be, so it does not lag behind the tip.
+    const ahead = e.getPredictedEvents?.()[0]
+    this.head = this.ctx.screenPos(ahead ?? e)
+    this.request()
     return true
   }
 
@@ -51,7 +64,7 @@ export class LaserPointer {
     if (e.pointerId !== this.pointerId) return false
     this.pointerId = null
     this.head = null
-    this.schedule()
+    this.request()
     return true
   }
 
@@ -59,7 +72,7 @@ export class LaserPointer {
     this.trail = []
     this.pointerId = null
     this.head = null
-    this.draw(performance.now())
+    this.request()
   }
 
   private add(e: { clientX: number; clientY: number }, start: boolean): void {
@@ -71,63 +84,52 @@ export class LaserPointer {
       t: performance.now(),
       start,
     })
-    this.head = screen
-    this.schedule()
   }
 
-  private schedule(): void {
-    if (this.frame) return
-    this.frame = requestAnimationFrame((now) => {
-      this.frame = 0
-      this.draw(now)
-      if (this.trail.length > 0 || this.head) this.schedule()
-    })
-  }
-
-  private draw(now: number): void {
-    const ctx = this.ctx.overlay
-    const { width, height, dpr } = this.ctx.view()
-    ctx.setTransform(1, 0, 0, 1, 0, 0)
-    ctx.clearRect(0, 0, width * dpr, height * dpr)
+  paint(ctx: CanvasRenderingContext2D, now: number): boolean {
     this.trail = this.trail.filter((p) => now - p.t < FADE_MS)
     const c = this.ctx.camera()
-    const screen = (p: TrailPoint) => ({ x: p.x * c.zoom + c.offsetX, y: p.y * c.zoom + c.offsetY })
-
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-    ctx.lineCap = 'round'
+    const sx = (p: TrailPoint) => p.x * c.zoom + c.offsetX
+    const sy = (p: TrailPoint) => p.y * c.zoom + c.offsetY
+    // Flat ends: round ones would overlap where two pieces meet and show as darker beads.
+    ctx.lineCap = 'butt'
     ctx.lineJoin = 'round'
-    for (let i = 1; i < this.trail.length; i++) {
-      const p = this.trail[i]!
-      if (p.start) continue
-      const a = screen(this.trail[i - 1]!)
-      const b = screen(p)
-      const life = 1 - (now - p.t) / FADE_MS
-      ctx.globalAlpha = Math.max(0, life)
-      // A soft glow under a bright core.
-      ctx.strokeStyle = this.color
-      ctx.lineWidth = TRAIL_PX * (0.5 + life * 0.5)
-      ctx.shadowColor = this.color
-      ctx.shadowBlur = 12
-      ctx.beginPath()
-      ctx.moveTo(a.x, a.y)
-      ctx.lineTo(b.x, b.y)
-      ctx.stroke()
+    ctx.strokeStyle = this.color
+    for (const [width, alpha] of [
+      [GLOW_PX, 0.22],
+      [CORE_PX, 1],
+    ] as const) {
+      ctx.lineWidth = width
+      // Points close in age share one path, so a long trail is a handful of strokes.
+      for (let i = 1; i < this.trail.length;) {
+        const life = 1 - (now - this.trail[i]!.t) / FADE_MS
+        // Stays bright for most of its life, then fades quickly.
+        ctx.globalAlpha = Math.sqrt(Math.max(0, life)) * alpha
+        ctx.beginPath()
+        ctx.moveTo(sx(this.trail[i - 1]!), sy(this.trail[i - 1]!))
+        const until = this.trail[i]!.t + FADE_MS / 12
+        for (; i < this.trail.length && this.trail[i]!.t <= until; i++) {
+          const p = this.trail[i]!
+          if (p.start) ctx.moveTo(sx(p), sy(p))
+          else ctx.lineTo(sx(p), sy(p))
+        }
+        ctx.stroke()
+      }
     }
-    ctx.shadowBlur = 0
     ctx.globalAlpha = 1
     if (this.head) {
-      ctx.beginPath()
-      ctx.arc(this.head.x, this.head.y, 7, 0, Math.PI * 2)
-      ctx.fillStyle = this.color
-      ctx.shadowColor = this.color
-      ctx.shadowBlur = 18
-      ctx.fill()
-      ctx.shadowBlur = 0
-      ctx.beginPath()
-      ctx.arc(this.head.x, this.head.y, 3, 0, Math.PI * 2)
-      ctx.fillStyle = '#fffcf7'
-      ctx.fill()
-      drawBroom(ctx, this.head.x + 18, this.head.y - 18, 28)
+      const last = this.trail[this.trail.length - 1]
+      // The line runs right up to the broom's head.
+      if (last) {
+        ctx.lineCap = 'round'
+        ctx.lineWidth = CORE_PX
+        ctx.beginPath()
+        ctx.moveTo(sx(last), sy(last))
+        ctx.lineTo(this.head.x, this.head.y)
+        ctx.stroke()
+      }
+      drawBroom(ctx, this.head.x, this.head.y, BROOM_PX, this.color)
     }
+    return this.trail.length > 0 || this.head !== null
   }
 }

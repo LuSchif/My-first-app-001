@@ -18,8 +18,17 @@ export const BROOM_HEAD = { x: 8.6, y: 15.4 } as const
 
 let cached: Path2D[] | null = null
 
-/** Draws the broom with its head centered on (x, y), `size` CSS pixels tall. */
-export function drawBroom(ctx: CanvasRenderingContext2D, x: number, y: number, size: number): void {
+/**
+ * Draws the broom with its head centered on (x, y), `size` CSS pixels tall, in `color` (the
+ * app's ink brown unless given).
+ */
+export function drawBroom(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  size: number,
+  color = '#3e2d25',
+): void {
   cached ??= BROOM_PATHS.map((d) => new Path2D(d))
   const scale = size / 24
   ctx.save()
@@ -29,10 +38,12 @@ export function drawBroom(ctx: CanvasRenderingContext2D, x: number, y: number, s
   ctx.lineJoin = 'round'
   // A light halo keeps the cursor visible on dark ink.
   ctx.strokeStyle = 'rgba(255, 252, 247, 0.95)'
-  ctx.lineWidth = 4.5
+  // Lines keep about the same screen width however large the broom is drawn.
+  const k = Math.min(1, Math.sqrt(30 / size))
+  ctx.lineWidth = 4.5 * k
   for (const path of cached) ctx.stroke(path)
-  ctx.strokeStyle = '#3e2d25'
-  ctx.lineWidth = 1.75
+  ctx.strokeStyle = color
+  ctx.lineWidth = 1.75 * k
   for (const path of cached) ctx.stroke(path)
   ctx.restore()
 }
