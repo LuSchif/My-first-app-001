@@ -5,7 +5,7 @@ import type { CanvasObject, FillObject } from '../model/types.ts'
 import { paintChart } from './chart.ts'
 import { paintImage } from './images.ts'
 import { paintTable } from './table.ts'
-import { canvasGradient, paintWithShadow, rectOf, shadowPad } from './effects.ts'
+import { canvasGradient, rectOf } from './effects.ts'
 import { outlinePad } from './outline.ts'
 import { paintStroke, strokeBounds } from './strokes.ts'
 import { paintText, textBounds } from './text.ts'
@@ -23,20 +23,6 @@ export function fillPath(fill: FillObject): Path2D {
   return path
 }
 
-/** Where an object draws on the page, its shadow included: what a redraw must cover. */
-export function paintBounds(object: CanvasObject): Rect {
-  const rect = objectBounds(object)
-  const pad = shadowPad(object.shadow)
-  if (!pad) return rect
-  return {
-    minX: rect.minX - pad,
-    minY: rect.minY - pad,
-    maxX: rect.maxX + pad,
-    maxY: rect.maxY + pad,
-  }
-}
-
-/** The object itself (without its shadow): what selection and taps work with. */
 export function objectBounds(object: CanvasObject): Rect {
   if (object.type === 'stroke') return strokeBounds(object)
   if (object.type === 'text') return textBounds(object)
@@ -50,14 +36,6 @@ export function objectBounds(object: CanvasObject): Rect {
 }
 
 export function paintObject(ctx: CanvasRenderingContext2D, object: CanvasObject): void {
-  if (object.shadow) {
-    paintWithShadow(ctx, object.shadow, paintBounds(object), (target) => paintOwn(target, object))
-  } else {
-    paintOwn(ctx, object)
-  }
-}
-
-function paintOwn(ctx: CanvasRenderingContext2D, object: CanvasObject): void {
   if (object.type === 'stroke') paintStroke(ctx, object)
   else if (object.type === 'text') paintText(ctx, object)
   else if (object.type === 'image') paintImage(ctx, object)

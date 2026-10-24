@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import type { FillObject, GradientPaint, StrokeObject, TableObject } from '../model/types.ts'
-import { objectBounds, paintBounds } from '../render/objects.ts'
-import { recolor, repaint, withShadow } from './selection.ts'
+import type { GradientPaint, StrokeObject, TableObject } from '../model/types.ts'
+import { recolor, repaint } from './selection.ts'
 
 const stroke: StrokeObject = {
   id: 's',
@@ -37,27 +36,5 @@ describe('painting objects', () => {
     const painted = repaint(table, gradient) as TableObject
     expect(painted.style.lineColor).toBe('#ff0000')
     expect('gradient' in painted).toBe(false)
-  })
-
-  it('adds and removes shadows; what is painted includes the shadow, the selection does not', () => {
-    const fill: FillObject = {
-      id: 'f',
-      type: 'fill',
-      layerId: 'l',
-      color: '#000000',
-      opacity: 1,
-      smooth: false,
-      points: [0, 0, 10, 0, 10, 10, 0, 10],
-    }
-    const shadowed = withShadow(fill, {
-      color: '#000000',
-      opacity: 0.4,
-      blur: 4,
-      distance: 3,
-      angle: 90,
-    })
-    expect(paintBounds(shadowed).maxY).toBeGreaterThan(objectBounds(fill).maxY + 5)
-    expect(objectBounds(shadowed)).toEqual(objectBounds(fill))
-    expect(withShadow(shadowed, null).shadow).toBeUndefined()
   })
 })

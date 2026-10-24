@@ -168,16 +168,13 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
   the one new pages get. The page overview changes the paper of the page in view, of new pages,
   of both, or of all pages, as one undo step.
 
-## Gradients and shadows
+## Gradients
 
 - Ink, filled areas and text can be painted with a linear or radial gradient (any number of
   colors, any direction) instead of one color: the color menu of a selection has a Gradient tab
   with the same designer as folders. The gradient spans the object's box; its first color stays
   the object's plain color. Tables take that color; pictures and charts keep theirs.
-- Every object can have a soft shadow (softness, distance, direction, opacity, color). An object
-  is drawn on a surface of its own and put on the page once with the shadow, so a table or a
-  text with an outline casts one shadow (`render/effects.ts`). Selection and taps use the object
-  without its shadow; redraws include it.
+- Object shadows were tried and removed again: drawing them made the editor lag.
 
 ## Export
 

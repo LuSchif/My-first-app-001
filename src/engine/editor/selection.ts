@@ -3,14 +3,7 @@ import { boxCenter, boxContains, boxCorners, isBox } from '../geometry/box.ts'
 import { strokeTouchesCircle } from '../geometry/erase.ts'
 import { union, type Rect } from '../geometry/rect.ts'
 import { fillBaseColor, type Fill } from '../model/fill.ts'
-import type {
-  CanvasObject,
-  FillObject,
-  Outline,
-  Shadow,
-  StrokeObject,
-  TextObject,
-} from '../model/types.ts'
+import type { CanvasObject, FillObject, Outline, StrokeObject, TextObject } from '../model/types.ts'
 import { objectBounds } from '../render/objects.ts'
 import { layoutText, textCenter, textContains, textCorners } from '../render/text.ts'
 
@@ -150,12 +143,6 @@ export function repaint(object: CanvasObject, fill: Fill): CanvasObject {
   if (!takesGradient(object)) return recolor(object, base)
   const colored = recolor(object, base) as StrokeObject | FillObject | TextObject
   return { ...colored, gradient: fill }
-}
-
-/** The same object with a shadow, or without one. */
-export function withShadow(object: CanvasObject, shadow: Shadow | null): CanvasObject {
-  const { shadow: _old, ...rest } = object
-  return shadow ? { ...rest, shadow } : rest
 }
 
 /** Whether a tap at (x, y) with the given tolerance lands on the object. */

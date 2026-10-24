@@ -94,7 +94,6 @@ export interface ImageObject extends BoxFrame {
   flipX?: boolean
   flipY?: boolean
   outline?: Outline
-  shadow?: Shadow
 }
 
 /**
@@ -111,7 +110,6 @@ export interface TableObject extends BoxFrame {
   cells: string[][]
   style: TableStyle
   outline?: Outline
-  shadow?: Shadow
 }
 
 export interface TableStyle {
@@ -152,7 +150,6 @@ export interface ChartObject extends BoxFrame {
   /** In points. */
   fontSize: number
   outline?: Outline
-  shadow?: Shadow
 }
 
 export interface ChartSeries {
@@ -178,18 +175,6 @@ export interface Outline {
   width: number
   /** Where the contour sits on the edge; outside when absent. */
   position?: 'outside' | 'center' | 'inside'
-}
-
-/** A soft shadow under an object. */
-export interface Shadow {
-  color: string
-  opacity: number
-  /** Softness, in points. */
-  blur: number
-  /** How far it falls from the object, in points. */
-  distance: number
-  /** Which way it falls, in degrees: 0 to the right, 90 down. */
-  angle: number
 }
 
 /** A gradient an object can be painted with. */
@@ -221,7 +206,6 @@ export interface StrokeObject {
   /** A dashed or dotted line instead of a solid one. */
   dash?: StrokeDash
   outline?: Outline
-  shadow?: Shadow
   /** Paints the object with a gradient instead of its color (which stays as a fallback). */
   gradient?: GradientPaint
 }
@@ -240,7 +224,6 @@ export interface FillObject {
   /** Whether the outline is a smooth curve through the points or straight edges. */
   smooth: boolean
   outline?: Outline
-  shadow?: Shadow
   /** Paints the object with a gradient instead of its color (which stays as a fallback). */
   gradient?: GradientPaint
 }
@@ -293,7 +276,6 @@ export interface TextObject {
   /** The box is as wide as its text and grows while typing, up to the page's edge. */
   autoWidth?: boolean
   outline?: Outline
-  shadow?: Shadow
   /** Paints the object with a gradient instead of its color (which stays as a fallback). */
   gradient?: GradientPaint
 }

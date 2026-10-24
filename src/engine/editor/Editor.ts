@@ -28,7 +28,6 @@ import {
   type Outline,
   type Page,
   type PaperKind,
-  type Shadow,
   type StrokeDash,
   type StrokeObject,
   type TextObject,
@@ -439,12 +438,6 @@ export class Editor {
   paintSelection(fill: Fill, commit = true): void {
     if (commit) this.rememberColor(fill.type === 'solid' ? fill.color : fillBaseColor(fill))
     this.selection.repaint(fill, commit)
-  }
-
-  /** Adds, changes or removes the selection's shadow; `commit` false previews it. */
-  setSelectionShadow(shadow: Shadow | null, commit = true): void {
-    if (shadow && commit) this.rememberColor(shadow.color)
-    this.selection.setShadow(shadow, commit)
   }
 
   /** Records the previewed change to the selection as one undo step. */

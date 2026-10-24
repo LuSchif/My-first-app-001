@@ -4,7 +4,7 @@ import type { Rect } from '../geometry/rect.ts'
 import { newId } from '../model/ids.ts'
 import { isBox } from '../geometry/box.ts'
 import type { Fill } from '../model/fill.ts'
-import type { BoxObject, CanvasObject, GradientPaint, Id, Outline, Shadow } from '../model/types.ts'
+import type { BoxObject, CanvasObject, GradientPaint, Id, Outline } from '../model/types.ts'
 import { pageOrigin } from '../render/layout.ts'
 import { paintObject } from '../render/objects.ts'
 import { applyCamera } from '../render/SceneRenderer.ts'
@@ -18,7 +18,6 @@ import {
   recolor,
   repaint,
   takesGradient,
-  withShadow,
   transformObject,
   transformRect,
   withOutline,
@@ -59,8 +58,6 @@ export interface SelectionInfo {
   gradient: GradientPaint | null
   /** Whether any selected object can be painted with a gradient. */
   canGradient: boolean
-  /** Shadow of the first selected object. */
-  shadow: Shadow | null
 }
 
 type Handle = 'nw' | 'ne' | 'se' | 'sw' | 'rotate'
@@ -172,7 +169,6 @@ export class SelectionController {
       outline: objects[0]?.outline ?? null,
       gradient: gradientOf(objects),
       canGradient: objects.some(takesGradient),
-      shadow: objects[0]?.shadow ?? null,
     }
   }
 
@@ -336,12 +332,6 @@ export class SelectionController {
   repaint(fill: Fill, commit = true): void {
     this.previewEdit((o) => repaint(o, fill))
     if (commit) this.commitEdit('Color')
-  }
-
-  /** Adds, changes or removes the shadow of every selected object. */
-  setShadow(shadow: Shadow | null, commit = true): void {
-    this.previewEdit((o) => withShadow(o, shadow))
-    if (commit) this.commitEdit('Shadow')
   }
 
   /** The selected object, when exactly one is selected. */

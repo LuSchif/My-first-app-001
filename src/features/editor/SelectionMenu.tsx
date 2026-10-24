@@ -14,7 +14,6 @@ import {
   Table2,
   SquareRoundCorner,
   TextCursorInput,
-  SunDim,
   Trash2,
 } from 'lucide-react'
 import type { Editor, EditorState } from '../../engine/editor/Editor.ts'
@@ -47,7 +46,6 @@ import {
   type ChartObject,
   type GradientPaint,
   type Outline,
-  type Shadow,
   type TableObject,
 } from '../../engine/model/types.ts'
 import { fillToCss } from '../../engine/model/fill.ts'
@@ -255,22 +253,6 @@ function menuItems(
         </PopoverTrigger>
         <PopoverContent movable="selection-outline" className="grid w-80 gap-4">
           <OutlineControls editor={editor} outline={sel.outline} />
-        </PopoverContent>
-      </Popover>
-    ),
-  })
-  items.push({
-    key: 'shadow',
-    node: (
-      <Popover onOpenChange={(open) => !open && editor.commitSelectionEdit('Shadow')}>
-        <PopoverTrigger asChild>
-          <button type="button" className={pill}>
-            <SunDim size={18} />
-            Shadow
-          </button>
-        </PopoverTrigger>
-        <PopoverContent movable="selection-shadow" className="grid w-80 gap-4">
-          <ShadowControls editor={editor} shadow={sel.shadow} />
         </PopoverContent>
       </Popover>
     ),
@@ -604,67 +586,6 @@ function SelectionColor({
         />
       )}
     </div>
-  )
-}
-
-const DEFAULT_SHADOW: Shadow = { color: '#3e2d25', opacity: 0.35, blur: 10, distance: 6, angle: 90 }
-
-/** A soft shadow under the selection: on or off, its softness, distance, direction and color. */
-function ShadowControls({ editor, shadow }: { editor: Editor; shadow: Shadow | null }) {
-  const set = (patch: Partial<Shadow>, commit = false) =>
-    shadow && editor.setSelectionShadow({ ...shadow, ...patch }, commit)
-  const done = () => editor.commitSelectionEdit('Shadow')
-  return (
-    <>
-      <Switch
-        label="Shadow"
-        hint="A soft shadow under the selected objects"
-        checked={shadow !== null}
-        onChange={(on) => editor.setSelectionShadow(on ? (shadow ?? DEFAULT_SHADOW) : null)}
-      />
-      {shadow ? (
-        <>
-          {/* Changes show live while dragging and become one undo step on release. */}
-          <Slider
-            label="Softness"
-            value={Math.round(shadow.blur)}
-            min={0}
-            max={40}
-            onChange={(blur) => set({ blur })}
-            onCommit={done}
-            format={(v) => `${v} pt`}
-          />
-          <Slider
-            label="Distance"
-            value={Math.round(shadow.distance)}
-            min={0}
-            max={40}
-            onChange={(distance) => set({ distance })}
-            onCommit={done}
-            format={(v) => `${v} pt`}
-          />
-          <Slider
-            label="Direction"
-            value={Math.round(shadow.angle)}
-            min={0}
-            max={359}
-            onChange={(angle) => set({ angle })}
-            onCommit={done}
-            format={(v) => `${v}°`}
-          />
-          <Slider
-            label="Opacity"
-            value={Math.round(shadow.opacity * 100)}
-            min={5}
-            max={100}
-            onChange={(v) => set({ opacity: v / 100 })}
-            onCommit={done}
-            format={(v) => `${v}%`}
-          />
-          <ColorPicker value={shadow.color} onChange={(color) => set({ color })} onCommit={done} />
-        </>
-      ) : null}
-    </>
   )
 }
 
