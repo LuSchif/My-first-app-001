@@ -1,4 +1,5 @@
-import type { Field, Selection } from './keyboardStore.ts'
+import { styledRanges, type StyledCss } from '../../engine/editor/styledField.ts'
+import { keyboardState, select, type Field, type Selection } from './keyboardStore.ts'
 
 /**
  * The field Broomit's keyboard types into is never focused, so the browser draws no caret and no
@@ -54,6 +55,9 @@ export function showMirror(field: Field | null, sel: Selection): void {
   if (!field || !field.isConnected) {
     mirror?.remove()
     mirror = content = shown = null
+    handles?.start.remove()
+    handles?.end.remove()
+    handles = null
     return
   }
   const style = getComputedStyle(field)
@@ -69,8 +73,13 @@ export function showMirror(field: Field | null, sel: Selection): void {
     style.color,
     style.transform,
     style.textAlign,
+    JSON.stringify(styledRanges(field)),
   ].join('|')
-  if (shown?.field === field && shown.key === key && mirror?.isConnected) return
+  if (shown?.field === field && shown.key === key && mirror?.isConnected) {
+    // The page may have scrolled under the handles.
+    placeHandles(mirror, field, sel)
+    return
+  }
   shown = { field, key }
 
   if (!mirror || mirror.parentElement !== field.parentElement) {
@@ -106,39 +115,160 @@ export function showMirror(field: Field | null, sel: Selection): void {
       style.textAlign === 'center' ? 'center' : style.textAlign === 'right' ? 'flex-end' : '',
     whiteSpace: multiLine ? 'pre-wrap' : 'pre',
   } satisfies Partial<CSSStyleDeclaration>)
+  // A line height given as a factor lets larger parts of the text have taller lines.
+  if (field.style.lineHeight) m.style.lineHeight = field.style.lineHeight
   m.style.setProperty('-webkit-text-fill-color', style.color)
   fill(content!, field, sel)
   m.scrollTop = field.scrollTop
   keepCaretInView(m, multiLine)
+  placeHandles(m, field, sel)
 }
 
 function fill(target: HTMLSpanElement, field: Field, sel: Selection): void {
   const value = field.value
   target.replaceChildren()
   if (value === '' && field.placeholder) {
-    target.append(caret())
+    target.append(caret({}))
     const hint = document.createElement('span')
     hint.className = 'field-mirror-placeholder'
     hint.textContent = field.placeholder
     target.append(hint)
     return
   }
-  target.append(value.slice(0, sel.start))
-  if (sel.start === sel.end) {
-    target.append(caret())
-  } else {
-    const marked = document.createElement('span')
-    marked.className = 'field-mirror-selection'
-    marked.textContent = value.slice(sel.start, sel.end)
-    target.append(marked)
-  }
-  target.append(value.slice(sel.end))
+  // The text is cut where its style changes and where the selection starts and ends.
+  const ranges = styledRanges(field) ?? []
+  const cssAt = (i: number) => ranges.find((r) => r.start <= i && i < r.end)?.css ?? {}
+  const cuts = [
+    ...new Set([0, value.length, sel.start, sel.end, ...ranges.flatMap((r) => [r.start, r.end])]),
+  ]
+    .filter((n) => n >= 0 && n <= value.length)
+    .sort((a, b) => a - b)
+  const collapsed = sel.start === sel.end
+  cuts.forEach((at, i) => {
+    if (collapsed && at === sel.start) target.append(caret(cssAt(Math.max(0, at - 1))))
+    if (!collapsed && at === sel.start) target.append(anchor('start', cssAt(at)))
+    if (!collapsed && at === sel.end) target.append(anchor('end', cssAt(Math.max(0, at - 1))))
+    const next = cuts[i + 1]
+    if (next === undefined) return
+    const part = styled(cssAt(at))
+    part.textContent = value.slice(at, next)
+    if (!collapsed && at >= sel.start && next <= sel.end) part.className = 'field-mirror-selection'
+    target.append(part)
+  })
   // A text ending in a line break shows its empty last line, like the field does.
   if (value.endsWith('\n') && sel.end < value.length) target.append(HOLD)
 }
 
-function caret(): HTMLSpanElement {
+function styled(css: StyledCss): HTMLSpanElement {
   const span = document.createElement('span')
+  Object.assign(span.style, css)
+  if (css.color) span.style.setProperty('-webkit-text-fill-color', css.color)
+  return span
+}
+
+/** An empty mark where a selection starts or ends; the handles are placed on it. */
+function anchor(role: 'start' | 'end', css: StyledCss): HTMLSpanElement {
+  const span = styled(css)
+  span.dataset.anchor = role
+  span.textContent = HOLD
+  return span
+}
+
+// ---------- Selection handles ----------
+
+/** The round knobs at the ends of a selection; dragging one moves that end. */
+let handles: { start: HTMLDivElement; end: HTMLDivElement } | null = null
+const HANDLE_REACH = 22
+const KNOB = 14
+
+function createHandle(role: 'start' | 'end'): HTMLDivElement {
+  const handle = document.createElement('div')
+  handle.className = 'field-mirror-handle'
+  handle.dataset.role = role
+  // Using a handle is part of typing; it must not end it.
+  handle.dataset.keepKeyboard = ''
+  handle.setAttribute('aria-hidden', 'true')
+  const bar = document.createElement('div')
+  bar.className = 'field-mirror-handle-bar'
+  const knob = document.createElement('div')
+  knob.className = 'field-mirror-handle-knob'
+  handle.append(bar, knob)
+  handle.addEventListener('touchstart', (e) => e.preventDefault(), { passive: false })
+  handle.addEventListener('pointerdown', (e) => dragHandle(e, role))
+  document.body.append(handle)
+  return handle
+}
+
+function placeHandles(m: HTMLDivElement, field: Field, sel: Selection): void {
+  if (sel.start === sel.end) {
+    if (handles) handles.start.style.display = handles.end.style.display = 'none'
+    return
+  }
+  handles ??= { start: createHandle('start'), end: createHandle('end') }
+  const box = m.getBoundingClientRect()
+  for (const role of ['start', 'end'] as const) {
+    const handle = handles[role]
+    const mark = m.querySelector<HTMLElement>(`[data-anchor="${role}"]`)
+    const r = mark?.getBoundingClientRect()
+    // Hidden when its end of the selection is scrolled out of the field.
+    if (!r || r.left < box.left - 2 || r.left > box.right + 2 || !field.isConnected) {
+      handle.style.display = 'none'
+      continue
+    }
+    const knobRoom = KNOB + 6
+    Object.assign(handle.style, {
+      display: 'block',
+      left: `${r.left - HANDLE_REACH}px`,
+      top: `${role === 'start' ? r.top - knobRoom : r.top}px`,
+      width: `${HANDLE_REACH * 2}px`,
+      height: `${r.height + knobRoom}px`,
+    })
+    const bar = handle.firstElementChild as HTMLElement
+    const knob = handle.lastElementChild as HTMLElement
+    Object.assign(bar.style, {
+      top: `${role === 'start' ? knobRoom : 0}px`,
+      height: `${r.height}px`,
+    })
+    Object.assign(knob.style, {
+      top: `${role === 'start' ? knobRoom - KNOB + 1 : r.height - 1}px`,
+    })
+  }
+}
+
+/** Moves one end of the selection with the finger; the other end stays. */
+function dragHandle(e: PointerEvent, role: 'start' | 'end'): void {
+  const field = keyboardState().field
+  const handle = e.currentTarget as HTMLDivElement
+  if (!field) return
+  e.preventDefault()
+  e.stopPropagation()
+  handle.setPointerCapture?.(e.pointerId)
+  const { start, end } = keyboardState().selection
+  const fixed = role === 'start' ? Math.max(start, end) : Math.min(start, end)
+  // The point that follows the finger is the middle of the handle's bar, wherever it was held.
+  const bar = (handle.firstElementChild as HTMLElement).getBoundingClientRect()
+  const dx = bar.left + bar.width / 2 - e.clientX
+  const dy = bar.top + bar.height / 2 - e.clientY
+  const move = (ev: PointerEvent) => {
+    if (ev.pointerId !== e.pointerId) return
+    ev.preventDefault()
+    const at = indexAt(field, ev.clientX + dx, ev.clientY + dy)
+    // The selection keeps at least one character.
+    if (at !== null && at !== fixed) select(fixed, at)
+  }
+  const stop = (ev: PointerEvent) => {
+    if (ev.pointerId !== e.pointerId) return
+    handle.removeEventListener('pointermove', move)
+    handle.removeEventListener('pointerup', stop)
+    handle.removeEventListener('pointercancel', stop)
+  }
+  handle.addEventListener('pointermove', move)
+  handle.addEventListener('pointerup', stop)
+  handle.addEventListener('pointercancel', stop)
+}
+
+function caret(css: StyledCss): HTMLSpanElement {
+  const span = styled(css)
   span.className = 'field-mirror-caret'
   span.dataset.caret = ''
   span.textContent = HOLD

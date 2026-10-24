@@ -240,6 +240,18 @@ export interface TextStyle {
  * A text box. (x, y) is its top-left corner before rotation; the height follows from the text,
  * width and style. Rotation is in radians around the box center.
  */
+/** The parts of a text style that can differ inside one text box. */
+export type SpanStyle = Partial<
+  Pick<TextStyle, 'font' | 'size' | 'color' | 'bold' | 'italic' | 'underline'>
+>
+
+/** Formatting for the characters from `start` up to (not including) `end`. */
+export interface TextSpan {
+  start: number
+  end: number
+  style: SpanStyle
+}
+
 export interface TextObject {
   id: Id
   type: 'text'
@@ -249,7 +261,10 @@ export interface TextObject {
   width: number
   rotation: number
   text: string
+  /** The style of the whole box. */
   style: TextStyle
+  /** Parts formatted differently from `style`: sorted, not overlapping. */
+  spans?: TextSpan[]
   outline?: Outline
 }
 

@@ -45,6 +45,10 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
 - **Text and tables**: rendered on the canvas at rest; edited through a DOM overlay positioned
   with the same transform, so typing feels native. A text box stays on the page; while typing,
   the page moves (and zooms out if needed) so the whole box is on screen.
+- **Rich text**: a text box has one style, and spans that format ranges of characters
+  differently (font, size, color, bold, italic, underline; `model/richText.ts`). With text
+  selected, the format bar changes only the selection; otherwise the whole box. Lines are as
+  tall as their largest letters, like CSS line boxes.
 
 ## Keyboard
 
@@ -57,6 +61,7 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
 - Since the field is not focused, a mirror (`fieldMirror.ts`) with the field's box, font and
   wrapping draws its text, caret and selection. A tap places the caret, a double tap selects a
   word, dragging selects text; arrow keys and sliding along the space bar move the caret.
+- A selection has two handles; dragging one moves that end of the selection.
 - The name shown is "Broomit Keyboard".
 - There is no switch back to the system keyboard: on iPad it would bring the bar back.
 - Keys read touch events directly (every finger separately, on touch-down, also the space

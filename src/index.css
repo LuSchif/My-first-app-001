@@ -70,6 +70,30 @@ body {
   opacity: 0.45;
 }
 
+/* The knobs at the ends of a selection (fieldMirror.ts); each has a finger-sized touch area. */
+.field-mirror-handle {
+  position: fixed;
+  z-index: 65;
+  touch-action: none;
+}
+
+.field-mirror-handle-bar {
+  position: absolute;
+  left: calc(50% - 1px);
+  width: 2px;
+  background: var(--color-accent);
+}
+
+.field-mirror-handle-knob {
+  position: absolute;
+  left: calc(50% - 7px);
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  box-shadow: var(--shadow-soft);
+}
+
 @keyframes field-caret-blink {
   50% {
     opacity: 0;

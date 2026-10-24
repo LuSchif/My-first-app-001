@@ -49,7 +49,24 @@ export function onKeyboardChange(listener: () => void): () => void {
 
 function set(patch: Partial<State>): void {
   state = { ...state, ...patch }
+  if (patch.selection) syncSelection()
   for (const listener of listeners) listener()
+}
+
+/**
+ * Gives the field the same selection (it stays unfocused), so the page can tell what is
+ * selected, for example to format only the selected words.
+ */
+function syncSelection(): void {
+  const field = state.field
+  if (!field) return
+  const { start, end } = selection()
+  try {
+    field.setSelectionRange(start, end)
+  } catch {
+    // Number fields have no selection.
+  }
+  field.dispatchEvent(new Event('broomit:selection'))
 }
 
 export function isTextField(el: unknown): el is Field {

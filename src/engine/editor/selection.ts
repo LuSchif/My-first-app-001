@@ -1,3 +1,4 @@
+import { formatAll, scaleText } from '../model/richText.ts'
 import { boxCenter, boxContains, boxCorners, isBox } from '../geometry/box.ts'
 import { strokeTouchesCircle } from '../geometry/erase.ts'
 import { union, type Rect } from '../geometry/rect.ts'
@@ -112,7 +113,7 @@ export function withOutline(object: CanvasObject, outline: Outline | null): Canv
 
 /** The same object in another color: the ink of a stroke or fill, the text of a text box. */
 export function recolor(object: CanvasObject, color: string): CanvasObject {
-  if (object.type === 'text') return { ...object, style: { ...object.style, color } }
+  if (object.type === 'text') return formatAll(object, { color })
   // A table takes the color for its lines; pictures keep their own colors.
   if (object.type === 'table') return { ...object, style: { ...object.style, lineColor: color } }
   if (isBox(object)) return object
@@ -201,10 +202,9 @@ function transformShape(object: CanvasObject, t: Transform): CanvasObject {
   const center = textCenter(object)
   const c = transformPoint(t, center.x, center.y)
   const resized: TextObject = {
-    ...object,
+    ...scaleText(object, t.scale),
     width: object.width * t.scale,
     rotation: normalizeAngle(object.rotation + t.angle),
-    style: { ...object.style, size: object.style.size * t.scale },
   }
   const { height } = layoutText(resized)
   return { ...resized, x: c.x - resized.width / 2, y: c.y - height / 2 }

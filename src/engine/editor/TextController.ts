@@ -9,8 +9,17 @@ import {
   type TextObject,
   type TextStyle,
 } from '../model/types.ts'
+import {
+  editText,
+  formatAll,
+  formatRange,
+  SPAN_KEYS,
+  styleAt,
+  textRuns,
+} from '../model/richText.ts'
 import { FONT_STACKS, layoutText, textCenter } from '../render/text.ts'
 import type { EditorContext } from './context.ts'
+import { setStyledRanges, type StyledRange } from './styledField.ts'
 
 const DEFAULT_WIDTH = 260
 const MIN_WIDTH = 60
@@ -44,6 +53,12 @@ interface Editing {
 export class TextController {
   private readonly ctx: EditorContext
   private readonly textarea: HTMLTextAreaElement
+  /**
+   * Shows text with parts in other styles while the browser's own keyboard is used: a textarea
+   * can only show one style, so its own text is hidden then. (The app's own keyboard draws such
+   * text in its mirror of the field.)
+   */
+  private readonly richView: HTMLDivElement
   private editing: Editing | null = null
 
   constructor(ctx: EditorContext) {
@@ -75,6 +90,11 @@ export class TextController {
     } satisfies Partial<CSSStyleDeclaration>)
     area.style.setProperty('-webkit-user-select', 'text')
     area.addEventListener('input', () => this.onInput())
+    // The format bar shows the style of the selected text.
+    for (const type of ['select', 'broomit:selection']) {
+      area.addEventListener(type, () => this.ctx.changed())
+    }
+    setStyledRanges(area, () => this.styledRanges())
     area.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
         e.preventDefault()
@@ -83,6 +103,19 @@ export class TextController {
     })
     ctx.host.append(area)
     this.textarea = area
+    const view = document.createElement('div')
+    view.setAttribute('aria-hidden', 'true')
+    Object.assign(view.style, {
+      position: 'absolute',
+      display: 'none',
+      pointerEvents: 'none',
+      whiteSpace: 'pre-wrap',
+      overflowWrap: 'break-word',
+      transformOrigin: '50% 50%',
+      zIndex: '1',
+    } satisfies Partial<CSSStyleDeclaration>)
+    ctx.host.append(view)
+    this.richView = view
   }
 
   get element(): HTMLTextAreaElement {
@@ -93,8 +126,18 @@ export class TextController {
     return this.editing !== null
   }
 
+  /** The style of the selected text, or of the whole box when nothing is selected. */
   get style(): TextStyle | null {
-    return this.editing?.draft.style ?? null
+    const e = this.editing
+    if (!e) return null
+    const { start, end } = this.selection()
+    return start < end ? styleAt(e.draft, start) : e.draft.style
+  }
+
+  private selection(): { start: number; end: number } {
+    const a = this.textarea.selectionStart ?? 0
+    const b = this.textarea.selectionEnd ?? a
+    return { start: Math.min(a, b), end: Math.max(a, b) }
   }
 
   /** Starts a new text box with its first line centered on (x, y) in page coordinates. */
@@ -140,10 +183,28 @@ export class TextController {
     this.textarea.setSelectionRange(end, end)
   }
 
+  /**
+   * Formats the selected text, or the whole box when nothing is selected. Alignment, spacing
+   * and opacity always belong to the whole box.
+   */
   setStyle(patch: Partial<TextStyle>): void {
     const e = this.editing
     if (!e) return
-    e.draft = this.keepCenter(e.draft, { ...e.draft, style: { ...e.draft.style, ...patch } })
+    const { start, end } = this.selection()
+    let next = e.draft
+    if (start < end) {
+      const span: Record<string, unknown> = {}
+      const box: Record<string, unknown> = {}
+      for (const [key, value] of Object.entries(patch)) {
+        if ((SPAN_KEYS as readonly string[]).includes(key)) span[key] = value
+        else box[key] = value
+      }
+      next = formatRange(next, start, end, span)
+      if (Object.keys(box).length) next = formatAll(next, box)
+    } else {
+      next = formatAll(next, patch)
+    }
+    e.draft = this.keepCenter(e.draft, next)
     this.position()
     this.ctx.changed()
   }
@@ -154,6 +215,7 @@ export class TextController {
     if (!e) return
     this.editing = null
     this.textarea.style.display = 'none'
+    this.richView.style.display = 'none'
     this.textarea.blur()
     this.textarea.dispatchEvent(new Event('broomit:done', { bubbles: true }))
     this.ctx.setHidden(new Set())
@@ -249,6 +311,63 @@ export class TextController {
     area.style.left = `${center.x - width / 2}px`
     area.style.top = `${center.y - height / 2}px`
     area.style.transform = `rotate(${draft.rotation}rad)`
+    this.showRichView()
+  }
+
+  /** The parts of the text in other styles, as CSS for the current zoom. */
+  private styledRanges(): StyledRange[] | null {
+    const e = this.editing
+    if (!e?.draft.spans) return null
+    const { zoom } = this.ctx.camera()
+    return textRuns(e.draft).map((run) => ({
+      start: run.start,
+      end: run.start + run.text.length,
+      css: {
+        fontFamily: FONT_STACKS[run.style.font],
+        fontSize: `${run.style.size * zoom}px`,
+        fontWeight: run.style.bold ? '700' : '400',
+        fontStyle: run.style.italic ? 'italic' : 'normal',
+        textDecoration: run.style.underline ? 'underline' : 'none',
+        color: run.style.color,
+      },
+    }))
+  }
+
+  /** With the browser's keyboard, text in several styles is shown by the rich view. */
+  private showRichView(): void {
+    const view = this.richView
+    const ranges = document.documentElement.hasAttribute('data-own-keyboard')
+      ? null
+      : this.styledRanges()
+    const area = this.textarea
+    if (!ranges) {
+      view.style.display = 'none'
+      area.style.removeProperty('-webkit-text-fill-color')
+      return
+    }
+    area.style.setProperty('-webkit-text-fill-color', 'transparent')
+    for (const key of [
+      'left',
+      'top',
+      'width',
+      'height',
+      'transform',
+      'font',
+      'lineHeight',
+      'textAlign',
+      'opacity',
+    ] as const) {
+      view.style[key] = area.style[key]
+    }
+    view.style.display = 'block'
+    view.replaceChildren(
+      ...ranges.map((range) => {
+        const span = document.createElement('span')
+        Object.assign(span.style, range.css)
+        span.textContent = area.value.slice(range.start, range.end)
+        return span
+      }),
+    )
   }
 
   private begin(pageId: Id, draft: TextObject, original: TextObject | null): void {
@@ -267,7 +386,7 @@ export class TextController {
   private onInput(): void {
     const e = this.editing
     if (!e) return
-    e.draft = { ...e.draft, text: this.textarea.value }
+    e.draft = editText(e.draft, this.textarea.value)
     this.position()
     this.ensureVisible()
   }
@@ -323,7 +442,12 @@ function onPage(text: TextObject): TextObject {
 }
 
 function sameText(a: TextObject | null, b: TextObject): boolean {
-  return a !== null && a.text === b.text && JSON.stringify(a.style) === JSON.stringify(b.style)
+  return (
+    a !== null &&
+    a.text === b.text &&
+    JSON.stringify(a.style) === JSON.stringify(b.style) &&
+    JSON.stringify(a.spans) === JSON.stringify(b.spans)
+  )
 }
 
 /** A text layer's name: the start of its first line. */
