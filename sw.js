@@ -58,9 +58,10 @@ self.addEventListener('fetch', (event) => {
   const request = event.request
   if (request.method !== 'GET' || new URL(request.url).origin !== self.location.origin) return
   if (request.mode === 'navigate') {
-    // Pages: the newest version when online, the cached app when offline.
+    // Pages: the newest version when online, the cached app when offline. The browser's HTTP
+    // cache may keep the page for minutes (GitHub Pages allows 10), so it is always revalidated.
     event.respondWith(
-      fetch(request)
+      fetch(request.url, { cache: 'no-cache', credentials: 'same-origin' })
         .then((response) => {
           if (response.ok) {
             const copy = response.clone()
