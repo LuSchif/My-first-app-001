@@ -12,7 +12,8 @@ const config: CapacitorConfig = {
     // Pages scroll inside the app; the web view itself never bounces.
     scrollEnabled: false,
     contentInset: 'never',
-    backgroundColor: '#f7f2ea',
+    // White, like the start screen and the opening animation.
+    backgroundColor: '#ffffff',
   },
   plugins: {
     LocalNotifications: { iconColor: '#795a46' },
