@@ -1,4 +1,5 @@
 import type { Asset, Folder, Notebook, Page } from '../engine/model/types.ts'
+import type { CalendarSource, DayMark, OwnEvent } from '../features/calendar/model.ts'
 import { db, type BroomitDatabase } from './db.ts'
 
 /**
@@ -15,6 +16,8 @@ export interface Backup {
   pages: Page[]
   /** Pictures, with their data as base64. Older backups have none. */
   assets?: BackupAsset[]
+  /** The calendar. Older backups have none. */
+  calendar?: { events: OwnEvent[]; days: DayMark[]; sources: CalendarSource[] }
 }
 
 export interface BackupAsset extends Omit<Asset, 'blob'> {
@@ -26,7 +29,15 @@ export async function createBackup(database: BroomitDatabase = db): Promise<Back
   return database
     .transaction(
       'r',
-      [database.folders, database.notebooks, database.pages, database.assets],
+      [
+        database.folders,
+        database.notebooks,
+        database.pages,
+        database.assets,
+        database.calendarEvents,
+        database.calendarDays,
+        database.calendarSources,
+      ],
       async () => ({
         format: 'broomit-backup' as const,
         version: 1 as const,
@@ -35,6 +46,11 @@ export async function createBackup(database: BroomitDatabase = db): Promise<Back
         notebooks: await database.notebooks.toArray(),
         pages: await database.pages.toArray(),
         assets: await database.assets.toArray(),
+        calendar: {
+          events: await database.calendarEvents.toArray(),
+          days: await database.calendarDays.toArray(),
+          sources: await database.calendarSources.toArray(),
+        },
       }),
     )
     .then(async ({ assets, ...rest }) => ({
@@ -120,9 +136,22 @@ export async function restoreBackup(
   const assets = (backup.assets ?? []).map(decodeAsset)
   await database.transaction(
     'rw',
-    [database.folders, database.notebooks, database.pages, database.assets],
+    [
+      database.folders,
+      database.notebooks,
+      database.pages,
+      database.assets,
+      database.calendarEvents,
+      database.calendarDays,
+      database.calendarSources,
+    ],
     async () => {
       await database.assets.bulkPut(assets)
+      if (backup.calendar) {
+        await database.calendarEvents.bulkPut(backup.calendar.events ?? [])
+        await database.calendarDays.bulkPut(backup.calendar.days ?? [])
+        await database.calendarSources.bulkPut(backup.calendar.sources ?? [])
+      }
       await database.folders.bulkPut(backup.folders)
       await database.notebooks.bulkPut(backup.notebooks)
       // A restored notebook gets exactly its backed-up pages, not a mix with newer local ones.

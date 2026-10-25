@@ -170,6 +170,23 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
   so a fling never adds one. The new page's paper is asked for, or every new page gets one
   chosen paper from then on.
 
+## Calendar
+
+- The home screen shows a calendar: yesterday, today and tomorrow in a time grid that scrolls
+  through the day and sideways to other days; a tap opens the whole calendar (day, 3 days, week,
+  month). Code in `src/features/calendar/`.
+- Calendars are added by iCal link (WebUntis, Google, iCloud, Outlook) or as an .ics file, and
+  read with an own parser (`ics.ts`: time zones, repeating events, exceptions). The last loaded
+  version is stored, so the calendar works offline.
+- Browsers may refuse to load a calendar from another site (CORS). Then a relay the user runs
+  (`tools/calendar-relay/worker.js`) loads it. The installed app will load links directly.
+- The Broomit calendar keeps its own events (with repeat, reminder, color), and days marked as
+  important, in the database (schema version 3) and in backups.
+- Reminders come while Broomit is open (in the app and as a notification when allowed); the
+  installed app will schedule them with the system.
+- Goal: Broomit is published as an app (App Store) later, wrapping this web app; features are
+  built so they also work there.
+
 ## Appearance
 
 - Themes are built from one accent color (presets or any color), light or dark, by overriding

@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { navigate } from '../../app/router.ts'
 import { Button, Dialog, DialogTrigger } from '../../design/index.ts'
 import { FolderEditorDialog } from '../folders/FolderEditorDialog.tsx'
+import { CalendarHome } from '../calendar/CalendarHome.tsx'
 import { AppearanceMenu } from './AppearanceMenu.tsx'
 import { DragGhost } from './DragGhost.tsx'
 import { FolderGrid, NotebookGrid } from './Grids.tsx'
@@ -47,6 +48,8 @@ export function LibraryView() {
             <NewNotebookButton library={library} reload={reload} onCreated={open} />
           </div>
         </header>
+
+        <CalendarHome />
 
         <SearchField value={query} onChange={setQuery} />
 
