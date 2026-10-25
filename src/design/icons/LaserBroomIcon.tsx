@@ -1,31 +1,32 @@
-import type { SVGProps } from 'react'
-import { BROOM_PATHS } from '../../engine/render/broomGlyph.ts'
+import { BROOM_URL } from '../../engine/render/broomGlyph.ts'
 
-/** The laser pointer: Broomit's broom with a glowing dot, on the same grid as BroomIcon. */
-export function LaserBroomIcon({
-  size = 24,
-  strokeWidth = 1.75,
-  ...props
-}: SVGProps<SVGSVGElement> & { size?: number }) {
+/** The laser pointer: Broomit's broom with a glowing red dot at its bristles. */
+export function LaserBroomIcon({ size = 24 }: { size?: number }) {
   return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={strokeWidth}
-      strokeLinecap="round"
-      strokeLinejoin="round"
+    <span
       aria-hidden="true"
-      {...props}
+      className="relative inline-block"
+      style={{ width: size, height: size }}
     >
-      {BROOM_PATHS.map((d) => (
-        <path key={d} d={d} opacity={0.55} />
-      ))}
-      <circle cx="18" cy="18" r="2.4" fill="currentColor" stroke="none" />
-      <path d="M18 12.6v1.2M23.4 18h-1.2M21.8 14.2l-.85.85" />
-    </svg>
+      <img
+        src={BROOM_URL}
+        alt=""
+        draggable={false}
+        width={size}
+        height={size}
+        className="pointer-events-none size-full object-contain opacity-80 select-none"
+      />
+      <span
+        className="absolute rounded-full"
+        style={{
+          width: size * 0.3,
+          height: size * 0.3,
+          right: 0,
+          bottom: 0,
+          background: '#e0533f',
+          boxShadow: '0 0 6px 2px rgb(224 83 63 / 0.6)',
+        }}
+      />
+    </span>
   )
 }
