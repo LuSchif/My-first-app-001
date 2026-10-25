@@ -1,5 +1,7 @@
+import { LocalNotifications } from '@capacitor/local-notifications'
+import { isNativeApp } from '../../lib/install.ts'
 import { occurrences } from './ics.ts'
-import { calendarSnapshot, ownAsEvent } from './calendarStore.ts'
+import { calendarSnapshot, ownAsEvent, subscribeCalendar } from './calendarStore.ts'
 
 /**
  * Reminders for Broomit's own events. A website can only remind while it is open, so they are
@@ -54,6 +56,10 @@ function remember(keys: Set<string>): void {
 
 /** Asks for permission to show reminders as notifications; does nothing where unsupported. */
 export async function allowNotifications(): Promise<void> {
+  if (isNativeApp()) {
+    await LocalNotifications.requestPermissions().catch(() => undefined)
+    return
+  }
   try {
     if ('Notification' in window && Notification.permission === 'default') {
       await Notification.requestPermission()
@@ -64,6 +70,8 @@ export async function allowNotifications(): Promise<void> {
 }
 
 function check(): void {
+  // In the app, the system shows reminders itself (see syncNativeReminders).
+  if (isNativeApp()) return
   const now = Date.now()
   const events = calendarSnapshot().events.filter((e) => e.reminder !== undefined)
   if (!events.length) return
@@ -95,8 +103,9 @@ function check(): void {
   if (changed) remember(done)
 }
 
-export function reminderText(r: Reminder): string {
-  const minutes = Math.round((r.start.getTime() - Date.now()) / 60000)
+/** What a reminder says, as seen at `now` (when it is shown). */
+export function reminderText(r: Reminder, now = Date.now()): string {
+  const minutes = Math.round((r.start.getTime() - now) / 60000)
   const time = r.start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
   if (minutes <= 0) return `Now, ${time}`
   if (minutes < 60) return `In ${minutes} min, at ${time}`
@@ -109,4 +118,65 @@ export function startReminders(): void {
   if (timer) return
   check()
   timer = setInterval(check, 30_000)
+  if (isNativeApp()) {
+    void syncNativeReminders()
+    let events = calendarSnapshot().events
+    subscribeCalendar(() => {
+      if (calendarSnapshot().events === events) return
+      events = calendarSnapshot().events
+      void syncNativeReminders()
+    })
+  }
+}
+
+/** iOS keeps at most 64 scheduled notifications per app. */
+const NATIVE_LIMIT = 60
+const SCHEDULE_DAYS = 30
+
+/** A stable number for a reminder, as the system needs one. */
+function notificationId(key: string): number {
+  let h = 0
+  for (let i = 0; i < key.length; i++) h = (Math.imul(h, 31) + key.charCodeAt(i)) | 0
+  return Math.abs(h) % 2147483647
+}
+
+/**
+ * In the App Store app, the upcoming reminders are handed to iOS, so they come even when
+ * Broomit is closed. Called whenever events change.
+ */
+async function syncNativeReminders(): Promise<void> {
+  try {
+    const pending = await LocalNotifications.getPending()
+    if (pending.notifications.length) {
+      await LocalNotifications.cancel({
+        notifications: pending.notifications.map((n) => ({ id: n.id })),
+      })
+    }
+    const events = calendarSnapshot().events.filter((e) => e.reminder !== undefined)
+    if (!events.length) return
+    const now = Date.now()
+    const list = occurrences(
+      events.map(ownAsEvent),
+      new Date(now),
+      new Date(now + SCHEDULE_DAYS * 86400000),
+    )
+      .flatMap((o) => {
+        const event = events.find((e) => e.id === o.uid)
+        const at = o.start.getTime() - (event?.reminder ?? 0) * 60000
+        return event && at > now ? [{ o, at }] : []
+      })
+      .sort((a, b) => a.at - b.at)
+      .slice(0, NATIVE_LIMIT)
+    if (!list.length) return
+    await LocalNotifications.schedule({
+      notifications: list.map(({ o, at }) => ({
+        id: notificationId(o.key),
+        title: o.title,
+        body: reminderText({ key: o.key, title: o.title, start: o.start }, at),
+        schedule: { at: new Date(at), allowWhileIdle: true },
+      })),
+    })
+  } catch (err) {
+    console.error(err)
+  }
 }

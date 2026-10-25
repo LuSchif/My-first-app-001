@@ -1,17 +1,30 @@
-import { CalendarPlus, FileUp, LoaderCircle, RefreshCw, Trash2, TriangleAlert } from 'lucide-react'
+import {
+  CalendarCheck,
+  CalendarPlus,
+  FileUp,
+  LoaderCircle,
+  RefreshCw,
+  Trash2,
+  TriangleAlert,
+} from 'lucide-react'
 import { useRef, useState } from 'react'
 import { Button, ColorSwatch, DialogContent, Switch, TextField } from '../../design/index.ts'
 import { formatEdited } from '../../lib/time.ts'
 import {
   addSource,
   calendarProxy,
+  connectDevice,
+  disconnectDevice,
+  setDeviceCalendarShown,
   importCalendarFile,
   refreshSource,
   removeSource,
   setCalendarProxy,
   updateSource,
 } from './calendarStore.ts'
+import { deviceCalendarsAvailable, openAppSettings } from './deviceCalendar.ts'
 import { EVENT_COLORS, type CalendarSource } from './model.ts'
+import { useCalendar } from './useCalendar.ts'
 
 /**
  * Adding a calendar by link (WebUntis, Google, iCloud, Outlook…) or from an .ics file. Used on
@@ -116,6 +129,7 @@ export function CalendarSources({
   return (
     <DialogContent title="Calendars" className="w-[min(36rem,calc(100%-2rem))]">
       <div className="grid max-h-[70dvh] gap-5 overflow-y-auto pr-1">
+        {deviceCalendarsAvailable() ? <DeviceSection /> : null}
         <section className="grid gap-2">
           {sources.length ? null : (
             <p className="text-sm text-ink-muted">
@@ -227,5 +241,60 @@ export function CalendarSources({
         </div>
       </div>
     </DialogContent>
+  )
+}
+
+/** The iPad's own calendars: connect once, then show or hide each. */
+function DeviceSection() {
+  const data = useCalendar()
+  const { device } = data
+  const [denied, setDenied] = useState(false)
+  return (
+    <section className="grid gap-2">
+      <h3 className="text-xs font-semibold tracking-wide text-ink-muted uppercase">On this iPad</h3>
+      {device.connected ? (
+        <>
+          {device.calendars.map((c) => (
+            <div key={c.id} className="flex items-center gap-3 rounded-control px-2">
+              <span className="size-3 shrink-0 rounded-full" style={{ background: c.color }} />
+              <div className="min-w-0 flex-1">
+                <Switch
+                  label={c.title}
+                  hint={c.account || undefined}
+                  checked={!device.hidden.includes(c.id)}
+                  onChange={(on) => setDeviceCalendarShown(c.id, on)}
+                />
+              </div>
+            </div>
+          ))}
+          <Button variant="ghost" className="justify-self-start" onClick={disconnectDevice}>
+            Stop showing these calendars
+          </Button>
+        </>
+      ) : (
+        <div className="grid gap-2">
+          <p className="text-sm text-ink-muted">
+            Show your timetable, iCloud, Google and every other calendar set up on this iPad.
+          </p>
+          <Button
+            variant="primary"
+            className="justify-self-start"
+            icon={<CalendarCheck size={16} />}
+            onClick={async () => setDenied(!(await connectDevice()))}
+          >
+            Connect your calendars
+          </Button>
+          {denied ? (
+            <p className="text-sm text-danger">
+              Broomit may not see your calendars.{' '}
+              <button type="button" className="font-semibold underline" onClick={openAppSettings}>
+                Allow it in Settings
+              </button>
+              .
+            </p>
+          ) : null}
+        </div>
+      )}
+    </section>
   )
 }

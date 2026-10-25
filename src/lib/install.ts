@@ -1,5 +1,13 @@
-/** Whether Broomit runs as an installed app (opened from the Home Screen). */
+import { Capacitor } from '@capacitor/core'
+
+/** Whether Broomit runs as the App Store app rather than in a browser. */
+export function isNativeApp(): boolean {
+  return Capacitor.isNativePlatform()
+}
+
+/** Whether Broomit runs as an installed app (opened from the Home Screen, or the App Store app). */
 export function isInstalled(): boolean {
+  if (isNativeApp()) return true
   const nav = navigator as Navigator & { standalone?: boolean }
   return nav.standalone === true || window.matchMedia?.('(display-mode: standalone)').matches
 }
@@ -26,7 +34,8 @@ export function isUpdateReady(): boolean {
  * and once one is installed, says so; while the app is in the background it simply reloads.
  */
 export function registerServiceWorker(): void {
-  if (!import.meta.env.PROD || !('serviceWorker' in navigator)) return
+  // The App Store app carries its files itself and updates through the App Store.
+  if (!import.meta.env.PROD || isNativeApp() || !('serviceWorker' in navigator)) return
   const hadController = Boolean(navigator.serviceWorker.controller)
   navigator.serviceWorker.addEventListener('controllerchange', () => {
     // The first install takes control of a page that is already current.

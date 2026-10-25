@@ -1,4 +1,13 @@
 import { db } from '../../storage/db.ts'
+import {
+  deviceCalendarsAvailable,
+  hasDeviceAccess,
+  listDeviceCalendars,
+  listDeviceEvents,
+  requestDeviceAccess,
+  type DeviceCalendar,
+  type DeviceEvent,
+} from './deviceCalendar.ts'
 import { occurrences, parseIcs, wallOf, type CalendarEvent, type Repeat } from './ics.ts'
 import {
   EVENT_COLORS,
@@ -17,6 +26,14 @@ export interface CalendarData {
   events: OwnEvent[]
   days: DayMark[]
   sources: CalendarSource[]
+  /** The iPad's own calendars, once connected (App Store app only). */
+  device: {
+    connected: boolean
+    calendars: DeviceCalendar[]
+    /** Calendars switched off in Broomit. */
+    hidden: string[]
+    events: DeviceEvent[]
+  }
   loaded: boolean
 }
 
@@ -35,7 +52,13 @@ export interface Entry {
   source?: string
 }
 
-let data: CalendarData = { events: [], days: [], sources: [], loaded: false }
+let data: CalendarData = {
+  events: [],
+  days: [],
+  sources: [],
+  device: { connected: false, calendars: [], hidden: [], events: [] },
+  loaded: false,
+}
 const listeners = new Set<() => void>()
 
 function set(next: Partial<CalendarData>): void {
@@ -260,11 +283,88 @@ export async function refreshAll(): Promise<void> {
   if (refreshing) return
   refreshing = true
   try {
-    await Promise.all(
-      data.sources.filter((s) => s.url && s.enabled).map((s) => refreshSource(s.id)),
-    )
+    await Promise.all([
+      ...data.sources.filter((s) => s.url && s.enabled).map((s) => refreshSource(s.id)),
+      refreshDevice(),
+    ])
   } finally {
     refreshing = false
+  }
+}
+
+// ---------- The iPad's own calendars ----------
+
+const DEVICE_KEY = 'broomit.deviceCalendars'
+
+function readDeviceSetting(): { connected: boolean; hidden: string[] } {
+  try {
+    const v = JSON.parse(localStorage.getItem(DEVICE_KEY) ?? 'null') as {
+      connected?: unknown
+      hidden?: unknown
+    } | null
+    const hidden = Array.isArray(v?.hidden) ? (v.hidden as unknown[]) : []
+    return {
+      connected: v?.connected === true,
+      hidden: hidden.filter((h): h is string => typeof h === 'string'),
+    }
+  } catch {
+    return { connected: false, hidden: [] }
+  }
+}
+
+function writeDeviceSetting(connected: boolean, hidden: string[]): void {
+  try {
+    localStorage.setItem(DEVICE_KEY, JSON.stringify({ connected, hidden }))
+  } catch {
+    // Asked again next time.
+  }
+}
+
+/** Events of the iPad's calendars from three months back to a year ahead. */
+const DEVICE_BACK_DAYS = 92
+const DEVICE_AHEAD_DAYS = 366
+
+/** Asks for access to the iPad's calendars and shows them; false when not allowed. */
+export async function connectDevice(): Promise<boolean> {
+  if (!deviceCalendarsAvailable()) return false
+  const allowed = await requestDeviceAccess()
+  writeDeviceSetting(allowed, data.device.hidden)
+  set({ device: { ...data.device, connected: allowed } })
+  if (allowed) await refreshDevice()
+  return allowed
+}
+
+export function disconnectDevice(): void {
+  writeDeviceSetting(false, data.device.hidden)
+  set({ device: { ...data.device, connected: false, calendars: [], events: [] } })
+}
+
+export function setDeviceCalendarShown(id: string, shown: boolean): void {
+  const hidden = shown
+    ? data.device.hidden.filter((h) => h !== id)
+    : [...new Set([...data.device.hidden, id])]
+  writeDeviceSetting(data.device.connected, hidden)
+  set({ device: { ...data.device, hidden } })
+}
+
+export async function refreshDevice(): Promise<void> {
+  if (!deviceCalendarsAvailable()) return
+  const setting = readDeviceSetting()
+  if (!setting.connected || !(await hasDeviceAccess())) {
+    set({ device: { ...data.device, connected: false, hidden: setting.hidden } })
+    return
+  }
+  try {
+    const now = new Date()
+    const from = new Date(now.getFullYear(), now.getMonth(), now.getDate() - DEVICE_BACK_DAYS)
+    const to = new Date(now.getFullYear(), now.getMonth(), now.getDate() + DEVICE_AHEAD_DAYS)
+    const [calendars, events] = await Promise.all([
+      listDeviceCalendars(),
+      listDeviceEvents(from, to),
+    ])
+    set({ device: { connected: true, calendars, hidden: setting.hidden, events } })
+  } catch (err) {
+    console.error(err)
   }
 }
 
@@ -311,6 +411,26 @@ export function entriesIn(d: CalendarData, from: Date, to: Date): Entry[] {
   for (const o of occurrences(d.events.map(ownAsEvent), from, to)) {
     const own = d.events.find((e) => e.id === o.uid)
     out.push({ ...o, color: own?.color ?? EVENT_COLORS[0][1], ownId: o.uid })
+  }
+  if (d.device.connected) {
+    const lo = from.getTime()
+    const hi = to.getTime()
+    for (const e of d.device.events) {
+      if (e.start >= hi || e.end < lo || (e.end === lo && e.end !== e.start)) continue
+      if (d.device.hidden.includes(e.calendarId)) continue
+      const calendar = d.device.calendars.find((c) => c.id === e.calendarId)
+      out.push({
+        key: `device:${e.id}`,
+        title: e.title,
+        start: new Date(e.start),
+        end: new Date(e.end),
+        allDay: e.allDay,
+        color: calendar?.color ?? EVENT_COLORS[6][1],
+        source: calendar?.title ?? 'Calendar',
+        ...(e.location ? { location: e.location } : {}),
+        ...(e.description ? { description: e.description } : {}),
+      })
+    }
   }
   for (const source of d.sources) {
     if (!source.enabled) continue

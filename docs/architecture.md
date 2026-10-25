@@ -187,6 +187,19 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
 - Goal: Broomit is published as an app (App Store) later, wrapping this web app; features are
   built so they also work there.
 
+## The App Store app
+
+- Broomit ships as an iPad app (iPad only, iOS 17+) made with Capacitor from the same web app
+  (`capacitor.config.ts`, `ios/`, Swift Package Manager). The bundle id is
+  `com.luisschiffter.broomit`; the app is called Broomit.
+- There is no Mac: GitHub Actions builds on a cloud Mac. `ios-check.yml` builds unsigned when the
+  native side changes; `ios.yml` (started by hand) signs with an App Store Connect API key
+  (cloud signing) and uploads to TestFlight.
+- In the app: the iPad's calendars are read through EventKit (`deviceCalendar.ts`), reminders
+  are scheduled with the system, requests go through iOS (calendar links load from any site),
+  and there is no service worker (updates come through the App Store).
+- The app keeps its own storage, apart from the browser: notebooks move over with a backup.
+
 ## Appearance
 
 - Themes are built from one accent color (presets or any color), light or dark, by overriding

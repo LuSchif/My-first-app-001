@@ -1,4 +1,5 @@
 import {
+  CalendarCheck,
   CalendarDays,
   ChevronLeft,
   ChevronRight,
@@ -8,6 +9,8 @@ import {
   TriangleAlert,
 } from 'lucide-react'
 import { useMemo, useState } from 'react'
+import { connectDevice } from './calendarStore.ts'
+import { deviceCalendarsAvailable, openAppSettings } from './deviceCalendar.ts'
 import { Button, Dialog, DialogContent } from '../../design/index.ts'
 import { cn } from '../../lib/cn.ts'
 import { entriesIn, type CalendarData, type Entry } from './calendarStore.ts'
@@ -76,7 +79,11 @@ export function CalendarHome() {
   const [open, setOpen] = useState(false)
   const [sheet, setSheet] = useState<Sheet>(null)
   const configured =
-    setUp || data.sources.length > 0 || data.events.length > 0 || data.days.length > 0
+    setUp ||
+    data.device.connected ||
+    data.sources.length > 0 ||
+    data.events.length > 0 ||
+    data.days.length > 0
 
   const markSetUp = () => {
     setSetUp(true)
@@ -153,6 +160,7 @@ export function CalendarHome() {
 }
 
 function Setup({ onOwn }: { onOwn: () => void }) {
+  if (deviceCalendarsAvailable()) return <AppSetup onOwn={onOwn} />
   return (
     <div className="grid gap-4 p-5 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)] sm:items-center sm:gap-8">
       <div className="grid gap-2">
@@ -168,6 +176,56 @@ function Setup({ onOwn }: { onOwn: () => void }) {
         </Button>
       </div>
       <AddCalendar />
+    </div>
+  )
+}
+
+/** In the App Store app: one tap shows every calendar on the iPad. */
+function AppSetup({ onOwn }: { onOwn: () => void }) {
+  const [denied, setDenied] = useState(false)
+  return (
+    <div className="grid gap-4 p-5">
+      <div className="grid gap-2">
+        <p className="flex items-center gap-2 text-lg font-bold">
+          <CalendarDays size={20} /> Your calendar
+        </p>
+        <p className="max-w-[60ch] text-sm text-ink-muted">
+          See today, yesterday and tomorrow right here: your timetable, iCloud, Google and every
+          other calendar on this iPad. Or use the Broomit calendar for events, reminders and
+          important days.
+        </p>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <Button
+          variant="primary"
+          icon={<CalendarCheck size={16} />}
+          onClick={async () => {
+            const allowed = await connectDevice()
+            if (allowed) onOwn()
+            else setDenied(true)
+          }}
+        >
+          Connect your calendars
+        </Button>
+        <Button onClick={onOwn}>Use the Broomit calendar</Button>
+      </div>
+      {denied ? (
+        <p className="text-sm text-danger">
+          Broomit may not see your calendars.{' '}
+          <button type="button" className="font-semibold underline" onClick={openAppSettings}>
+            Allow it in Settings
+          </button>
+          .
+        </p>
+      ) : null}
+      <details className="text-sm">
+        <summary className="cursor-pointer font-semibold text-ink-muted">
+          Other ways: a link or a file
+        </summary>
+        <div className="mt-3">
+          <AddCalendar />
+        </div>
+      </details>
     </div>
   )
 }
