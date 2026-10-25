@@ -1,21 +1,29 @@
-import type { ImgHTMLAttributes } from 'react'
-import { BROOM_URL } from '../../engine/render/broomGlyph.ts'
+import type { SVGProps } from 'react'
+import { BROOM_PATHS } from '../../engine/render/broomGlyph.ts'
 
-/** Broomit's broom, as in the logo: the eraser in the toolbar. */
+/** Broomit's broom as a pictogram: the eraser in the toolbar, drawn like the Lucide icons. */
 export function BroomIcon({
   size = 24,
+  strokeWidth = 1.75,
   ...props
-}: ImgHTMLAttributes<HTMLImageElement> & { size?: number }) {
+}: SVGProps<SVGSVGElement> & { size?: number }) {
   return (
-    <img
-      src={BROOM_URL}
-      alt=""
-      aria-hidden="true"
-      draggable={false}
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
       width={size}
       height={size}
-      className="pointer-events-none object-contain select-none"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
       {...props}
-    />
+    >
+      {BROOM_PATHS.map((d) => (
+        <path key={d} d={d} />
+      ))}
+    </svg>
   )
 }

@@ -6,6 +6,25 @@ import broomUrl from '../../assets/broom.png'
  */
 export const BROOM_URL = broomUrl
 
+/**
+ * The same broom as a line pictogram on a 24 × 24 grid with round caps, like the Lucide icons,
+ * for toolbars: stroke them in one color.
+ */
+export const BROOM_PATHS = [
+  // handle with its cap band
+  'M14 9.7 18.3 2.6a1.3 1.3 0 0 1 2.2 1.4l-4.3 7.1',
+  'M17.4 4.2l2.2 1.3',
+  // ferrule
+  'M13.1 9.2l4.1 2.4-1.2 2.6-4.8-2.8z',
+  // bristles fanning out, with two gaps
+  'M11.1 11.9C9 14.2 6.4 15.4 3.2 15.3c1.6 3.2 4.8 5.6 8.4 6.1l2.6.1c.9-2.2 1.4-4.3 1.8-6.7',
+  'M7.6 17.6c1.9-.9 3.5-2.2 4.8-3.8',
+  'M10.6 20.9c1.4-1.9 2.4-4 2.9-6.3',
+  // swept-up dust
+  'M4.4 11.4l1.7 1.3',
+  'M6.9 9.1l.8 1.9',
+] as const
+
 /** Width over height of the picture. */
 export const BROOM_ASPECT = 360 / 384
 

@@ -178,7 +178,7 @@ function IconsSection() {
     >
       <div className="grid gap-6 sm:grid-cols-[auto_1fr] sm:items-center">
         <div className="grid size-40 place-items-center rounded-panel bg-ink text-ink-inverse shadow-raised">
-          <BroomIcon size={88} />
+          <BroomIcon size={88} strokeWidth={1.25} />
         </div>
         <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6">
           {TOOL_ICONS.map(([name, icon]) => (
