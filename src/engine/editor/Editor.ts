@@ -57,7 +57,7 @@ import { boundsOfPoints } from '../geometry/rect.ts'
 import { drawBroom } from '../render/broomGlyph.ts'
 import { objectBounds, paintObject } from '../render/objects.ts'
 import { onImageLoaded } from '../render/images.ts'
-import { invalidateTextLayouts } from '../render/text.ts'
+import { invalidateTextLayouts, layoutText } from '../render/text.ts'
 import type { EditorContext } from './context.ts'
 import { hitsObject, recolor } from './selection.ts'
 import {
@@ -1214,6 +1214,58 @@ export class Editor {
     this.history.execute(
       insertPages('Add card', index, [createPage(id, paper), createPage(id, paper)]),
     )
+    this.goToPage(index)
+  }
+
+  /**
+   * Flashcards: a new card with typed text on its front and back, centered, after card `at`
+   * (or at the end). Shows its front.
+   */
+  addTypedCard(front: string, back: string, at?: number): void {
+    const { id, paper } = this.doc.notebook
+    const layers = this.doc.notebook.layers
+    const layer =
+      layers.find((l) => l.id === this._state.activeLayerId && !l.locked) ??
+      layers.find((l) => !l.locked)
+    if (!layer) return
+    const side = (text: string) => {
+      const page = createPage(id, paper)
+      const trimmed = text.trim()
+      if (!trimmed) return page
+      const { width, height } = this.layout.size
+      // Short answers large, longer ones smaller, so they fit the card.
+      const size = trimmed.length <= 40 ? 32 : trimmed.length <= 140 ? 24 : 18
+      const object: TextObject = {
+        id: newId(),
+        type: 'text',
+        layerId: layer.id,
+        x: 40,
+        y: 0,
+        width: width - 80,
+        rotation: 0,
+        text: trimmed,
+        style: { ...DEFAULT_TEXT_STYLE, size, align: 'center' },
+      }
+      object.y = Math.max(24, (height - layoutText(object).height) / 2)
+      return { ...page, objects: [object] }
+    }
+    const sides = [side(front), side(back)]
+    // The card in view is still blank (as in a new deck): the text goes on it.
+    const shown = Math.floor(this._state.pageIndex / 2) * 2
+    const blank = this.doc.pageList.slice(shown, shown + 2)
+    if (blank.length === 2 && blank.every((p) => p.objects.length === 0)) {
+      this.history.execute(
+        compound(
+          'Add card',
+          blank.map((p, i) => setPageObjects('Add card', p.id, p.objects, sides[i]!.objects)),
+        ),
+      )
+      this.goToPage(shown)
+      return
+    }
+    const count = Math.ceil(this.doc.notebook.pageIds.length / 2)
+    const index = Math.min(this.doc.notebook.pageIds.length, Math.min(count, at ?? count) * 2)
+    this.history.execute(insertPages('Add card', index, sides))
     this.goToPage(index)
   }
 

@@ -2,10 +2,8 @@ import { createElement, useState } from 'react'
 import { createFolder } from '../../engine/model/factory.ts'
 import type { Fill } from '../../engine/model/fill.ts'
 import type { Folder, Id } from '../../engine/model/types.ts'
-import { Button, DialogContent, TextField } from '../../design/index.ts'
-import { ChevronDown } from 'lucide-react'
+import { Button, DialogContent, DialogFooter, Fold, TextField } from '../../design/index.ts'
 import { fillToCss } from '../../engine/model/fill.ts'
-import { cn } from '../../lib/cn.ts'
 import { createFolderRecord, updateFolder } from '../../storage/folders.ts'
 import { FillEditor } from './FillEditor.tsx'
 import { FolderGraphic } from './FolderGraphic.tsx'
@@ -130,47 +128,12 @@ export function FolderEditorDialog({
           </div>
         </div>
         {error ? <p className="text-sm text-danger">{error}</p> : null}
-        {/* Always in view, however far the design options go down. */}
-        <div className="sticky -bottom-6 -mx-6 -mb-6 flex justify-end border-t border-line bg-surface-raised px-6 py-4">
+        <DialogFooter>
           <Button variant="primary" type="submit" disabled={!name.trim() || busy}>
             {folder ? 'Save' : busy ? 'Creating…' : 'Create folder'}
           </Button>
-        </div>
+        </DialogFooter>
       </form>
     </DialogContent>
-  )
-}
-
-/** A design option that folds away: its name and current choice, and below them, its controls. */
-function Fold({
-  title,
-  summary,
-  open,
-  onToggle,
-  children,
-}: {
-  title: string
-  summary: React.ReactNode
-  open: boolean
-  onToggle: () => void
-  children: React.ReactNode
-}) {
-  return (
-    <div className="rounded-card ring-1 ring-line">
-      <button
-        type="button"
-        aria-expanded={open}
-        onClick={onToggle}
-        className="flex h-12 w-full items-center gap-3 rounded-card px-4 text-left text-sm font-semibold hover:bg-hover"
-      >
-        <span className="flex-1">{title}</span>
-        {summary}
-        <ChevronDown
-          size={18}
-          className={cn('text-ink-muted transition-transform', open && 'rotate-180')}
-        />
-      </button>
-      {open ? <div className="border-t border-line p-4">{children}</div> : null}
-    </div>
   )
 }

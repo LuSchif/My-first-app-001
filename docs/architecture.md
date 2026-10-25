@@ -108,6 +108,8 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
   notebook's peek) brings up the trash (`TrashZone.tsx`). Dropped there it disappears at once
   but is deleted for good only after the notice's Undo has run out (`trash.ts`); a notebook
   keeps its last page.
+- Dialogs keep their main button in view (`DialogFooter`) and fold away long design options
+  (`Fold`), as in the folder and notebook dialogs.
 - Dialogs close only by their close button or a tap on the dimmed backdrop: on iPad other
   touches could count as "outside" and lose what was being set up.
 - Holding a folder or notebook (or dragging it with a mouse) picks it up: dropped on a folder it
@@ -293,7 +295,8 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
 - A deck is a document with `kind: 'deck'` and index-card pages (`CARD_SIZE`), in pairs: each
   card's front, then its back (`model/flashcards.ts`). Cards are written and drawn with the
   same editor and tools; the cards panel on the left shows both sides and adds, copies, moves
-  and deletes whole cards.
+  and deletes whole cards. "Type cards" makes cards from typed text instead: front and back,
+  centered and sized to fit (a blank card in view is filled first).
 - Studying (`features/flashcards/Study.tsx`) works like Anki with two answers: a known card
   moves up a box and is due again after 1, 3, 7, 16, 35 or 80 days; a missed one goes back to
   the first box and comes again three cards later in the same session. How well each card is

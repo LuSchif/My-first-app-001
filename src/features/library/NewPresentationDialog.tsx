@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { createNotebook } from '../../engine/model/factory.ts'
 import { SLIDE_SIZES, type Folder, type Id } from '../../engine/model/types.ts'
-import { Button, ColorSwatch, DialogContent, TextField } from '../../design/index.ts'
+import { Button, ColorSwatch, DialogContent, DialogFooter, TextField } from '../../design/index.ts'
 import { cn } from '../../lib/cn.ts'
 import { createNotebookRecord } from '../../storage/notebooks.ts'
 import { FolderField } from './FolderField.tsx'
@@ -131,11 +131,11 @@ export function NewPresentationDialog({
           </div>
         </fieldset>
         {error ? <p className="text-sm text-danger">{error}</p> : null}
-        <div className="flex justify-end">
+        <DialogFooter>
           <Button variant="primary" type="submit" disabled={!title.trim() || busy}>
             {busy ? 'Creating…' : 'Create presentation'}
           </Button>
-        </div>
+        </DialogFooter>
       </form>
     </DialogContent>
   )

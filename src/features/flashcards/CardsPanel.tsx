@@ -1,14 +1,22 @@
-import { ArrowDown, ArrowUp, Copy, MoreHorizontal, Plus, Trash2 } from 'lucide-react'
+import { ArrowDown, ArrowUp, Copy, Keyboard, MoreHorizontal, Plus, Trash2 } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 import type { NotebookDocument } from '../../engine/document/NotebookDocument.ts'
 import type { Editor, EditorState } from '../../engine/editor/Editor.ts'
 import { cardsOf } from '../../engine/model/flashcards.ts'
 import { pageSizeOf } from '../../engine/render/layout.ts'
-import { Button, Popover, PopoverContent, PopoverTrigger } from '../../design/index.ts'
+import {
+  Button,
+  Dialog,
+  DialogTrigger,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '../../design/index.ts'
 import { cn } from '../../lib/cn.ts'
 import { PageThumbnail } from '../editor/PageThumbnail.tsx'
 import { SLIDES_PANEL_WIDTH } from '../presentation/SlidesPanel.tsx'
 import { useDocVersion } from '../presentation/useDocVersion.ts'
+import { TypeCardsDialog } from './TypeCardsDialog.tsx'
 
 const THUMB_WIDTH = 148
 
@@ -84,13 +92,21 @@ export function CardsPanel({
           </li>
         ))}
       </ol>
-      <div className="border-t border-line p-3">
+      <div className="grid gap-2 border-t border-line p-3">
+        <Dialog>
+          <DialogTrigger asChild>
+            <Button variant="primary" className="w-full" icon={<Keyboard size={16} />}>
+              Type cards
+            </Button>
+          </DialogTrigger>
+          <TypeCardsDialog editor={editor} after={current} />
+        </Dialog>
         <Button
           className="w-full"
           icon={<Plus size={16} />}
           onClick={() => editor.addCardAt(current + 1)}
         >
-          New card
+          Blank card
         </Button>
       </div>
     </aside>

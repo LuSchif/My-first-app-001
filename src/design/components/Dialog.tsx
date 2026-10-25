@@ -71,3 +71,20 @@ export function DialogContent({
     </RadixDialog.Portal>
   )
 }
+
+/**
+ * The buttons at the end of a dialog, always in view: they stay at its bottom edge however far
+ * the content above them goes.
+ */
+export function DialogFooter({ children, className }: { children: ReactNode; className?: string }) {
+  return (
+    <div
+      className={cn(
+        'sticky -bottom-6 z-10 -mx-6 -mb-6 flex items-center justify-end gap-2 border-t border-line bg-surface-raised px-6 py-4',
+        className,
+      )}
+    >
+      {children}
+    </div>
+  )
+}

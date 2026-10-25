@@ -1,13 +1,15 @@
 import { BookmarkPlus, Paintbrush, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { createNotebook } from '../../engine/model/factory.ts'
-import type { Fill } from '../../engine/model/fill.ts'
+import { fillToCss, type Fill } from '../../engine/model/fill.ts'
 import { cn } from '../../lib/cn.ts'
 import type { Folder, Id, PaperKind } from '../../engine/model/types.ts'
 import {
   Button,
   ColorSwatch,
   DialogContent,
+  DialogFooter,
+  Fold,
   GRADIENT_PRESETS,
   TextField,
 } from '../../design/index.ts'
@@ -44,6 +46,9 @@ export function NewNotebookDialog({
   const [paper, setPaper] = useState<PaperKind>('lined')
   const [cover, setCover] = useState<Fill>(COVERS[0]!.fill)
   const [customCover, setCustomCover] = useState(false)
+  // Cover and paper start folded, so the dialog fits without scrolling.
+  const [open, setOpen] = useState<'cover' | 'paper' | null>(null)
+  const toggle = (part: 'cover' | 'paper') => setOpen(open === part ? null : part)
   const [folder, setFolder] = useState<Id | null>(folderId)
   const [extraFolders, setExtraFolders] = useState<Folder[]>([])
   const allFolders = [
@@ -107,74 +112,93 @@ export function NewNotebookDialog({
               }}
             />
 
-            <fieldset className="grid min-w-0 gap-2">
-              <legend className="mb-1 text-sm font-medium">Cover</legend>
-              <div role="group" aria-label="Cover colors" className="flex min-w-0 flex-wrap">
-                {COVERS.map((c) => (
-                  <ColorSwatch
-                    key={c.name}
-                    label={c.name}
-                    fill={c.fill}
-                    selected={!customCover && sameFill(cover, c.fill)}
-                    onSelect={() => {
-                      setCustomCover(false)
-                      setCover(c.fill)
-                    }}
-                  />
-                ))}
-                <button
-                  type="button"
-                  aria-pressed={customCover}
-                  onClick={() => setCustomCover(!customCover)}
-                  className="m-1 flex h-9 items-center gap-1.5 rounded-full px-3 text-sm font-semibold ring-1 ring-line hover:bg-hover aria-pressed:bg-ink aria-pressed:text-ink-inverse"
-                >
-                  <Paintbrush size={16} /> Design
-                </button>
+            <Fold
+              title="Cover"
+              open={open === 'cover'}
+              onToggle={() => toggle('cover')}
+              summary={
+                <span
+                  className="h-7 w-5 rounded-r-md rounded-l-sm shadow-soft ring-1 ring-line"
+                  style={{ background: fillToCss(cover) }}
+                />
+              }
+            >
+              <div className="grid min-w-0 gap-2">
+                <div role="group" aria-label="Cover colors" className="flex min-w-0 flex-wrap">
+                  {COVERS.map((c) => (
+                    <ColorSwatch
+                      key={c.name}
+                      label={c.name}
+                      fill={c.fill}
+                      selected={!customCover && sameFill(cover, c.fill)}
+                      onSelect={() => {
+                        setCustomCover(false)
+                        setCover(c.fill)
+                      }}
+                    />
+                  ))}
+                  <button
+                    type="button"
+                    aria-pressed={customCover}
+                    onClick={() => setCustomCover(!customCover)}
+                    className="m-1 flex h-9 items-center gap-1.5 rounded-full px-3 text-sm font-semibold ring-1 ring-line hover:bg-hover aria-pressed:bg-ink aria-pressed:text-ink-inverse"
+                  >
+                    <Paintbrush size={16} /> Design
+                  </button>
+                </div>
+                {designs.length ? (
+                  <div className="grid gap-1">
+                    <p className="text-xs font-semibold tracking-wide text-ink-muted uppercase">
+                      Your designs
+                    </p>
+                    <div role="group" aria-label="Your designs" className="flex min-w-0 flex-wrap">
+                      {designs.map((d, i) => (
+                        <ColorSwatch
+                          key={i}
+                          label={`Your design ${i + 1}`}
+                          fill={d}
+                          selected={sameFill(cover, d)}
+                          onSelect={() => setCover(d)}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+                {customCover ? (
+                  <div className="grid gap-3 rounded-card bg-surface p-4 ring-1 ring-line">
+                    <FillEditor value={cover} onChange={setCover} />
+                    <div className="flex justify-end gap-2">
+                      {saved ? (
+                        <Button
+                          icon={<Trash2 size={16} />}
+                          onClick={() => setDesigns(removeCoverDesign(cover))}
+                        >
+                          Remove from your designs
+                        </Button>
+                      ) : (
+                        <Button
+                          icon={<BookmarkPlus size={16} />}
+                          onClick={() => setDesigns(saveCoverDesign(cover))}
+                        >
+                          Save design
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                ) : null}
               </div>
-              {designs.length ? (
-                <div className="grid gap-1">
-                  <p className="text-xs font-semibold tracking-wide text-ink-muted uppercase">
-                    Your designs
-                  </p>
-                  <div role="group" aria-label="Your designs" className="flex min-w-0 flex-wrap">
-                    {designs.map((d, i) => (
-                      <ColorSwatch
-                        key={i}
-                        label={`Your design ${i + 1}`}
-                        fill={d}
-                        selected={sameFill(cover, d)}
-                        onSelect={() => setCover(d)}
-                      />
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-              {customCover ? (
-                <div className="grid gap-3 rounded-card bg-surface p-4 ring-1 ring-line">
-                  <FillEditor value={cover} onChange={setCover} />
-                  <div className="flex justify-end gap-2">
-                    {saved ? (
-                      <Button
-                        icon={<Trash2 size={16} />}
-                        onClick={() => setDesigns(removeCoverDesign(cover))}
-                      >
-                        Remove from your designs
-                      </Button>
-                    ) : (
-                      <Button
-                        icon={<BookmarkPlus size={16} />}
-                        onClick={() => setDesigns(saveCoverDesign(cover))}
-                      >
-                        Save design
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              ) : null}
-            </fieldset>
+            </Fold>
 
-            <fieldset className="grid gap-2">
-              <legend className="mb-2 text-sm font-medium">Paper</legend>
+            <Fold
+              title="Paper"
+              open={open === 'paper'}
+              onToggle={() => toggle('paper')}
+              summary={
+                <span className="text-sm font-normal text-ink-muted">
+                  {PAPER_OPTIONS.find((o) => o.kind === paper)?.label}
+                </span>
+              }
+            >
               <div className="grid grid-cols-5 gap-3">
                 {PAPER_OPTIONS.map((option) => (
                   <button
@@ -197,17 +221,17 @@ export function NewNotebookDialog({
                   </button>
                 ))}
               </div>
-            </fieldset>
+            </Fold>
           </div>
         </div>
 
         {error ? <p className="text-sm text-danger">{error}</p> : null}
 
-        <div className="flex justify-end">
+        <DialogFooter>
           <Button variant="primary" type="submit" disabled={!title.trim() || busy}>
             {busy ? 'Creating…' : 'Create notebook'}
           </Button>
-        </div>
+        </DialogFooter>
       </form>
     </DialogContent>
   )

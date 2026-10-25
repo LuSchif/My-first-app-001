@@ -2,7 +2,14 @@ export { Button } from './components/Button.tsx'
 export { ColorPicker } from './components/ColorPicker.tsx'
 export { ColorSwatch } from './components/ColorSwatch.tsx'
 export { ColorWheel } from './components/ColorWheel.tsx'
-export { Dialog, DialogClose, DialogContent, DialogTrigger } from './components/Dialog.tsx'
+export {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogFooter,
+  DialogTrigger,
+} from './components/Dialog.tsx'
+export { Fold } from './components/Fold.tsx'
 export { IconButton } from './components/IconButton.tsx'
 export { Popover, PopoverClose, PopoverContent, PopoverTrigger } from './components/Popover.tsx'
 export { PopoverSideContext, useClosePopover } from './components/popoverContext.ts'
