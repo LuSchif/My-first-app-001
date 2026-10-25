@@ -73,7 +73,14 @@ function draftEvent(at?: Date): OwnEvent {
  * The calendar on the home screen: yesterday, today and tomorrow at a glance (or only today,
  * with `todayOnly`), scrollable through the day. A tap opens the whole calendar.
  */
-export function CalendarHome({ todayOnly = false }: { todayOnly?: boolean }) {
+export function CalendarHome({
+  todayOnly = false,
+  className,
+}: {
+  todayOnly?: boolean
+  /** Sets the height; the day then fills it. */
+  className?: string
+}) {
   const data = useCalendar()
   const [setUp, setSetUp] = useState(readSetUp)
   const [open, setOpen] = useState(false)
@@ -99,13 +106,19 @@ export function CalendarHome({ todayOnly = false }: { todayOnly?: boolean }) {
     setSheet(own ? { kind: 'event', event: own } : { kind: 'entry', entry })
   }
 
-  if (!data.loaded) return <div className="h-72 rounded-panel bg-surface-raised shadow-soft" />
+  if (!data.loaded) {
+    return <div className={cn('h-72 rounded-panel bg-surface-raised shadow-soft', className)} />
+  }
 
   return (
     <>
       <section
         aria-label="Calendar"
-        className="@container overflow-hidden rounded-panel bg-surface-raised shadow-soft ring-1 ring-line"
+        className={cn(
+          '@container flex flex-col rounded-panel bg-surface-raised shadow-soft ring-1 ring-line',
+          configured ? 'overflow-hidden' : 'overflow-y-auto',
+          className,
+        )}
       >
         {configured ? (
           <Widget
@@ -266,7 +279,7 @@ function Widget({
       aria-label="Open the calendar"
       onClick={onOpen}
       onKeyDown={(e) => e.key === 'Enter' && onOpen()}
-      className="grid cursor-pointer"
+      className="flex min-h-0 flex-1 cursor-pointer flex-col"
     >
       <div className="flex items-center gap-2 border-b border-line px-4 py-2" onClick={header}>
         <CalendarDays size={18} className="shrink-0 text-ink-muted" />
@@ -308,7 +321,7 @@ function Widget({
         hourHeight={40}
         onEntryTap={onEntry}
         onDayTap={onDay}
-        className={todayOnly ? 'h-[22rem]' : 'h-64'}
+        className={todayOnly ? 'min-h-0 flex-1' : 'h-64'}
       />
     </div>
   )

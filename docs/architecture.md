@@ -81,11 +81,13 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
 
 ## Library and folders
 
-- The home screen: a header with the search, tiles/list switch, appearance, backup and one
-  "New" menu (notebook, presentation, folder). Below it, today's calendar at the top left and,
-  beside it, the top-level folders and the notebooks in no folder (or all of them); below
-  those, every presentation. Folders and notebooks have their own sort order (folders: own
-  order, name, recently edited).
+- The home screen: a header with the search, tiles/list switch, appearance and backup. Below
+  it, today's calendar on the left (about two fifths of the width); on the right, buttons for a
+  new folder, notebook or presentation, and under them a carousel (`Carousel.tsx`) with one
+  page each for the top-level folders, the notebooks (in no folder, or all of them) and the
+  presentations. Swipe or use the arrows and names below it; the page shown is remembered.
+  Both sides are as tall as the screen allows and scroll inside. Folders and notebooks have
+  their own sort order (folders: own order, name, recently edited).
 - Folders and notebooks show as tiles or as a list (`libraryLayout.ts`, kept per device; the
   same choice applies inside folders). In the list a folder opens with one tap, and folders are
   sorted by dropping them above or below another (`data-drop-axis="y"`).
