@@ -4,7 +4,7 @@ import type { EditorContext } from './context.ts'
 import type { FxPainter } from './FxLayer.ts'
 
 /** The whole drawing stays this long after the pen last moved, then fades out together. */
-const HOLD_MS = 3000
+const HOLD_MS = 1000
 const FADE_MS = 450
 const CORE_PX = 4
 const GLOW_PX = 14
@@ -21,7 +21,7 @@ interface TrailPoint {
 
 /**
  * Points at things while presenting: a glowing line in the laser color, led by a broom of the
- * same color. Everything drawn stays in full until the pen has rested for three seconds, then
+ * same color. Everything drawn stays in full until the pen has rested for a second, then
  * fades out at once. It never changes the notebook.
  *
  * It draws on the effects layer with plain strokes (a wide, faint one for the glow under a

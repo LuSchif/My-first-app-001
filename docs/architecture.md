@@ -183,7 +183,7 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
   (made straight when it nearly is) and gets an even head (`engine/geometry/arrows.ts`).
 - A highlighter stroke over typed text becomes a text highlight in its color (a span style),
   snapped to whole words (`editor/textHighlight.ts`).
-- The laser drawing stays in full until the pen has rested for three seconds, then fades.
+- The laser drawing stays in full until the pen has rested for a second, then fades.
 - The magnifier enlarges a spot and lists the objects there with their layers, with a way to
   make that layer active.
 - Pulling past the last page arms adding a page; the pull must then be held (a filling ring),
@@ -222,7 +222,7 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
 
 ## Appearance
 
-- Each start of the app opens with a broom sweeping across a white screen and uncovering the
+- Each start of the app opens with a broom flying across a white screen and uncovering the
   logo behind it (`app/Opening.tsx`, keyframes in `tokens.css`); a tap skips it. The iOS launch
   screen is plain white, so the app starts straight into it.
 

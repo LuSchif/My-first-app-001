@@ -443,8 +443,8 @@ function LaserSettings({ editor, state }: { editor: Editor; state: EditorState }
   return (
     <>
       <p className="text-sm text-ink-muted">
-        Point at things while you present. What you draw stays for three seconds after you stop,
-        then fades. It never changes the page.
+        Point at things while you present. What you draw stays for a second after you stop, then
+        fades. It never changes the page.
       </p>
       <div role="group" aria-label="Laser colors" className="flex flex-wrap">
         {LASER_COLORS.map(([name, color]) => (
