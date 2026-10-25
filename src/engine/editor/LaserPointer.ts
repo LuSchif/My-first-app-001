@@ -8,7 +8,7 @@ const HOLD_MS = 3000
 const FADE_MS = 450
 const CORE_PX = 4
 const GLOW_PX = 14
-const BROOM_PX = 44
+const BROOM_PX = 34
 
 interface TrailPoint {
   /** World coordinates, so the trail stays on the page while it scrolls. */

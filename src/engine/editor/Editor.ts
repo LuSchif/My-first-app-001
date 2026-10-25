@@ -48,7 +48,7 @@ import {
   traceStroke,
 } from '../geometry/strokePath.ts'
 import { boundsOfPoints } from '../geometry/rect.ts'
-import { BROOM_BRISTLES, drawBroom } from '../render/broomGlyph.ts'
+import { drawBroom } from '../render/broomGlyph.ts'
 import { objectBounds, paintObject } from '../render/objects.ts'
 import { onImageLoaded } from '../render/images.ts'
 import { invalidateTextLayouts } from '../render/text.ts'
@@ -2800,8 +2800,8 @@ export class Editor {
     this.clearTip()
     const { dpr } = this.view
     const r = (this._state.broom.size / 2) * this.camera.zoom
-    // The bristles are as wide as the sweep.
-    const icon = Math.max(28, (r * 2) / BROOM_BRISTLES)
+    // The head spans about half the icon's height.
+    const icon = Math.max(22, r * 4)
     this.inkLayer.style.opacity = '1'
     this.inkLayer.style.mixBlendMode = 'normal'
     this.tip.setTransform(dpr, 0, 0, dpr, 0, 0)

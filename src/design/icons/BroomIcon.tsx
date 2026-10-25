@@ -1,7 +1,10 @@
 import type { SVGProps } from 'react'
 import { BROOM_PATHS } from '../../engine/render/broomGlyph.ts'
 
-/** Broomit's broom as a pictogram: the eraser in the toolbar, drawn like the Lucide icons. */
+/**
+ * Broomit's eraser. Drawn on the same 24 px grid and stroke as the Lucide icons used elsewhere,
+ * so it sits naturally in a toolbar next to them.
+ */
 export function BroomIcon({
   size = 24,
   strokeWidth = 1.75,
