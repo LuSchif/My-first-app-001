@@ -2,7 +2,8 @@ import { Copy, FilePlus2, LoaderCircle, MoreHorizontal, Share, Trash2 } from 'lu
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import type { NotebookDocument } from '../../engine/document/NotebookDocument.ts'
 import type { Editor, PaperScope } from '../../engine/editor/Editor.ts'
-import { PAGE_SIZE, type LayerDef, type Page, type PaperKind } from '../../engine/model/types.ts'
+import type { LayerDef, Page, PageSize, PaperKind } from '../../engine/model/types.ts'
+import { pageSizeOf } from '../../engine/render/layout.ts'
 import { drawPage, preloadPictures } from '../../engine/render/pageImage.ts'
 import {
   Button,
@@ -122,7 +123,12 @@ export function PagesOverview({
                 index === currentIndex ? 'ring-3 ring-caramel' : 'ring-1 ring-line',
               )}
             >
-              <Thumbnail page={page} layers={layers} background={background} />
+              <Thumbnail
+                page={page}
+                layers={layers}
+                background={background}
+                size={pageSizeOf(doc.notebook)}
+              />
             </button>
             <div className="flex items-center justify-between">
               <span className="text-sm font-semibold tabular-nums">Page {index + 1}</span>
@@ -140,7 +146,8 @@ export function PagesOverview({
           <button
             type="button"
             onClick={() => editor.addPageAt(pages.length)}
-            className="grid aspect-[595/842] w-full place-content-center justify-items-center gap-2 rounded-md text-sm font-semibold text-ink-muted ring-1 ring-line ring-inset hover:bg-hover"
+            style={{ aspectRatio: `${editor.pageSize.width} / ${editor.pageSize.height}` }}
+            className="grid w-full place-content-center justify-items-center gap-2 rounded-md text-sm font-semibold text-ink-muted ring-1 ring-line ring-inset hover:bg-hover"
           >
             <FilePlus2 size={22} />
             Add page
@@ -328,26 +335,35 @@ function Thumbnail({
   page,
   layers,
   background,
+  size,
 }: {
   page: Page
   layers: readonly LayerDef[]
   background: string | undefined
+  size: PageSize
 }) {
   const ref = useRef<HTMLCanvasElement>(null)
   useEffect(() => {
     const canvas = ref.current
     if (!canvas) return
     const dpr = window.devicePixelRatio || 1
-    const scale = (THUMB_WIDTH * dpr) / PAGE_SIZE.width
-    canvas.width = Math.round(PAGE_SIZE.width * scale)
-    canvas.height = Math.round(PAGE_SIZE.height * scale)
-    const draw = () => drawPage(canvas.getContext('2d')!, page, layers, scale, background)
+    const scale = (THUMB_WIDTH * dpr) / size.width
+    canvas.width = Math.round(size.width * scale)
+    canvas.height = Math.round(size.height * scale)
+    const draw = () => drawPage(canvas.getContext('2d')!, page, layers, scale, background, size)
     draw()
     let alive = true
     void preloadPictures([page]).then(() => alive && draw())
     return () => {
       alive = false
     }
-  }, [page, layers, background])
-  return <canvas ref={ref} className="block aspect-[595/842] w-full bg-paper" aria-hidden="true" />
+  }, [page, layers, background, size])
+  return (
+    <canvas
+      ref={ref}
+      className="block w-full bg-paper"
+      style={{ aspectRatio: `${size.width} / ${size.height}` }}
+      aria-hidden="true"
+    />
+  )
 }

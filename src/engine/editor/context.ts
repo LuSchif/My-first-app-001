@@ -3,6 +3,7 @@ import type { NotebookDocument } from '../document/NotebookDocument.ts'
 import type { Camera, Point } from '../geometry/camera.ts'
 import type { Id, LayerDef, Page } from '../model/types.ts'
 import type { View } from '../render/SceneRenderer.ts'
+import type { PageLayout } from '../render/layout.ts'
 
 /** What the editor shares with its tool controllers (selection, text). */
 export interface EditorContext {
@@ -11,6 +12,8 @@ export interface EditorContext {
   readonly host: HTMLElement
   readonly overlay: CanvasRenderingContext2D
   camera(): Camera
+  /** Where the document's pages sit and how large they are. */
+  layout(): PageLayout
   view(): View
   screenPos(e: { clientX: number; clientY: number }): Point
   /** The page under a screen point, with the point in that page's coordinates. */

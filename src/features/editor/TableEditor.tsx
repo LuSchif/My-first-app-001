@@ -10,7 +10,7 @@ import {
   removeRow,
   setCell,
 } from '../../engine/model/table.ts'
-import { PAGE_SIZE, type TableObject } from '../../engine/model/types.ts'
+import type { TableObject } from '../../engine/model/types.ts'
 import { ObjectPreview } from './ObjectPreview.tsx'
 import {
   Button,
@@ -208,7 +208,7 @@ function TableEditorContent({
           variant="primary"
           onClick={() => {
             editor.updateSelectedObject(
-              fitToPage(draft, PAGE_SIZE.width, PAGE_SIZE.height),
+              fitToPage(draft, editor.pageSize.width, editor.pageSize.height),
               'Edit table',
             )
             onDone()

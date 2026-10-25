@@ -41,7 +41,6 @@ import {
 import { CHART_ICONS } from './chartIcons.tsx'
 import { Stepper } from './Stepper.tsx'
 import {
-  PAGE_SIZE,
   type ChartKind,
   type ChartObject,
   type GradientPaint,
@@ -361,7 +360,10 @@ function EditChartButton({ editor, chart }: { editor: Editor; chart: ChartObject
 function RowsAndColumns({ editor, table }: { editor: Editor; table: TableObject }) {
   // A table that grows past the page edge shrinks its columns or rows to fit the page.
   const resize = (next: TableObject, label: string) =>
-    editor.updateSelectedObject(fitToPage(next, PAGE_SIZE.width, PAGE_SIZE.height), label)
+    editor.updateSelectedObject(
+      fitToPage(next, editor.pageSize.width, editor.pageSize.height),
+      label,
+    )
   return (
     <Popover>
       <PopoverTrigger asChild>
@@ -413,7 +415,7 @@ function MakeChart({ editor, table }: { editor: Editor; table: TableObject }) {
     // Right of the table when there is room, below it otherwise.
     const right = table.x + table.width + 16
     const at =
-      right + width <= PAGE_SIZE.width
+      right + width <= editor.pageSize.width
         ? { x: right, y: table.y }
         : { x: table.x, y: table.y + table.height + 16 }
     editor.insertBox(

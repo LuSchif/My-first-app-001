@@ -1,4 +1,4 @@
-import { PAGE_SIZE, type PaperKind } from '../model/types.ts'
+import { PAGE_SIZE, type PageSize, type PaperKind } from '../model/types.ts'
 
 const MM = 72 / 25.4
 export const PAPER_STYLE = {
@@ -16,8 +16,13 @@ export const PAPER_STYLE = {
  * Draws the paper pattern in page coordinates. Line widths are divided by the zoom level, so the
  * pattern stays one crisp hairline at every zoom.
  */
-export function drawPaper(ctx: CanvasRenderingContext2D, kind: PaperKind, zoom: number): void {
-  const { width, height } = PAGE_SIZE
+export function drawPaper(
+  ctx: CanvasRenderingContext2D,
+  kind: PaperKind,
+  zoom: number,
+  size: PageSize = PAGE_SIZE,
+): void {
+  const { width, height } = size
   const hair = 0.8 / zoom
   if (kind === 'lined') {
     const s = PAPER_STYLE.lined

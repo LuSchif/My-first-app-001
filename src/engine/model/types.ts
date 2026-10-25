@@ -40,6 +40,10 @@ export interface LayerDef {
 export interface Notebook {
   id: Id
   schemaVersion: number
+  /** A notebook when absent. */
+  kind?: DocumentKind
+  /** The size of every page; A4 (PAGE_SIZE) when absent. */
+  pageSize?: PageSize
   title: string
   folderId: Id | null
   cover: Fill
@@ -292,3 +296,17 @@ export interface TextObject {
 
 /** A4 in PostScript points. */
 export const PAGE_SIZE = { width: 595, height: 842 } as const
+
+/** The size of a document's pages, in points. */
+export interface PageSize {
+  width: number
+  height: number
+}
+
+/** Slides of a presentation: 16:9 or 4:3. */
+export const SLIDE_SIZES = {
+  wide: { width: 960, height: 540 },
+  standard: { width: 800, height: 600 },
+} as const
+
+export type DocumentKind = 'notebook' | 'presentation'

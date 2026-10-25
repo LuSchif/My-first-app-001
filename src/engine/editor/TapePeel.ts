@@ -1,4 +1,5 @@
 import type { Camera } from '../geometry/camera.ts'
+import type { PageLayout } from '../render/layout.ts'
 import type { StrokeObject } from '../model/types.ts'
 import { enterPage } from '../render/SceneRenderer.ts'
 import { paintTape } from '../render/strokes.ts'
@@ -23,10 +24,12 @@ export class TapePeel implements FxPainter {
   private peels: Peel[] = []
   private readonly camera: () => Camera
   private readonly dpr: () => number
+  private readonly layout: PageLayout
 
-  constructor(camera: () => Camera, dpr: () => number) {
+  constructor(camera: () => Camera, dpr: () => number, layout: PageLayout) {
     this.camera = camera
     this.dpr = dpr
+    this.layout = layout
   }
 
   add(tape: StrokeObject, pageIndex: number, reveal: boolean, done?: () => void): void {
@@ -53,7 +56,7 @@ export class TapePeel implements FxPainter {
       const my = y0 + (y1 - y0) * eased
       const covered = p.reveal ? [mx, my, x1, y1] : [x0, y0, mx, my]
       ctx.save()
-      enterPage(ctx, this.camera(), this.dpr(), p.pageIndex)
+      enterPage(ctx, this.camera(), this.dpr(), p.pageIndex, this.layout)
       if (p.reveal) {
         // The loose end lifts off the paper: a shadow under a slightly raised strip.
         ctx.translate(0, -3 * Math.sin(t * Math.PI))

@@ -2,7 +2,6 @@ import { compound, setLayers, setPageObjects, type Command } from '../commands/c
 import { createLayer } from '../model/factory.ts'
 import { newId } from '../model/ids.ts'
 import {
-  PAGE_SIZE,
   type Id,
   type LayerDef,
   type Page,
@@ -83,6 +82,11 @@ export class TextController {
    */
   private readonly richView: HTMLDivElement
   private editing: Editing | null = null
+
+  /** Text boxes keep within the page's width. */
+  private get pageWidth(): number {
+    return this.ctx.layout().size.width
+  }
 
   constructor(ctx: EditorContext) {
     this.ctx = ctx
@@ -174,7 +178,7 @@ export class TextController {
     const lineStyle = rules
       ? { ...style, lineHeight: ruledLineHeight(style.size, rules.gap) }
       : style
-    const draft: TextObject = fitWidth({
+    const draft: TextObject = fitWidth(this.pageWidth, {
       id: newId(),
       type: 'text',
       layerId: layer.id,
@@ -194,13 +198,13 @@ export class TextController {
       if (x < rules.margin + 6) draft.x = rules.margin + 6
     }
     // Near the right edge, the box starts further left so it stays on the page.
-    draft.x = Math.max(PAGE_MARGIN, Math.min(draft.x, PAGE_SIZE.width - PAGE_MARGIN - draft.width))
+    draft.x = Math.max(PAGE_MARGIN, Math.min(draft.x, this.pageWidth - PAGE_MARGIN - draft.width))
     // "Text" is selected, so the first key replaces it.
     this.begin(pageId, draft, null, true)
   }
 
   edit(pageId: Id, object: TextObject): void {
-    this.begin(pageId, onPage(object), object)
+    this.begin(pageId, onPage(this.pageWidth, object), object)
   }
 
   /** Focuses the text field again if something else took focus while it is being edited. */
@@ -245,7 +249,7 @@ export class TextController {
     } else {
       next = formatAll(next, patch)
     }
-    e.draft = this.keepCenter(e.draft, fitWidth(next))
+    e.draft = this.keepCenter(e.draft, fitWidth(this.pageWidth, next))
     this.position()
     this.ctx.changed()
   }
@@ -436,7 +440,7 @@ export class TextController {
   private onInput(): void {
     const e = this.editing
     if (!e) return
-    e.draft = fitWidth(editText(e.draft, this.textarea.value))
+    e.draft = fitWidth(this.pageWidth, editText(e.draft, this.textarea.value))
     this.position()
     this.ensureVisible()
   }
@@ -487,19 +491,19 @@ export class TextController {
  * A box that is as wide as its text gets the width of its longest line, up to the page's right
  * edge (there it wraps). Never narrower than one letter, so an empty box still shows.
  */
-function fitWidth(text: TextObject): TextObject {
+function fitWidth(pageWidth: number, text: TextObject): TextObject {
   if (!text.autoWidth) return text
-  const room = Math.max(text.style.size, PAGE_SIZE.width - PAGE_MARGIN - text.x)
+  const room = Math.max(text.style.size, pageWidth - PAGE_MARGIN - text.x)
   // A hair wider than measured, so rounding never wraps the last letter.
   const width = Math.min(room, Math.max(text.style.size, naturalWidth(text) + 1))
   return width === text.width ? text : { ...text, width }
 }
 
 /** An unrotated text box reaching past the page's right edge is narrowed (or moved) to fit. */
-function onPage(text: TextObject): TextObject {
-  if (text.rotation !== 0 || text.x + text.width <= PAGE_SIZE.width) return text
-  const width = Math.max(MIN_WIDTH, Math.min(text.width, PAGE_SIZE.width - PAGE_MARGIN - text.x))
-  const x = Math.max(PAGE_MARGIN, Math.min(text.x, PAGE_SIZE.width - PAGE_MARGIN - width))
+function onPage(pageWidth: number, text: TextObject): TextObject {
+  if (text.rotation !== 0 || text.x + text.width <= pageWidth) return text
+  const width = Math.max(MIN_WIDTH, Math.min(text.width, pageWidth - PAGE_MARGIN - text.x))
+  const x = Math.max(PAGE_MARGIN, Math.min(text.x, pageWidth - PAGE_MARGIN - width))
   return { ...text, x, width }
 }
 

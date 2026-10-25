@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
-import { PAGE_SIZE, type Notebook } from '../../engine/model/types.ts'
+import type { Notebook } from '../../engine/model/types.ts'
+import { pageSizeOf } from '../../engine/render/layout.ts'
 import { drawPage, preloadPictures } from '../../engine/render/pageImage.ts'
 import { cn } from '../../lib/cn.ts'
 import { db } from '../../storage/db.ts'
@@ -24,11 +25,12 @@ export function NotebookThumbnail({
       const canvas = ref.current
       if (!alive || !page || !canvas) return
       const dpr = window.devicePixelRatio || 1
-      const scale = (width * dpr) / PAGE_SIZE.width
-      canvas.width = Math.round(PAGE_SIZE.width * scale)
-      canvas.height = Math.round(PAGE_SIZE.height * scale)
+      const size = pageSizeOf(notebook)
+      const scale = (width * dpr) / size.width
+      canvas.width = Math.round(size.width * scale)
+      canvas.height = Math.round(size.height * scale)
       const draw = () =>
-        drawPage(canvas.getContext('2d')!, page, notebook.layers, scale, notebook.background)
+        drawPage(canvas.getContext('2d')!, page, notebook.layers, scale, notebook.background, size)
       draw()
       await preloadPictures([page])
       if (alive) draw()
@@ -41,8 +43,11 @@ export function NotebookThumbnail({
     <canvas
       ref={ref}
       aria-hidden="true"
-      style={{ width }}
-      className={cn('block aspect-[595/842] rounded-sm bg-paper shadow-soft', className)}
+      style={{
+        width,
+        aspectRatio: `${pageSizeOf(notebook).width} / ${pageSizeOf(notebook).height}`,
+      }}
+      className={cn('block rounded-sm bg-paper shadow-soft', className)}
     />
   )
 }

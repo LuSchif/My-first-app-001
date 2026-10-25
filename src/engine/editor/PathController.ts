@@ -16,7 +16,6 @@ import {
   type HandleSide,
 } from '../geometry/pathEdit.ts'
 import type { Id, StrokeObject } from '../model/types.ts'
-import { pageOrigin } from '../render/layout.ts'
 import { applyCamera } from '../render/SceneRenderer.ts'
 import { paintStroke } from '../render/strokes.ts'
 import type { EditorContext } from './context.ts'
@@ -415,14 +414,14 @@ export class PathController {
     const e = this.editing!
     const index = this.ctx.pageIndexOf(e.pageId)
     const c = this.ctx.camera()
-    const o = pageOrigin(index)
+    const o = this.ctx.layout().origin(index)
     return { x: (screen.x - c.offsetX) / c.zoom - o.x, y: (screen.y - c.offsetY) / c.zoom - o.y }
   }
 
   private enterPageSpace(pageIndex: number): void {
     const ctx = this.ctx.overlay
     applyCamera(ctx, this.ctx.camera(), this.ctx.view().dpr)
-    const o = pageOrigin(pageIndex)
+    const o = this.ctx.layout().origin(pageIndex)
     ctx.translate(o.x, o.y)
   }
 }

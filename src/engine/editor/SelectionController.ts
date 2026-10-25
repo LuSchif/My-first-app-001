@@ -5,7 +5,6 @@ import { newId } from '../model/ids.ts'
 import { isBox } from '../geometry/box.ts'
 import type { Fill } from '../model/fill.ts'
 import type { BoxObject, CanvasObject, GradientPaint, Id, Outline } from '../model/types.ts'
-import { pageOrigin } from '../render/layout.ts'
 import { paintObject } from '../render/objects.ts'
 import { applyCamera } from '../render/SceneRenderer.ts'
 import type { EditorContext } from './context.ts'
@@ -748,14 +747,14 @@ export class SelectionController {
 
   private toLocal(pageIndex: number, screen: Point): Point {
     const c = this.ctx.camera()
-    const o = pageOrigin(pageIndex)
+    const o = this.ctx.layout().origin(pageIndex)
     return { x: (screen.x - c.offsetX) / c.zoom - o.x, y: (screen.y - c.offsetY) / c.zoom - o.y }
   }
 
   private enterPageSpace(pageIndex: number): void {
     const ctx = this.ctx.overlay
     applyCamera(ctx, this.ctx.camera(), this.ctx.view().dpr)
-    const o = pageOrigin(pageIndex)
+    const o = this.ctx.layout().origin(pageIndex)
     ctx.translate(o.x, o.y)
   }
 

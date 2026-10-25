@@ -21,20 +21,20 @@ import { StrokeSampler } from '../input/StrokeSampler.ts'
 import { createPage, withPoints } from '../model/factory.ts'
 import { newId } from '../model/ids.ts'
 import {
-  PAGE_SIZE,
   type CanvasObject,
   type Id,
   type BoxFrame,
   type LayerDef,
   type Outline,
   type Page,
+  type PageSize,
   type PaperKind,
   type StrokeDash,
   type StrokeObject,
   type TextObject,
   type TextStyle,
 } from '../model/types.ts'
-import { contentHeight, PAGE_PITCH, pageIndexAt, pageOrigin } from '../render/layout.ts'
+import { layoutOf, type PageLayout } from '../render/layout.ts'
 import { enterPage, renderScene, setDeskColor, type View } from '../render/SceneRenderer.ts'
 import { PAPER_STYLE } from '../render/paper.ts'
 import { paintStroke, setInkStyle, strokeBounds } from '../render/strokes.ts'
@@ -310,6 +310,8 @@ export class Editor {
   private readonly text: TextController
   private readonly paths: PathController
   private readonly laser: LaserPointer
+  /** Where the pages sit: A4 for notebooks, slides for presentations. */
+  private readonly layout: PageLayout
   /** Laser trail and broom dust. */
   private readonly fx: FxLayer
   private readonly dust = new BroomDust()
@@ -415,6 +417,7 @@ export class Editor {
     host.style.setProperty('-webkit-user-select', 'none')
     host.style.setProperty('-webkit-touch-callout', 'none')
 
+    this.layout = layoutOf(doc.notebook)
     this.sceneCanvas = makeCanvas()
     this.inkLayer = document.createElement('div')
     Object.assign(this.inkLayer.style, { position: 'absolute', inset: '0', pointerEvents: 'none' })
@@ -442,6 +445,7 @@ export class Editor {
     this.tapePeel = new TapePeel(
       () => this.camera,
       () => this.view.dpr,
+      this.layout,
     )
     this.fx.add(this.laser)
     this.fx.add(this.dust)
@@ -517,6 +521,11 @@ export class Editor {
 
   get state(): EditorState {
     return this._state
+  }
+
+  /** The size of the document's pages, in points. */
+  get pageSize(): PageSize {
+    return this.layout.size
   }
 
   subscribe(listener: () => void): () => void {
@@ -881,7 +890,7 @@ export class Editor {
       return
     }
     const b = suggestionBounds(s)
-    const o = pageOrigin(index)
+    const o = this.layout.origin(index)
     const { zoom, offsetX, offsetY } = this.camera
     const rect = {
       x: (b.minX + o.x) * zoom + offsetX,
@@ -931,7 +940,7 @@ export class Editor {
     this.inkLayer.style.opacity = '1'
     this.inkLayer.style.mixBlendMode = 'normal'
     this.tip.save()
-    enterPage(this.tip, this.camera, dpr, target.pageIndex)
+    enterPage(this.tip, this.camera, dpr, target.pageIndex, this.layout)
     const zoom = this.camera.zoom
     if (target.region) {
       const path = new Path2D()
@@ -960,11 +969,11 @@ export class Editor {
     } else {
       this.tip.globalAlpha = 0.45
       this.tip.fillStyle = color
-      this.tip.fillRect(0, 0, PAGE_SIZE.width, PAGE_SIZE.height)
+      this.tip.fillRect(0, 0, this.layout.size.width, this.layout.size.height)
       this.tip.globalAlpha = 1
       this.tip.lineWidth = 3 / zoom
       this.tip.strokeStyle = '#795a46'
-      this.tip.strokeRect(0, 0, PAGE_SIZE.width, PAGE_SIZE.height)
+      this.tip.strokeRect(0, 0, this.layout.size.width, this.layout.size.height)
     }
     this.tip.restore()
     this.tipDirty = { x: 0, y: 0, w: width * dpr, h: height * dpr }
@@ -1000,10 +1009,10 @@ export class Editor {
   private colorTarget(clientX: number, clientY: number) {
     this.hostRect = this.host.getBoundingClientRect()
     const world = this.toWorld(this.screenPos({ clientX, clientY }))
-    const pageIndex = pageIndexAt(world.x, world.y, this.doc.notebook.pageIds.length)
+    const pageIndex = this.layout.indexAt(world.x, world.y, this.doc.notebook.pageIds.length)
     const page = this.doc.pageList[pageIndex]
     if (!page) return null
-    const o = pageOrigin(pageIndex)
+    const o = this.layout.origin(pageIndex)
     const x = world.x - o.x
     const y = world.y - o.y
     const layer = this.activeLayer()
@@ -1088,14 +1097,18 @@ export class Editor {
     const index = this._state.pageIndex
     const page = this.doc.pageList[index]
     if (!page) return
-    const fit = Math.min(1, (PAGE_SIZE.width * 0.7) / width, (PAGE_SIZE.height * 0.6) / height)
+    const fit = Math.min(
+      1,
+      (this.layout.size.width * 0.7) / width,
+      (this.layout.size.height * 0.6) / height,
+    )
     const w = width * fit
     const h = height * fit
     const center = at
       ? { x: at.x + w / 2, y: at.y + h / 2 }
       : this.toPageLocal({ x: this.view.width / 2, y: this.view.height / 2 }, index)
-    const cx = Math.min(PAGE_SIZE.width - w / 2, Math.max(w / 2, center.x))
-    const cy = Math.min(PAGE_SIZE.height - h / 2, Math.max(h / 2, center.y))
+    const cx = Math.min(this.layout.size.width - w / 2, Math.max(w / 2, center.x))
+    const cy = Math.min(this.layout.size.height - h / 2, Math.max(h / 2, center.y))
     const object = make(
       { x: cx - w / 2, y: cy - h / 2, width: w, height: h, rotation: 0 },
       layer.id,
@@ -1172,7 +1185,7 @@ export class Editor {
 
   scrollToPage(index: number): void {
     const z = this.camera.zoom
-    this.setCamera({ ...this.camera, offsetY: TOP_INSET - pageOrigin(index).y * z })
+    this.setCamera({ ...this.camera, offsetY: TOP_INSET - this.layout.origin(index).y * z })
   }
 
   dispose(): void {
@@ -1257,12 +1270,13 @@ export class Editor {
       host: this.host,
       overlay,
       camera: () => this.camera,
+      layout: () => this.layout,
       view: () => this.view,
       screenPos: (e) => this.screenPos(e),
       pageAt: (screen) => this.pageAt(screen),
       pageIndexOf: (id) => this.doc.notebook.pageIds.indexOf(id),
       toScreen: (index, x, y) => {
-        const o = pageOrigin(index)
+        const o = this.layout.origin(index)
         const c = this.camera
         return { x: (x + o.x) * c.zoom + c.offsetX, y: (y + o.y) * c.zoom + c.offsetY }
       },
@@ -1326,7 +1340,7 @@ export class Editor {
   // ---------- Camera and rendering ----------
 
   private fitZoom(): number {
-    return Math.min(1.6, (this.view.width - SIDE_MARGIN * 2) / PAGE_SIZE.width)
+    return Math.min(1.6, (this.view.width - SIDE_MARGIN * 2) / this.layout.size.width)
   }
 
   /** Keeps the pages in reach: centered when narrower than the screen, never lost off-screen. */
@@ -1334,12 +1348,12 @@ export class Editor {
     const fit = this.fitZoom()
     const zoom = Math.min(fit * 8, Math.max(fit * 0.5, c.zoom))
     const { width, height } = this.view
-    const pagesWidth = PAGE_SIZE.width * zoom
+    const pagesWidth = this.layout.size.width * zoom
     const offsetX =
       pagesWidth + SIDE_MARGIN * 2 <= width
         ? (width - pagesWidth) / 2
         : Math.min(SIDE_MARGIN, Math.max(width - pagesWidth - SIDE_MARGIN, c.offsetX))
-    const pagesHeight = contentHeight(this.doc.notebook.pageIds.length) * zoom
+    const pagesHeight = this.layout.contentHeight(this.doc.notebook.pageIds.length) * zoom
     // While typing, the last page may scroll up above the keyboard. A pull for a new page
     // stretches a little further.
     const minY = Math.min(TOP_INSET, height - pagesHeight - TOP_INSET - this.bottomInset)
@@ -1355,7 +1369,7 @@ export class Editor {
     const center = (this.view.height / 2 - this.camera.offsetY) / this.camera.zoom
     const pageIndex = Math.max(
       0,
-      Math.min(this._state.pageCount - 1, Math.floor((center + 14) / PAGE_PITCH)),
+      Math.min(this._state.pageCount - 1, Math.floor((center + 14) / this.layout.pitch)),
     )
     if (pageIndex !== this._state.pageIndex) this.update({ pageIndex })
     this.requestRender()
@@ -1410,6 +1424,7 @@ export class Editor {
         this.doc.notebook.layers,
         this.camera,
         this.view,
+        this.layout,
         this.hidden,
         this.doc.notebook.background,
       )
@@ -1430,10 +1445,10 @@ export class Editor {
   /** The page under a screen point, with the point in that page's coordinates. */
   private pageAt(screen: Point): { index: number; page: Page; x: number; y: number } | null {
     const w = this.toWorld(screen)
-    const index = pageIndexAt(w.x, w.y, this.doc.notebook.pageIds.length)
+    const index = this.layout.indexAt(w.x, w.y, this.doc.notebook.pageIds.length)
     const page = this.doc.pageList[index]
     if (!page) return null
-    const o = pageOrigin(index)
+    const o = this.layout.origin(index)
     return { index, page, x: w.x - o.x, y: w.y - o.y }
   }
 
@@ -1573,11 +1588,11 @@ export class Editor {
     const wasEditing = this.text.isEditing
     this.text.finish()
     const w = this.toWorld(screen)
-    const index = pageIndexAt(w.x, w.y, this.doc.notebook.pageIds.length)
+    const index = this.layout.indexAt(w.x, w.y, this.doc.notebook.pageIds.length)
     const page = this.doc.pageList[index]
     const layer = this.activeLayer()
     if (!page || !layer || this.blockedByLayer()) return
-    const o = pageOrigin(index)
+    const o = this.layout.origin(index)
     const x = w.x - o.x
     const y = w.y - o.y
     const hit = this.textAt(page, x, y)
@@ -1727,7 +1742,8 @@ export class Editor {
   /** Whether the view shows the end of the last page. */
   private atBottom(): boolean {
     const { height } = this.view
-    const pagesHeight = contentHeight(this.doc.notebook.pageIds.length) * this.camera.zoom
+    const pagesHeight =
+      this.layout.contentHeight(this.doc.notebook.pageIds.length) * this.camera.zoom
     const minY = Math.min(TOP_INSET, height - pagesHeight - TOP_INSET - this.bottomInset)
     return this.camera.offsetY <= minY + 1
   }
@@ -1954,7 +1970,7 @@ export class Editor {
     const layer = this.activeLayer()
     if (!layer || layer.locked || !layer.visible) return
     const world = this.toWorld(this.screenPos(e))
-    const pageIndex = pageIndexAt(world.x, world.y, this.doc.notebook.pageIds.length)
+    const pageIndex = this.layout.indexAt(world.x, world.y, this.doc.notebook.pageIds.length)
     const page = this.doc.pageList[pageIndex]
     if (!page) return
 
@@ -2031,7 +2047,7 @@ export class Editor {
 
   private toPageLocal(p: Point, pageIndex: number): Point {
     const w = this.toWorld(p)
-    const o = pageOrigin(pageIndex)
+    const o = this.layout.origin(pageIndex)
     return { x: w.x - o.x, y: w.y - o.y }
   }
 
@@ -2074,7 +2090,7 @@ export class Editor {
       path.moveTo(s.smooth[from * 2]!, s.smooth[from * 2 + 1]!)
       traceSegments(path, s.smooth, from, settled)
       this.wet.save()
-      enterPage(this.wet, this.camera, dpr, s.pageIndex)
+      enterPage(this.wet, this.camera, dpr, s.pageIndex, this.layout)
       setInkStyle(this.wet, s.stroke)
       this.wet.stroke(path)
       this.wet.restore()
@@ -2099,7 +2115,7 @@ export class Editor {
 
     this.clearTip()
     this.tip.save()
-    enterPage(this.tip, this.camera, dpr, s.pageIndex)
+    enterPage(this.tip, this.camera, dpr, s.pageIndex, this.layout)
     setInkStyle(this.tip, s.stroke)
     const path = new Path2D()
     const first = s.drawnSegments - start
@@ -2138,7 +2154,7 @@ export class Editor {
       const path = new Path2D()
       traceNib(path, flat)
       this.wet.save()
-      enterPage(this.wet, this.camera, dpr, s.pageIndex)
+      enterPage(this.wet, this.camera, dpr, s.pageIndex, this.layout)
       this.wet.fillStyle = s.stroke.color
       this.wet.fill(path)
       this.wet.restore()
@@ -2180,7 +2196,7 @@ export class Editor {
     const flat = flattenStroke(end, endWidths, first, Math.max(first, end.length / 2 - 1))
     this.clearTip()
     this.tip.save()
-    enterPage(this.tip, this.camera, dpr, s.pageIndex)
+    enterPage(this.tip, this.camera, dpr, s.pageIndex, this.layout)
     this.tip.fillStyle = s.stroke.color
     const path = new Path2D()
     traceNib(path, flat)
@@ -2261,7 +2277,7 @@ export class Editor {
     s.wetDirty = null
     this.clearTip()
     this.tip.save()
-    enterPage(this.tip, this.camera, this.view.dpr, s.pageIndex)
+    enterPage(this.tip, this.camera, this.view.dpr, s.pageIndex, this.layout)
     setInkStyle(this.tip, s.stroke)
     const path = new Path2D()
     traceStroke(path, s.snapped.points, { closed: s.snapped.closed, straight: s.snapped.straight })
@@ -2279,7 +2295,7 @@ export class Editor {
     // A finger writing (before any pencil was used) double taps tape like a panning finger does.
     if (page && !snapped && s.pointerType === 'touch' && this.isTap(points)) {
       const b = boundsOfPoints(points)
-      const o = pageOrigin(s.pageIndex)
+      const o = this.layout.origin(s.pageIndex)
       const c = this.camera
       const at = {
         x: (o.x + (b.minX + b.maxX) / 2) * c.zoom + c.offsetX,
@@ -2327,7 +2343,7 @@ export class Editor {
       // Paint the finished stroke straight onto the scene, so there is no frame without it.
       if (onTop) {
         this.scene.save()
-        enterPage(this.scene, this.camera, this.view.dpr, s.pageIndex)
+        enterPage(this.scene, this.camera, this.view.dpr, s.pageIndex, this.layout)
         paintStroke(this.scene, stroke)
         this.scene.restore()
       }
@@ -2349,7 +2365,7 @@ export class Editor {
     const layer = this.activeLayer()
     if (!layer || layer.locked || !layer.visible) return
     const world = this.toWorld(this.screenPos(e))
-    const pageIndex = pageIndexAt(world.x, world.y, this.doc.notebook.pageIds.length)
+    const pageIndex = this.layout.indexAt(world.x, world.y, this.doc.notebook.pageIds.length)
     const page = this.doc.pageList[pageIndex]
     if (!page) return
     const at = this.toPageLocal(this.screenPos(e), pageIndex)
@@ -2386,7 +2402,7 @@ export class Editor {
     this.inkLayer.style.opacity = '1'
     this.inkLayer.style.mixBlendMode = 'normal'
     this.tip.save()
-    enterPage(this.tip, this.camera, this.view.dpr, s.pageIndex)
+    enterPage(this.tip, this.camera, this.view.dpr, s.pageIndex, this.layout)
     paintStroke(this.tip, this.tapeStroke(s))
     this.tip.restore()
     const { width, height, dpr } = this.view
@@ -2555,7 +2571,7 @@ export class Editor {
       const object = pages[index]?.objects.find((o) => o.id === item.id)
       if (!object) continue
       const b = objectBounds(object)
-      const o = pageOrigin(index)
+      const o = this.layout.origin(index)
       ctx.strokeRect(
         (b.minX + o.x) * c.zoom + c.offsetX - 4,
         (b.minY + o.y) * c.zoom + c.offsetY - 4,
@@ -2727,12 +2743,12 @@ export class Editor {
     let swept: string | null = null
     const pageCount = this.doc.notebook.pageIds.length
     // The broom can overlap two pages near a gap; check both neighbours.
-    const near = Math.floor(wy / PAGE_PITCH)
+    const near = Math.floor(wy / this.layout.pitch)
     for (const index of [near - 1, near, near + 1]) {
       if (index < 0 || index >= pageCount) continue
       const page = this.doc.pageList[index]
       if (!page) continue
-      const o = pageOrigin(index)
+      const o = this.layout.origin(index)
       const cx = wx - o.x
       const cy = wy - o.y
       const probe = { minX: cx - radius, minY: cy - radius, maxX: cx + radius, maxY: cy + radius }
@@ -2856,7 +2872,7 @@ export class Editor {
       minY = Math.min(minY, points[i + 1]!)
       maxY = Math.max(maxY, points[i + 1]!)
     }
-    const o = pageOrigin(pageIndex)
+    const o = this.layout.origin(pageIndex)
     const { zoom, offsetX, offsetY } = this.camera
     const d = this.view.dpr
     const pad = (width / 2) * zoom + 3

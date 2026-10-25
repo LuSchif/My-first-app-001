@@ -1,7 +1,7 @@
 import type { Camera } from '../geometry/camera.ts'
 import { intersects, type Rect } from '../geometry/rect.ts'
-import { PAGE_SIZE, type LayerDef, type Page } from '../model/types.ts'
-import { pageOrigin } from './layout.ts'
+import type { LayerDef, Page } from '../model/types.ts'
+import type { PageLayout } from './layout.ts'
 import { drawPaper, PAPER_STYLE } from './paper.ts'
 import { paintLayers } from './layers.ts'
 
@@ -30,12 +30,13 @@ export function enterPage(
   camera: Camera,
   dpr: number,
   index: number,
+  layout: PageLayout,
 ): void {
   applyCamera(ctx, camera, dpr)
-  const o = pageOrigin(index)
+  const o = layout.origin(index)
   ctx.translate(o.x, o.y)
   ctx.beginPath()
-  ctx.rect(0, 0, PAGE_SIZE.width, PAGE_SIZE.height)
+  ctx.rect(0, 0, layout.size.width, layout.size.height)
   ctx.clip()
 }
 
@@ -56,6 +57,7 @@ export function renderScene(
   layers: readonly LayerDef[],
   camera: Camera,
   view: View,
+  layout: PageLayout,
   /** Objects drawn elsewhere right now, e.g. a selection being moved or text being edited. */
   hidden: ReadonlySet<string> = new Set(),
   /** The notebook's background color; a page's own color wins. */
@@ -68,8 +70,9 @@ export function renderScene(
 
   const world = visibleWorld(camera, view)
   pages.forEach((page, index) => {
-    const o = pageOrigin(index)
-    const rect = { minX: o.x, minY: o.y, maxX: o.x + PAGE_SIZE.width, maxY: o.y + PAGE_SIZE.height }
+    const { width, height } = layout.size
+    const o = layout.origin(index)
+    const rect = { minX: o.x, minY: o.y, maxX: o.x + width, maxY: o.y + height }
     if (!intersects(rect, world)) return
 
     applyCamera(ctx, camera, dpr)
@@ -78,12 +81,12 @@ export function renderScene(
     ctx.shadowBlur = 18 * dpr
     ctx.shadowOffsetY = 3 * dpr
     ctx.fillStyle = page.background ?? background ?? PAPER_STYLE.paper
-    ctx.fillRect(o.x, o.y, PAGE_SIZE.width, PAGE_SIZE.height)
+    ctx.fillRect(o.x, o.y, width, height)
     ctx.restore()
 
     ctx.save()
-    enterPage(ctx, camera, dpr, index)
-    drawPaper(ctx, page.paper, camera.zoom)
+    enterPage(ctx, camera, dpr, index, layout)
+    drawPaper(ctx, page.paper, camera.zoom, layout.size)
     const local = {
       minX: world.minX - o.x,
       minY: world.minY - o.y,

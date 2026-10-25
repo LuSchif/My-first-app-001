@@ -1,4 +1,4 @@
-import { PAGE_SIZE, type LayerDef, type Page } from '../model/types.ts'
+import { PAGE_SIZE, type LayerDef, type Page, type PageSize } from '../model/types.ts'
 import { loadImage } from './images.ts'
 import { paintLayers } from './layers.ts'
 import { drawPaper, PAPER_STYLE } from './paper.ts'
@@ -19,15 +19,16 @@ export function drawPage(
   layers: readonly LayerDef[],
   scale: number,
   background?: string,
+  size: PageSize = PAGE_SIZE,
 ): void {
   ctx.save()
   ctx.setTransform(scale, 0, 0, scale, 0, 0)
   ctx.fillStyle = page.background ?? background ?? PAPER_STYLE.paper
-  ctx.fillRect(0, 0, PAGE_SIZE.width, PAGE_SIZE.height)
+  ctx.fillRect(0, 0, size.width, size.height)
   ctx.beginPath()
-  ctx.rect(0, 0, PAGE_SIZE.width, PAGE_SIZE.height)
+  ctx.rect(0, 0, size.width, size.height)
   ctx.clip()
-  drawPaper(ctx, page.paper, scale)
+  drawPaper(ctx, page.paper, scale, size)
   paintLayers(ctx, page.objects, layers, null)
   ctx.restore()
 }
@@ -38,10 +39,11 @@ export function renderPage(
   layers: readonly LayerDef[],
   scale: number,
   background?: string,
+  size: PageSize = PAGE_SIZE,
 ): HTMLCanvasElement {
   const canvas = document.createElement('canvas')
-  canvas.width = Math.round(PAGE_SIZE.width * scale)
-  canvas.height = Math.round(PAGE_SIZE.height * scale)
-  drawPage(canvas.getContext('2d')!, page, layers, scale, background)
+  canvas.width = Math.round(size.width * scale)
+  canvas.height = Math.round(size.height * scale)
+  drawPage(canvas.getContext('2d')!, page, layers, scale, background, size)
   return canvas
 }

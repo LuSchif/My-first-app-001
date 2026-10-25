@@ -1,5 +1,5 @@
 import type { NotebookDocument } from '../../engine/document/NotebookDocument.ts'
-import { PAGE_SIZE } from '../../engine/model/types.ts'
+import { pageSizeOf } from '../../engine/render/layout.ts'
 import { preloadPictures, renderPage } from '../../engine/render/pageImage.ts'
 import { fileName, saveFile, saveFiles } from '../../lib/download.ts'
 import { makePdf } from '../../lib/pdf.ts'
@@ -34,9 +34,10 @@ export async function exportPages(
 
   await preloadPictures(pages)
   const layers = doc.notebook.layers
+  const size = pageSizeOf(doc.notebook)
   const jpegs: Blob[] = []
   for (const page of pages) {
-    const canvas = renderPage(page, layers, EXPORT_SCALE, doc.notebook.background)
+    const canvas = renderPage(page, layers, EXPORT_SCALE, doc.notebook.background, size)
     jpegs.push(await toJpeg(canvas))
     // Free the memory of each big canvas right away; iPad limits canvas memory.
     canvas.width = canvas.height = 0
@@ -47,12 +48,12 @@ export async function exportPages(
       await Promise.all(
         jpegs.map(async (blob) => ({
           jpeg: new Uint8Array(await blob.arrayBuffer()),
-          width: Math.round(PAGE_SIZE.width * EXPORT_SCALE),
-          height: Math.round(PAGE_SIZE.height * EXPORT_SCALE),
+          width: Math.round(size.width * EXPORT_SCALE),
+          height: Math.round(size.height * EXPORT_SCALE),
         })),
       ),
-      PAGE_SIZE.width,
-      PAGE_SIZE.height,
+      size.width,
+      size.height,
     )
     saveFile(pdf, `${base}.pdf`)
     return
