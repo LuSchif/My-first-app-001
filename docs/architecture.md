@@ -222,6 +222,10 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
 
 ## Appearance
 
+- Each start of the app opens with a broom sweeping across a white screen and uncovering the
+  logo behind it (`app/Opening.tsx`, keyframes in `tokens.css`); a tap skips it. The iOS launch
+  screen is plain white, so the app starts straight into it.
+
 - Themes are built from one accent color (presets or any color), light or dark, by overriding
   the color tokens of `tokens.css` on the root element (`design/theme.ts`). Pages stay paper
   colored; the editor's desk follows `--color-desk`.

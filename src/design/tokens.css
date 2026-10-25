@@ -21,6 +21,8 @@
   --color-paper: #fffdf8;
   /* Behind the pages in the editor; matches DESK_COLOR in the canvas renderer. */
   --color-desk: #ede4d8;
+  /* The opening animation's background. */
+  --color-splash: #ffffff;
   /* Around the slide while presenting. */
   --color-stage: #000000;
 
@@ -56,6 +58,13 @@
   --animate-fade-in: fade-in 180ms var(--ease-gentle);
   /* Notebooks sliding out of an opened folder. */
   --animate-slide-out: slide-out 420ms var(--ease-gentle) both;
+  /* The opening: the broom sweeps across and uncovers the logo behind it. */
+  --animate-opening-sweep: opening-sweep 1600ms ease-in-out 150ms both;
+  --animate-opening-reveal: opening-reveal 1600ms ease-in-out 150ms both;
+  --animate-opening-brush: opening-brush 260ms ease-in-out infinite alternate;
+  --animate-opening-dust: opening-dust 520ms ease-out infinite;
+  --animate-opening-settle: opening-settle 380ms var(--ease-gentle) 1500ms both;
+  --animate-opening-out: opening-out 420ms ease 1950ms both;
   /* Pages coming out of an opened notebook, to its right. */
   --animate-page-out: page-out 480ms var(--ease-gentle) both;
 
@@ -74,6 +83,63 @@
     from {
       opacity: 0;
       transform: translateY(-14px) scale(0.96);
+    }
+  }
+  @keyframes opening-sweep {
+    0% {
+      opacity: 0;
+      transform: translateX(-70%);
+    }
+    20% {
+      opacity: 1;
+      transform: translateX(0);
+    }
+    80% {
+      opacity: 1;
+      transform: translateX(100%);
+    }
+    100% {
+      opacity: 0;
+      transform: translateX(165%);
+    }
+  }
+  @keyframes opening-reveal {
+    0%,
+    20% {
+      clip-path: inset(-10% 100% -10% -10%);
+    }
+    80%,
+    100% {
+      clip-path: inset(-10% -10% -10% -10%);
+    }
+  }
+  @keyframes opening-brush {
+    from {
+      transform: rotate(-7deg);
+    }
+    to {
+      transform: rotate(5deg);
+    }
+  }
+  @keyframes opening-dust {
+    from {
+      opacity: 0.85;
+      transform: translate(0, 0) scale(0.4);
+    }
+    to {
+      opacity: 0;
+      transform: translate(-26px, -18px) scale(1.4);
+    }
+  }
+  @keyframes opening-settle {
+    50% {
+      transform: scale(1.04);
+    }
+  }
+  @keyframes opening-out {
+    to {
+      opacity: 0;
+      visibility: hidden;
     }
   }
   @keyframes page-out {

@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { TooltipProvider } from '../design/index.ts'
 import { EditorView } from '../features/editor/EditorView.tsx'
 import { FolderView } from '../features/folders/FolderView.tsx'
@@ -12,10 +12,13 @@ import { useRoute } from './router.ts'
 import { UpdateBanner } from './UpdateBanner.tsx'
 import { ReminderToasts } from '../features/calendar/ReminderToasts.tsx'
 import { Notices } from './Notices.tsx'
+import { Opening } from './Opening.tsx'
 import { TrashZone } from '../features/library/TrashZone.tsx'
 
 export function App() {
   const route = useRoute()
+  // The broom sweeps the logo in once, each time the app starts.
+  const [opening, setOpening] = useState(true)
   usePencilTaps()
   // On iPad, Broomit's own keyboard takes over text fields; elsewhere fields only take focus
   // when tapped.
@@ -40,6 +43,7 @@ export function App() {
       <ReminderToasts />
       <Notices />
       <TrashZone />
+      {opening ? <Opening onDone={() => setOpening(false)} /> : null}
     </TooltipProvider>
   )
 }
