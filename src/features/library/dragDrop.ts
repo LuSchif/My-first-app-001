@@ -48,6 +48,11 @@ export function useDragState(): DragState | null {
   )
 }
 
+/** Looks again what is under the finger, e.g. after something scrolled beneath it. */
+export function refreshDropTarget(): void {
+  if (state) set({ ...state, over: targetAt(state.x, state.y, state.item) })
+}
+
 /** The drop target under a point, for the item being dragged. */
 function targetAt(x: number, y: number, item: DragItem): DropTarget | null {
   const el = document.elementFromPoint(x, y)?.closest<HTMLElement>('[data-drop]')

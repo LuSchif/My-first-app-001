@@ -82,8 +82,7 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
 ## Library and folders
 
 - The home screen: a header with the search, tiles/list switch, appearance and backup. Below
-  it, today's calendar on the left (about two fifths of the width); on the right, buttons for a
-  new folder, notebook or presentation, and under them a carousel (`Carousel.tsx`) with one
+  it, today's calendar on the left (about two fifths of the width); on the right a carousel (`Carousel.tsx`) with one
   page each for the top-level folders, the notebooks (in no folder, or all of them) and the
   presentations. Swipe or use the arrows and names below it; the page shown is remembered.
   Both sides are as tall as the screen allows and scroll inside. Folders and notebooks have
@@ -94,10 +93,15 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
 - A folder has a name, a fill (one color, or a linear or radial gradient with any number of
   stops and a direction) and an icon from four groups (school, study, work, personal). Folders
   can hold folders (`parentId`); their order among siblings is `order`.
-- A tap on a folder opens it in place: the front tips open and its three latest notebooks slide
-  out with their first page, title and date. A double tap, or "Open folder" in that preview,
-  shows the folder's own page (`#/folder/<id>`) with its folders and all its notebooks. So on
-  touch, previewing and opening never get in each other's way.
+- A tap on a folder, notebook or presentation first takes a look inside (`Peek.tsx`): a
+  notebook's cover swings open and its pages come out to the right, a presentation fans out
+  its slides, a folder opens and shows its folders and notebooks. A tap on a page opens the
+  notebook there (`editor/openAt.ts`); "Open" opens it from the start, "Open folder" shows the
+  folder's own page (`#/folder/<id>`).
+- Each carousel page has a big + that makes a folder, notebook or presentation. While a
+  notebook or presentation is held, every folder slides up in a row at the bottom of the
+  carousel (`FolderDropStrip.tsx`); holding it near either end scrolls the row. Every move
+  into or out of a folder shows a notice with Undo (`lib/notices.ts`).
 - Holding a folder or notebook (or dragging it with a mouse) picks it up: dropped on a folder it
   goes inside; dropped at a folder's left or right edge, a folder is sorted there; dropped on the
   notebooks area or the "Library" step of a folder path, it leaves its folder. Every card also has

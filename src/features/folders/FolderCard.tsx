@@ -1,5 +1,5 @@
-import { Copy, FolderInput, FolderOpen, MoreHorizontal, Pencil, Trash2, X } from 'lucide-react'
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { Copy, FolderInput, MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
+import { useState } from 'react'
 import type { Folder, Notebook } from '../../engine/model/types.ts'
 import {
   Button,
@@ -10,33 +10,22 @@ import {
   PopoverTrigger,
 } from '../../design/index.ts'
 import { cn } from '../../lib/cn.ts'
-import { formatEdited } from '../../lib/time.ts'
 import { deleteFolder, duplicateFolder, moveFolder } from '../../storage/folders.ts'
 import { useDraggable, useDragState, type DropTarget } from '../library/dragDrop.ts'
-import { countNotebooks, notebooksIn } from '../library/libraryActions.ts'
+import { countNotebooks } from '../library/libraryActions.ts'
 import { MoveList } from '../library/MoveList.tsx'
-import { NotebookThumbnail } from '../library/NotebookThumbnail.tsx'
 import { FolderEditorDialog } from './FolderEditorDialog.tsx'
 import { FolderGraphic } from './FolderGraphic.tsx'
 
-/** A second tap this soon opens the folder instead of its preview. */
-const DOUBLE_TAP_MS = 320
-const PREVIEW_COUNT = 3
-
 /**
- * A folder in a grid. A tap opens it in place: the folder tips open and its three most recent
- * notebooks slide out below, each with its first page, title and date. A double tap (or "Open
- * folder" in the preview) shows the whole folder. Hold it to drag it onto or beside another
- * folder.
+ * A folder in a grid. A tap takes a look inside (see `Peek.tsx`); hold it to drag it onto or
+ * beside another folder.
  */
 export function FolderCard({
   folder,
   folders,
   notebooks,
-  previewOpen,
-  onPreview,
   onOpenFolder,
-  onOpenNotebook,
   onChanged,
   onDrop,
   sortable,
@@ -44,52 +33,27 @@ export function FolderCard({
   folder: Folder
   folders: readonly Folder[]
   notebooks: readonly Notebook[]
-  previewOpen: boolean
-  onPreview: (open: boolean) => void
   onOpenFolder: () => void
-  onOpenNotebook: (id: string) => void
   onChanged: () => void
   onDrop: (target: DropTarget) => void
   /** Whether dropping a folder beside this one sorts it there. */
   sortable: boolean
 }) {
-  const lastTap = useRef(0)
-  const card = useRef<HTMLLIElement>(null)
   const drag = useDragState()
   const draggable = useDraggable({ kind: 'folder', id: folder.id, label: folder.name }, onDrop)
   const over = drag?.over?.kind === 'folder' && drag.over.id === folder.id ? drag.over.place : null
   const dragging = drag?.item.kind === 'folder' && drag.item.id === folder.id
   const count = countNotebooks(folders, notebooks, folder.id)
   const subfolders = folders.filter((f) => f.parentId === folder.id).length
-  const recent = notebooksIn(notebooks, folder.id).slice(0, PREVIEW_COUNT)
-
-  // Tapping anywhere else closes the preview.
-  useEffect(() => {
-    if (!previewOpen) return
-    const onDown = (e: PointerEvent) => {
-      const target = e.target as Element | null
-      if (
-        card.current?.contains(target) ||
-        target?.closest('[data-radix-popper-content-wrapper]')
-      ) {
-        return
-      }
-      onPreview(false)
-    }
-    document.addEventListener('pointerdown', onDown, true)
-    return () => document.removeEventListener('pointerdown', onDown, true)
-  }, [previewOpen, onPreview])
 
   return (
     <li
-      ref={card}
       data-drop="folder"
       data-drop-id={folder.id}
       {...(sortable ? { 'data-drop-sort': '' } : {})}
       className={cn(
         'relative grid min-w-0 grid-cols-[minmax(0,1fr)] content-start gap-2 transition-opacity',
         dragging && 'opacity-40',
-        previewOpen && 'z-30',
       )}
     >
       {/* Where a dragged folder would be sorted in. */}
@@ -105,28 +69,14 @@ export function FolderCard({
       <button
         type="button"
         aria-label={`${folder.name}, ${count} ${count === 1 ? 'notebook' : 'notebooks'}`}
-        aria-expanded={previewOpen}
         {...draggable}
-        onClick={() => {
-          const now = performance.now()
-          if (now - lastTap.current < DOUBLE_TAP_MS) {
-            lastTap.current = 0
-            onOpenFolder()
-            return
-          }
-          lastTap.current = now
-          onPreview(!previewOpen)
-        }}
+        onClick={onOpenFolder}
         className={cn(
           'w-full touch-manipulation rounded-card p-1 transition-transform duration-200 ease-gentle select-none [-webkit-touch-callout:none] hover:-translate-y-0.5',
           over === 'inside' && 'scale-105 ring-3 ring-accent',
         )}
       >
-        <FolderGraphic
-          fill={folder.fill}
-          icon={folder.icon}
-          open={previewOpen || over === 'inside'}
-        />
+        <FolderGraphic fill={folder.fill} icon={folder.icon} open={over === 'inside'} />
       </button>
       <div className="flex items-start justify-between gap-1">
         <div className="min-w-0 text-sm">
@@ -138,16 +88,6 @@ export function FolderCard({
         </div>
         <FolderMenu folder={folder} folders={folders} onChanged={onChanged} />
       </div>
-      {previewOpen ? (
-        <Preview
-          folder={folder}
-          recent={recent}
-          total={count}
-          onOpenFolder={onOpenFolder}
-          onOpenNotebook={onOpenNotebook}
-          onClose={() => onPreview(false)}
-        />
-      ) : null}
     </li>
   )
 }
@@ -222,70 +162,6 @@ export function FolderRow({
       </button>
       <FolderMenu folder={folder} folders={folders} onChanged={onChanged} className="" />
     </li>
-  )
-}
-
-/** The notebooks sliding out of an opened folder. */
-function Preview({
-  folder,
-  recent,
-  total,
-  onOpenFolder,
-  onOpenNotebook,
-  onClose,
-}: {
-  folder: Folder
-  recent: Notebook[]
-  total: number
-  onOpenFolder: () => void
-  onOpenNotebook: (id: string) => void
-  onClose: () => void
-}) {
-  const ref = useRef<HTMLDivElement>(null)
-  const [alignRight, setAlignRight] = useState(false)
-  // Near the right edge, the preview opens to the left.
-  useLayoutEffect(() => {
-    const r = ref.current?.getBoundingClientRect()
-    if (r && r.right > window.innerWidth - 12) setAlignRight(true)
-  }, [])
-  return (
-    <div
-      ref={ref}
-      role="region"
-      aria-label={`${folder.name}: recent notebooks`}
-      className={cn(
-        'absolute top-[calc(100%-3rem)] z-30 grid w-[max(100%,20rem)] animate-pop-in gap-1 rounded-panel bg-surface-raised p-2 shadow-overlay ring-1 ring-line',
-        alignRight ? 'right-0' : 'left-0',
-      )}
-    >
-      {recent.length === 0 ? (
-        <p className="px-3 py-4 text-sm text-ink-muted">No notebooks in this folder yet.</p>
-      ) : (
-        recent.map((notebook, i) => (
-          <button
-            key={notebook.id}
-            type="button"
-            onClick={() => onOpenNotebook(notebook.id)}
-            className="flex animate-slide-out items-center gap-3 rounded-control p-2 text-left hover:bg-hover"
-            style={{ animationDelay: `${120 + i * 70}ms` }}
-          >
-            <NotebookThumbnail notebook={notebook} width={40} className="shrink-0" />
-            <span className="min-w-0 flex-1">
-              <span className="block truncate font-semibold">{notebook.title}</span>
-              <span className="block text-sm text-ink-muted">
-                Edited {formatEdited(notebook.updatedAt)}
-              </span>
-            </span>
-          </button>
-        ))
-      )}
-      <div className="mt-1 flex items-center justify-between gap-2 border-t border-line pt-2">
-        <Button variant="primary" size="md" icon={<FolderOpen size={18} />} onClick={onOpenFolder}>
-          Open folder{total > PREVIEW_COUNT ? ` (${total})` : ''}
-        </Button>
-        <IconButton label="Close preview" icon={<X size={20} />} onClick={onClose} />
-      </div>
-    </div>
   )
 }
 

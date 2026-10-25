@@ -1,5 +1,7 @@
 import type { Folder, Notebook } from '../../engine/model/types.ts'
 import type { DragItem, DropTarget } from './dragDrop.ts'
+import { showNotice } from '../../lib/notices.ts'
+import { moveFolder, moveNotebook } from '../../storage/folders.ts'
 import { applyDrop } from './libraryActions.ts'
 import type { Library } from './useLibrary.ts'
 
@@ -40,10 +42,32 @@ export function sortNotebooks(list: Notebook[], sort: NotebookSort): Notebook[] 
   return [...list].sort((a, b) => b.updatedAt - a.updatedAt)
 }
 
-/** Runs a drop, then reloads the library. */
+/**
+ * Runs a drop, then reloads the library. Moving something into another folder (or out of all
+ * folders) says so in a notice that can undo it.
+ */
 export function useDrop(library: Library, reload: () => void) {
   return (item: DragItem) => (target: DropTarget) => {
+    const into = target.kind === 'root' ? null : target.place === 'inside' ? target.id : undefined
+    const before =
+      item.kind === 'notebook'
+        ? library.notebooks.find((n) => n.id === item.id)?.folderId
+        : library.folders.find((f) => f.id === item.id)?.parentId
     applyDrop(item, target, library.folders)
+      .then(() => {
+        if (into === undefined || before === undefined || into === before) return
+        const where = into
+          ? `“${library.folders.find((f) => f.id === into)?.name ?? 'folder'}”`
+          : 'no folder'
+        showNotice(`Moved “${item.label}” to ${where}.`, {
+          label: 'Undo',
+          run: () => {
+            const back =
+              item.kind === 'notebook' ? moveNotebook(item.id, before) : moveFolder(item.id, before)
+            back.catch((err: unknown) => console.error(err)).finally(reload)
+          },
+        })
+      })
       .catch((err: unknown) => console.error(err))
       .finally(reload)
   }

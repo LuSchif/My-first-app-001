@@ -25,6 +25,7 @@ import { SortMenu } from '../library/SortMenu.tsx'
 import { useLibrary } from '../library/useLibrary.ts'
 import { useStoredState } from '../library/useStoredState.ts'
 import { LayoutToggle } from '../library/LayoutToggle.tsx'
+import { PeekLayer } from '../library/Peek.tsx'
 import { useLibraryLayout } from '../library/libraryLayout.ts'
 import { FolderEditorDialog } from './FolderEditorDialog.tsx'
 import { FolderGraphic } from './FolderGraphic.tsx'
@@ -183,6 +184,7 @@ export function FolderView({ id }: { id: string }) {
           )}
         </Section>
       </div>
+      <PeekLayer library={library} />
       <DragGhost />
     </div>
   )

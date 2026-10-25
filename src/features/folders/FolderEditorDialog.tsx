@@ -1,13 +1,15 @@
-import { useState } from 'react'
+import { createElement, useState } from 'react'
 import { createFolder } from '../../engine/model/factory.ts'
 import type { Fill } from '../../engine/model/fill.ts'
 import type { Folder, Id } from '../../engine/model/types.ts'
 import { Button, DialogContent, TextField } from '../../design/index.ts'
+import { ChevronDown } from 'lucide-react'
+import { fillToCss } from '../../engine/model/fill.ts'
 import { cn } from '../../lib/cn.ts'
 import { createFolderRecord, updateFolder } from '../../storage/folders.ts'
 import { FillEditor } from './FillEditor.tsx'
 import { FolderGraphic } from './FolderGraphic.tsx'
-import { DEFAULT_FOLDER_ICON, FOLDER_ICON_GROUPS } from './folderIcons.ts'
+import { DEFAULT_FOLDER_ICON, FOLDER_ICON_GROUPS, folderIcon } from './folderIcons.ts'
 
 const DEFAULT_FILL: Fill = {
   type: 'linear',
@@ -36,7 +38,8 @@ export function FolderEditorDialog({
   const [name, setName] = useState(folder?.name ?? '')
   const [fill, setFill] = useState<Fill>(folder?.fill ?? DEFAULT_FILL)
   const [icon, setIcon] = useState(folder?.icon ?? DEFAULT_FOLDER_ICON)
-  const [tab, setTab] = useState<'color' | 'icon'>('color')
+  // Both design options start folded, so the dialog fits without scrolling.
+  const [tab, setTab] = useState<'color' | 'icon' | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -81,35 +84,25 @@ export function FolderEditorDialog({
               maxLength={60}
               onChange={(e) => setName(e.target.value)}
             />
-            <div
-              role="tablist"
-              aria-label="Folder design"
-              className="flex gap-1 border-b border-line"
+            <Fold
+              title="Color"
+              open={tab === 'color'}
+              onToggle={() => setTab(tab === 'color' ? null : 'color')}
+              summary={
+                <span
+                  className="size-6 rounded-full ring-1 ring-line"
+                  style={{ background: fillToCss(fill) }}
+                />
+              }
             >
-              {(
-                [
-                  ['color', 'Color'],
-                  ['icon', 'Icon'],
-                ] as const
-              ).map(([value, label]) => (
-                <button
-                  key={value}
-                  type="button"
-                  role="tab"
-                  aria-selected={tab === value}
-                  onClick={() => setTab(value)}
-                  className={cn(
-                    '-mb-px h-10 border-b-2 px-3 text-sm font-semibold',
-                    tab === value ? 'border-ink text-ink' : 'border-transparent text-ink-muted',
-                  )}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-            {tab === 'color' ? (
               <FillEditor value={fill} onChange={setFill} />
-            ) : (
+            </Fold>
+            <Fold
+              title="Icon"
+              open={tab === 'icon'}
+              onToggle={() => setTab(tab === 'icon' ? null : 'icon')}
+              summary={createElement(folderIcon(icon), { size: 20, strokeWidth: 1.75 })}
+            >
               <div className="grid gap-4">
                 {FOLDER_ICON_GROUPS.map((group) => (
                   <div key={group.name} className="grid gap-1.5">
@@ -133,16 +126,51 @@ export function FolderEditorDialog({
                   </div>
                 ))}
               </div>
-            )}
+            </Fold>
           </div>
         </div>
         {error ? <p className="text-sm text-danger">{error}</p> : null}
-        <div className="flex justify-end">
+        {/* Always in view, however far the design options go down. */}
+        <div className="sticky -bottom-6 -mx-6 -mb-6 flex justify-end border-t border-line bg-surface-raised px-6 py-4">
           <Button variant="primary" type="submit" disabled={!name.trim() || busy}>
             {folder ? 'Save' : busy ? 'Creating…' : 'Create folder'}
           </Button>
         </div>
       </form>
     </DialogContent>
+  )
+}
+
+/** A design option that folds away: its name and current choice, and below them, its controls. */
+function Fold({
+  title,
+  summary,
+  open,
+  onToggle,
+  children,
+}: {
+  title: string
+  summary: React.ReactNode
+  open: boolean
+  onToggle: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <div className="rounded-card ring-1 ring-line">
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={onToggle}
+        className="flex h-12 w-full items-center gap-3 rounded-card px-4 text-left text-sm font-semibold hover:bg-hover"
+      >
+        <span className="flex-1">{title}</span>
+        {summary}
+        <ChevronDown
+          size={18}
+          className={cn('text-ink-muted transition-transform', open && 'rotate-180')}
+        />
+      </button>
+      {open ? <div className="border-t border-line p-4">{children}</div> : null}
+    </div>
   )
 }

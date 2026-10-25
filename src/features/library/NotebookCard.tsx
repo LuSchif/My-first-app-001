@@ -50,7 +50,8 @@ export function NotebookCard({
           aria-label={`Open ${notebook.title}`}
           {...draggable}
           className={cn(
-            'relative grid aspect-[3/4] w-full min-w-0 touch-manipulation content-center overflow-hidden rounded-card bg-surface-sunken p-3 select-none [-webkit-touch-callout:none]',
+            // As big as a folder tile.
+            'relative grid aspect-[6/5] w-full min-w-0 touch-manipulation content-end overflow-hidden rounded-card bg-surface-sunken p-2.5 select-none [-webkit-touch-callout:none]',
             'transition-transform duration-200 ease-gentle hover:-translate-y-0.5 active:scale-[0.98]',
           )}
         >
@@ -60,22 +61,25 @@ export function NotebookCard({
           </span>
         </button>
       ) : (
-        <button
-          type="button"
-          onClick={onOpen}
-          aria-label={`Open ${notebook.title}`}
-          {...draggable}
-          className={cn(
-            'flex aspect-[3/4] w-full min-w-0 touch-manipulation flex-col justify-end overflow-hidden rounded-r-card rounded-l-md p-3.5 text-left shadow-raised select-none [-webkit-touch-callout:none]',
-            'transition-transform duration-200 ease-gentle hover:-translate-y-0.5 active:scale-[0.98]',
-            light ? 'text-ink-inverse' : 'text-ink',
-          )}
-          style={{ background: fillToCss(notebook.cover) }}
-        >
-          <span className="line-clamp-3 text-lg leading-tight font-bold [overflow-wrap:anywhere]">
-            {notebook.title}
-          </span>
-        </button>
+        // As tall as a folder tile, standing upright in it.
+        <div className="grid aspect-[6/5] w-full place-items-center p-1">
+          <button
+            type="button"
+            onClick={onOpen}
+            aria-label={`Open ${notebook.title}`}
+            {...draggable}
+            className={cn(
+              'flex aspect-[3/4] h-full min-w-0 touch-manipulation flex-col justify-end overflow-hidden rounded-r-card rounded-l-md p-2.5 text-left shadow-raised select-none [-webkit-touch-callout:none]',
+              'transition-transform duration-200 ease-gentle hover:-translate-y-0.5 active:scale-[0.98]',
+              light ? 'text-ink-inverse' : 'text-ink',
+            )}
+            style={{ background: fillToCss(notebook.cover) }}
+          >
+            <span className="line-clamp-3 text-sm leading-tight font-bold [overflow-wrap:anywhere]">
+              {notebook.title}
+            </span>
+          </button>
+        </div>
       )}
       <div className="flex items-start justify-between gap-1">
         <div className="min-w-0 text-sm">

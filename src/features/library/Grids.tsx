@@ -1,11 +1,11 @@
 import { FolderPlus } from 'lucide-react'
 import { useState } from 'react'
-import { navigate } from '../../app/router.ts'
 import type { Folder, Id, Notebook } from '../../engine/model/types.ts'
 import { Dialog, DialogTrigger } from '../../design/index.ts'
 import { FolderCard, FolderRow } from '../folders/FolderCard.tsx'
 import { FolderEditorDialog } from '../folders/FolderEditorDialog.tsx'
 import { useDrop } from './librarySort.ts'
+import { openPeek } from './peek.ts'
 import type { LibraryLayout } from './libraryLayout.ts'
 import { NotebookCard, NotebookRow } from './NotebookCard.tsx'
 import type { Library } from './useLibrary.ts'
@@ -34,7 +34,6 @@ export function FolderGrid({
   newFolderParent?: Id | null
   layout?: LibraryLayout
 }) {
-  const [preview, setPreview] = useState<Id | null>(null)
   const drop = useDrop(library, reload)
   if (layout === 'list') {
     if (!folders.length && newFolderParent === undefined) return null
@@ -46,7 +45,7 @@ export function FolderGrid({
             folder={folder}
             folders={library.folders}
             notebooks={library.notebooks}
-            onOpenFolder={() => navigate({ name: 'folder', id: folder.id })}
+            onOpenFolder={() => openPeek({ kind: 'folder', id: folder.id })}
             onChanged={reload}
             onDrop={drop({ kind: 'folder', id: folder.id, label: folder.name })}
             sortable={sortable}
@@ -66,10 +65,7 @@ export function FolderGrid({
           folder={folder}
           folders={library.folders}
           notebooks={library.notebooks}
-          previewOpen={preview === folder.id}
-          onPreview={(open) => setPreview(open ? folder.id : null)}
-          onOpenFolder={() => navigate({ name: 'folder', id: folder.id })}
-          onOpenNotebook={(id) => navigate({ name: 'notebook', id })}
+          onOpenFolder={() => openPeek({ kind: 'folder', id: folder.id })}
           onChanged={reload}
           onDrop={drop({ kind: 'folder', id: folder.id, label: folder.name })}
           sortable={sortable}
@@ -152,7 +148,7 @@ export function NotebookGrid({
             key={notebook.id}
             notebook={notebook}
             folders={library.folders}
-            onOpen={() => navigate({ name: 'notebook', id: notebook.id })}
+            onOpen={() => openPeek({ kind: 'notebook', id: notebook.id })}
             onChanged={reload}
             onDrop={drop({ kind: 'notebook', id: notebook.id, label: notebook.title })}
           />
@@ -167,7 +163,7 @@ export function NotebookGrid({
           key={notebook.id}
           notebook={notebook}
           folders={library.folders}
-          onOpen={() => navigate({ name: 'notebook', id: notebook.id })}
+          onOpen={() => openPeek({ kind: 'notebook', id: notebook.id })}
           onChanged={reload}
           onDrop={drop({ kind: 'notebook', id: notebook.id, label: notebook.title })}
         />

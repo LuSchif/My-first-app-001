@@ -11,6 +11,7 @@ import { VirtualKeyboard } from '../features/keyboard/VirtualKeyboard.tsx'
 import { useRoute } from './router.ts'
 import { UpdateBanner } from './UpdateBanner.tsx'
 import { ReminderToasts } from '../features/calendar/ReminderToasts.tsx'
+import { Notices } from './Notices.tsx'
 
 export function App() {
   const route = useRoute()
@@ -36,6 +37,7 @@ export function App() {
       {ownKeyboard ? <VirtualKeyboard /> : null}
       <UpdateBanner />
       <ReminderToasts />
+      <Notices />
     </TooltipProvider>
   )
 }

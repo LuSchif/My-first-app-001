@@ -1,9 +1,10 @@
 import { FolderPlus, Plus, Presentation, Search, X } from 'lucide-react'
 import { useState } from 'react'
 import { navigate } from '../../app/router.ts'
-import { Button, Dialog, DialogTrigger } from '../../design/index.ts'
-import { cn } from '../../lib/cn.ts'
+import { Button, Dialog, DialogTrigger, IconButton } from '../../design/index.ts'
 import { Carousel, type CarouselPage } from './Carousel.tsx'
+import { FolderDropStrip } from './FolderDropStrip.tsx'
+import { PeekLayer } from './Peek.tsx'
 import type { Notebook } from '../../engine/model/types.ts'
 import { FolderEditorDialog } from '../folders/FolderEditorDialog.tsx'
 import { CalendarHome } from '../calendar/CalendarHome.tsx'
@@ -65,7 +66,6 @@ export function LibraryView() {
         <div className="grid gap-6 md:h-[clamp(30rem,calc(100dvh-12rem),64rem)] md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
           <CalendarHome todayOnly className="h-[28rem] md:h-full" />
           <div className="flex min-h-0 min-w-0 flex-col gap-4">
-            <NewBar library={library} reload={reload} onCreated={open} />
             {error ? (
               <p className="text-danger">
                 Your notebooks could not be loaded. Reload the page; if it keeps happening, this
@@ -83,7 +83,7 @@ export function LibraryView() {
                 </div>
               </div>
             ) : (
-              <Browser library={library} reload={reload} layout={layout} />
+              <Browser library={library} reload={reload} layout={layout} onCreated={open} />
             )}
           </div>
         </div>
@@ -97,6 +97,7 @@ export function LibraryView() {
           </a>
         </footer>
       </div>
+      {library ? <PeekLayer library={library} /> : null}
       <DragGhost />
     </div>
   )
@@ -113,11 +114,14 @@ function Browser({
   library,
   reload,
   layout,
+  onCreated,
 }: {
   library: Library
   reload: () => void
   layout: LibraryLayout
+  onCreated: (id: string) => void
 }) {
+  const [creating, setCreating] = useState<Creating>(null)
   const [page, setPage] = useStoredState<(typeof PAGES)[number]>(
     'broomit.libraryPage',
     'notebooks',
@@ -155,22 +159,26 @@ function Browser({
       key: 'folders',
       title: 'Folders',
       actions: (
-        <SortMenu
-          label="Sort folders"
-          value={folderSort}
-          options={FOLDER_SORTS}
-          onChange={setFolderSort}
-        />
+        <>
+          <SortMenu
+            label="Sort folders"
+            value={folderSort}
+            options={FOLDER_SORTS}
+            onChange={setFolderSort}
+          />
+          <AddButton label="New folder" onClick={() => setCreating('folder')} />
+        </>
       ),
-      content: (
+      content: topFolders.length ? (
         <FolderGrid
           folders={topFolders}
           library={library}
           sortable={folderSort === 'custom'}
           reload={reload}
-          newFolderParent={null}
           layout={layout}
         />
+      ) : (
+        <p className={emptyNote}>No folders yet. Make one for each subject with the +.</p>
       ),
     },
     {
@@ -187,6 +195,7 @@ function Browser({
             options={NOTEBOOK_SORTS}
             onChange={setNotebookSort}
           />
+          <AddButton label="New notebook" onClick={() => setCreating('notebook')} />
         </>
       ),
       content: notebooks.length ? (
@@ -195,7 +204,7 @@ function Browser({
         <p className={emptyNote}>
           {filter === 'unfiled' && all.length > 0
             ? 'Every notebook is in a folder. Drop one here to take it out.'
-            : 'No notebooks yet. Create one with “New notebook” above.'}
+            : 'No notebooks yet. Make one with the +.'}
         </p>
       ),
     },
@@ -203,91 +212,100 @@ function Browser({
       key: 'presentations',
       title: 'Presentations',
       actions: (
-        <SortMenu
-          label="Sort presentations"
-          value={notebookSort}
-          options={NOTEBOOK_SORTS}
-          onChange={setNotebookSort}
-        />
+        <>
+          <SortMenu
+            label="Sort presentations"
+            value={notebookSort}
+            options={NOTEBOOK_SORTS}
+            onChange={setNotebookSort}
+          />
+          <AddButton label="New presentation" onClick={() => setCreating('presentation')} />
+        </>
       ),
       content: presentations.length ? (
         <NotebookGrid notebooks={presentations} library={library} reload={reload} layout={layout} />
       ) : (
         <p className={emptyNote}>
-          No presentations yet. Make slides with the same pens and tools, then present them.
+          No presentations yet. Make one with the +: slides with the same pens and tools.
         </p>
       ),
     },
   ]
   return (
-    <Carousel
-      pages={pages}
-      index={PAGES.indexOf(page)}
-      onIndex={(i) => setPage(PAGES[i] ?? 'notebooks')}
-      className="min-h-[28rem] flex-1"
+    <>
+      <Carousel
+        pages={pages}
+        index={PAGES.indexOf(page)}
+        onIndex={(i) => setPage(PAGES[i] ?? 'notebooks')}
+        // A held notebook or presentation can be dropped into any folder from here.
+        overlay={<FolderDropStrip folders={library.folders} notebooks={library.notebooks} />}
+        className="min-h-[28rem] flex-1"
+      />
+      <Creator
+        creating={creating}
+        onDone={() => setCreating(null)}
+        library={library}
+        reload={reload}
+        onCreated={onCreated}
+      />
+    </>
+  )
+}
+
+/** The big + of a carousel page. */
+function AddButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <IconButton
+      label={label}
+      icon={<Plus size={22} />}
+      onClick={onClick}
+      className="ml-1 rounded-full bg-ink text-ink-inverse shadow-soft hover:bg-mocha"
     />
   )
 }
 
-/** New folder, notebook or presentation, side by side. */
-function NewBar({
+type Creating = 'notebook' | 'presentation' | 'folder' | null
+
+/** The dialog that makes a new folder, notebook or presentation. */
+function Creator({
+  creating,
+  onDone,
   library,
   reload,
   onCreated,
 }: {
-  library: Library | null
+  creating: Creating
+  onDone: () => void
+  library: Library
   reload: () => void
   onCreated: (id: string) => void
 }) {
-  const [creating, setCreating] = useState<'notebook' | 'presentation' | 'folder' | null>(null)
-  const item =
-    'flex h-12 min-w-0 items-center justify-center gap-2 px-3 text-sm font-semibold hover:bg-hover active:bg-pressed'
   return (
-    <>
-      <div className="grid shrink-0 grid-cols-3 divide-x divide-line overflow-hidden rounded-panel bg-surface-raised shadow-soft ring-1 ring-line">
-        <button type="button" className={item} onClick={() => setCreating('folder')}>
-          <FolderPlus size={18} className="shrink-0" />
-          <span className="truncate">New folder</span>
-        </button>
-        <button
-          type="button"
-          className={cn(item, 'bg-ink text-ink-inverse hover:bg-mocha active:bg-mocha')}
-          onClick={() => setCreating('notebook')}
-        >
-          <Plus size={18} className="shrink-0" />
-          <span className="truncate">New notebook</span>
-        </button>
-        <button type="button" className={item} onClick={() => setCreating('presentation')}>
-          <Presentation size={18} className="shrink-0" />
-          <span className="truncate">New presentation</span>
-        </button>
-      </div>
-      <Dialog open={creating !== null} onOpenChange={(o) => !o && setCreating(null)}>
-        {creating === 'notebook' ? (
-          <NewNotebookDialog
-            folders={library?.folders ?? []}
-            folderId={null}
-            onFoldersChanged={reload}
-            onCreated={onCreated}
-          />
-        ) : creating === 'presentation' ? (
-          <NewPresentationDialog
-            folders={library?.folders ?? []}
-            folderId={null}
-            onFoldersChanged={reload}
-            onCreated={onCreated}
-          />
-        ) : creating === 'folder' ? (
-          <FolderEditorDialog
-            parentId={null}
-            onSaved={() => {
-              setCreating(null)
-              reload()
-            }}
-          />
-        ) : null}
-      </Dialog>
-    </>
+    <Dialog open={creating !== null} onOpenChange={(o) => !o && onDone()}>
+      {creating === 'notebook' ? (
+        <NewNotebookDialog
+          folders={library.folders}
+          folderId={null}
+          onFoldersChanged={reload}
+          onCreated={onCreated}
+        />
+      ) : creating === 'presentation' ? (
+        <NewPresentationDialog
+          folders={library.folders}
+          folderId={null}
+          onFoldersChanged={reload}
+          onCreated={onCreated}
+        />
+      ) : creating === 'folder' ? (
+        <FolderEditorDialog
+          parentId={null}
+          onSaved={() => {
+            onDone()
+            reload()
+          }}
+        />
+      ) : null}
+    </Dialog>
   )
 }
 

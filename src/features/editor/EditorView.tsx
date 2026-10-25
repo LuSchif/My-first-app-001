@@ -11,6 +11,7 @@ import { setImageLoader } from '../../engine/render/images.ts'
 import { getAssetBlob, loadNotebook, saveChanges } from '../../storage/notebooks.ts'
 import { loadFeatures, saveFeatures } from './featureStore.ts'
 import { Toolbar } from './Toolbar.tsx'
+import { takeOpeningPage } from './openAt.ts'
 import { NotesPanel } from '../presentation/NotesPanel.tsx'
 import { SlidesPanel } from '../presentation/SlidesPanel.tsx'
 import { Presenter } from '../presentation/Presenter.tsx'
@@ -86,6 +87,8 @@ function EditorSession({ doc, history, autosave }: Loaded) {
       saveRecentColors(notebookId, saved)
     })
     setEditor(instance)
+    const page = takeOpeningPage(notebookId)
+    if (page > 0) instance.scrollToPage(page)
     // Text being typed stays above the app's own keyboard.
     const stopInset = onKeyboardInset(() => instance.setKeyboardInset(keyboardInset()))
     return () => {
