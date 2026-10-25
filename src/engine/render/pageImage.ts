@@ -1,4 +1,10 @@
-import { PAGE_SIZE, type LayerDef, type Page, type PageSize } from '../model/types.ts'
+import {
+  PAGE_SIZE,
+  type CanvasObject,
+  type LayerDef,
+  type Page,
+  type PageSize,
+} from '../model/types.ts'
 import { loadImage } from './images.ts'
 import { paintLayers } from './layers.ts'
 import { drawPaper, PAPER_STYLE } from './paper.ts'
@@ -12,7 +18,10 @@ export async function preloadPictures(pages: readonly Page[]): Promise<void> {
   await Promise.all([...ids].map(loadImage))
 }
 
-/** Draws a whole page (paper, then every visible layer) at `scale` pixels per point. */
+/**
+ * Draws a whole page (paper, then every visible layer) at `scale` pixels per point. `paint`
+ * draws each object, by default as it is.
+ */
 export function drawPage(
   ctx: CanvasRenderingContext2D,
   page: Page,
@@ -20,6 +29,7 @@ export function drawPage(
   scale: number,
   background?: string,
   size: PageSize = PAGE_SIZE,
+  paint?: (ctx: CanvasRenderingContext2D, object: CanvasObject) => void,
 ): void {
   ctx.save()
   ctx.setTransform(scale, 0, 0, scale, 0, 0)
@@ -29,7 +39,7 @@ export function drawPage(
   ctx.rect(0, 0, size.width, size.height)
   ctx.clip()
   drawPaper(ctx, page.paper, scale, size)
-  paintLayers(ctx, page.objects, layers, null)
+  paintLayers(ctx, page.objects, layers, null, undefined, paint)
   ctx.restore()
 }
 

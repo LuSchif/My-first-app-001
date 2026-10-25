@@ -270,6 +270,22 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
 - A layer can be a clipping mask: it shows only where the nearest unclipped layer below has
   content (`render/layers.ts`).
 
+## Presentations
+
+- A presentation is a document with `kind: 'presentation'` and its own page size
+  (`SLIDE_SIZES`: 16:9 or 4:3). The same engine edits it; `render/layout.ts` gives every
+  document its own `PageLayout`, and in a presentation the layout's `focus` lets only the shown
+  slide take input. The editor fits that one slide on screen; slides change through the slide
+  list on the left, not by scrolling.
+- Each slide (page) can have speaker notes and a transition (fade, push, cover, zoom); objects
+  can have an entrance animation (`ObjectAnimation`) with a start (on tap, with or after the
+  previous one), order and duration. `model/animation.ts` turns a slide's animations into steps
+  and paints entrances and transitions; it has no DOM or React.
+- Presenting (`engine/present/SlideShow.ts`, shown by `features/presentation/Presenter.tsx`)
+  draws the slide into its own canvas through `paintLayers`' paint callback, so animated
+  objects stay in their layer. Notes and tools are not shown. A tap or the arrow keys play the
+  next step or slide; the left third, a swipe right or the left arrow go back.
+
 ## Roadmap
 
 The editor was moved ahead of the dashboard (packages 2–3) so the tools can be tried early.

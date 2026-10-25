@@ -26,6 +26,8 @@ import {
   type CanvasObject,
   type Id,
   type BoxFrame,
+  type ObjectAnimation,
+  type SlideTransition,
   type LayerDef,
   type Outline,
   type Page,
@@ -716,11 +718,20 @@ export class Editor {
     this.selection.replaceSingle(next, label)
   }
 
-  /** Adds, changes or removes the contour around the selection. */
   /** Adds, changes or removes the outline; with `commit` false it is a live preview. */
   setSelectionOutline(outline: Outline | null, commit = true): void {
     if (outline && commit) this.rememberColor(outline.color)
     this.selection.setOutline(outline, commit)
+  }
+
+  /** Presentations: gives the selection an entrance animation, changes it, or removes it. */
+  setSelectedAnimation(patch: Partial<ObjectAnimation> | null): void {
+    this.selection.setAnimation(patch)
+  }
+
+  /** Presentations: plays the selection's animation one place earlier (-1) or later (1). */
+  moveSelectedAnimation(direction: -1 | 1): void {
+    this.selection.moveAnimation(direction)
   }
 
   /** Path tool: removes the selected anchor point. */
@@ -1215,6 +1226,34 @@ export class Editor {
     )
   }
 
+  /** How slide `index` comes in when presenting (null: it just appears); `all` sets every slide. */
+  setTransition(index: number, transition: SlideTransition | null, all = false): void {
+    const { pageIds } = this.doc.notebook
+    const ids = all ? pageIds : pageIds.slice(index, index + 1)
+    const commands = ids.flatMap((id) => {
+      const page = this.doc.page(id)
+      if (!page) return []
+      return [
+        setPageProps(
+          'Transition',
+          id,
+          { transition: page.transition },
+          { transition: transition ?? undefined },
+        ),
+      ]
+    })
+    if (commands.length) this.history.execute(compound('Transition', commands))
+  }
+
+  /** Ends typing and editing, so the document holds everything, e.g. before presenting. */
+  finishEditing(): void {
+    this.text.finish()
+    this.selection.commitEdit('Edit')
+    this.selection.clear()
+    this.paths.clear()
+    this.dismissSuggestion()
+  }
+
   /** A presentation: shows slide `index`, fitted to the screen. */
   goToPage(index: number): void {
     if (!this.slides) {
@@ -1494,6 +1533,8 @@ export class Editor {
     const rect = this.host.getBoundingClientRect()
     this.hostRect = rect
     const first = this.view.width === 0
+    // A slide shown whole stays whole when the space around it changes (panels, rotation).
+    const wasFit = this.slides && Math.abs(this.camera.zoom - this.fitZoom()) < 1e-6
     const dpr = window.devicePixelRatio || 1
     this.view = { width: rect.width, height: rect.height, dpr }
     const canvases = [this.sceneCanvas, this.wetCanvas, this.tipCanvas, this.overlayCanvas]
@@ -1504,6 +1545,8 @@ export class Editor {
     this.tipDirty = null
     if (first && rect.width > 0) {
       this.setCamera({ zoom: this.fitZoom(), offsetX: 0, offsetY: TOP_INSET })
+    } else if (wasFit) {
+      this.setCamera({ zoom: 0, offsetX: 0, offsetY: 0 })
     } else {
       this.setCamera(this.camera)
     }

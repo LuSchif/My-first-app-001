@@ -32,6 +32,8 @@ export function paintLayers(
   layers: readonly LayerDef[],
   area: Rect | null,
   hidden: ReadonlySet<string> = new Set(),
+  /** Draws one object; presenting uses it to animate objects in place, in their layer. */
+  paint: (ctx: CanvasRenderingContext2D, object: CanvasObject) => void = paintObject,
 ): void {
   const on = (layer: LayerDef) =>
     objects.filter(
@@ -48,16 +50,16 @@ export function paintLayers(
       .filter((m) => m.objects.length > 0)
 
     if (masks.length === 0 && base.opacity >= 1) {
-      for (const object of baseObjects) paintObject(ctx, object)
+      for (const object of baseObjects) paint(ctx, object)
       continue
     }
     // The group is drawn on its own canvas: clipped layers only where the base has ink, then
     // the whole group is faded by the base's opacity, so overlaps do not show through.
     const group = scratch(0, ctx)
-    for (const object of baseObjects) paintObject(group, object)
+    for (const object of baseObjects) paint(group, object)
     for (const { layer, objects: layerObjects } of masks) {
       const piece = scratch(1, ctx)
-      for (const object of layerObjects) paintObject(piece, object)
+      for (const object of layerObjects) paint(piece, object)
       group.save()
       group.setTransform(1, 0, 0, 1, 0, 0)
       group.globalCompositeOperation = 'source-atop'

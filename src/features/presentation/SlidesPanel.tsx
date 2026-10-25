@@ -7,6 +7,8 @@ import { Button, Popover, PopoverContent, PopoverTrigger } from '../../design/in
 import { cn } from '../../lib/cn.ts'
 import { PageThumbnail } from '../editor/PageThumbnail.tsx'
 import { useDocVersion } from './useDocVersion.ts'
+import { TransitionControls } from './AnimationControls.tsx'
+import type { SlideTransition } from '../../engine/model/types.ts'
 
 export const SLIDES_PANEL_WIDTH = 196
 const THUMB_WIDTH = 148
@@ -64,7 +66,12 @@ export function SlidesPanel({
                 />
               </button>
               {index === current ? (
-                <SlideMenu editor={editor} index={index} count={pages.length} />
+                <SlideMenu
+                  editor={editor}
+                  index={index}
+                  count={pages.length}
+                  transition={page.transition}
+                />
               ) : null}
             </div>
           </li>
@@ -83,7 +90,17 @@ export function SlidesPanel({
   )
 }
 
-function SlideMenu({ editor, index, count }: { editor: Editor; index: number; count: number }) {
+function SlideMenu({
+  editor,
+  index,
+  count,
+  transition,
+}: {
+  editor: Editor
+  index: number
+  count: number
+  transition: SlideTransition | undefined
+}) {
   const item =
     'flex h-11 w-full items-center gap-2.5 rounded-control px-3 text-left text-sm font-semibold hover:bg-hover disabled:opacity-40'
   return (
@@ -97,7 +114,7 @@ function SlideMenu({ editor, index, count }: { editor: Editor; index: number; co
           <MoreHorizontal size={16} />
         </button>
       </PopoverTrigger>
-      <PopoverContent side="right" align="start" className="grid w-56 gap-0.5 p-1.5">
+      <PopoverContent side="right" align="start" className="grid w-72 gap-0.5 p-1.5">
         <button type="button" className={item} onClick={() => editor.duplicatePage(index)}>
           <Copy size={16} /> Duplicate
         </button>
@@ -125,6 +142,9 @@ function SlideMenu({ editor, index, count }: { editor: Editor; index: number; co
         >
           <Trash2 size={16} /> Delete slide
         </button>
+        <div className="mt-1 grid gap-3 border-t border-line px-1.5 pt-3 pb-1.5">
+          <TransitionControls editor={editor} index={index} transition={transition} />
+        </div>
       </PopoverContent>
     </Popover>
   )

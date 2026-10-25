@@ -4,7 +4,15 @@ import type { Rect } from '../geometry/rect.ts'
 import { newId } from '../model/ids.ts'
 import { isBox } from '../geometry/box.ts'
 import type { Fill } from '../model/fill.ts'
-import type { BoxObject, CanvasObject, GradientPaint, Id, Outline } from '../model/types.ts'
+import type {
+  BoxObject,
+  CanvasObject,
+  GradientPaint,
+  Id,
+  ObjectAnimation,
+  Outline,
+} from '../model/types.ts'
+import { animated, DEFAULT_ANIMATION } from '../model/animation.ts'
 import { paintObject } from '../render/objects.ts'
 import { applyCamera } from '../render/SceneRenderer.ts'
 import type { EditorContext } from './context.ts'
@@ -57,6 +65,9 @@ export interface SelectionInfo {
   gradient: GradientPaint | null
   /** Whether any selected object can be painted with a gradient. */
   canGradient: boolean
+  /** Presentations: the first selected object's animation, and its place among the slide's. */
+  animation: ObjectAnimation | null
+  animationPlace: { index: number; count: number } | null
 }
 
 type Handle = 'nw' | 'ne' | 'se' | 'sw' | 'rotate'
@@ -168,6 +179,8 @@ export class SelectionController {
       outline: objects[0]?.outline ?? null,
       gradient: gradientOf(objects),
       canGradient: objects.some(takesGradient),
+      animation: objects[0]?.animation ?? null,
+      animationPlace: this.animationPlace(objects[0]),
     }
   }
 
@@ -355,6 +368,69 @@ export class SelectionController {
   setOutline(outline: Outline | null, commit = true): void {
     this.previewEdit((o) => withOutline(o, outline))
     if (commit) this.commitEdit('Outline')
+  }
+
+  private animationPlace(
+    object: CanvasObject | undefined,
+  ): { index: number; count: number } | null {
+    const page = this.selection && this.ctx.doc.page(this.selection.pageId)
+    if (!object?.animation || !page) return null
+    const list = animated(page.objects)
+    return { index: list.findIndex((o) => o.id === object.id), count: list.length }
+  }
+
+  /**
+   * Presentations: gives the selection an entrance animation (or changes or removes it). Newly
+   * animated objects come after the slide's other animations: the first on a tap, the rest
+   * together with it.
+   */
+  setAnimation(patch: Partial<ObjectAnimation> | null): void {
+    this.commitEdit('Edit')
+    const sel = this.selection
+    const page = sel && this.ctx.doc.page(sel.pageId)
+    if (!sel || !page) return
+    const ids = new Set(sel.ids)
+    let next = Math.max(-1, ...page.objects.map((o) => o.animation?.order ?? -1)) + 1
+    let first = true
+    const after = page.objects.map((o) => {
+      if (!ids.has(o.id)) return o
+      if (!patch) {
+        const { animation: _animation, ...rest } = o
+        return rest as CanvasObject
+      }
+      const base: ObjectAnimation = o.animation ?? {
+        ...DEFAULT_ANIMATION,
+        start: first ? 'tap' : 'with',
+        order: next++,
+      }
+      first = false
+      return { ...o, animation: { ...base, ...patch } }
+    })
+    this.ctx.history.execute(setPageObjects('Animation', page.id, page.objects, after))
+    this.ctx.changed()
+  }
+
+  /** Presentations: moves the selection's animation one place earlier (-1) or later (1). */
+  moveAnimation(direction: -1 | 1): void {
+    const sel = this.selection
+    const page = sel && this.ctx.doc.page(sel.pageId)
+    const object = page?.objects.find((o) => o.id === sel?.ids[0])
+    if (!page || !object?.animation) return
+    const list = animated(page.objects)
+    const i = list.findIndex((o) => o.id === object.id)
+    const other = list[i + direction]
+    if (!other?.animation) return
+    const orders = new Map([
+      [object.id, other.animation.order],
+      [other.id, object.animation.order],
+    ])
+    const after = page.objects.map((o) =>
+      orders.has(o.id) && o.animation
+        ? { ...o, animation: { ...o.animation, order: orders.get(o.id)! } }
+        : o,
+    )
+    this.ctx.history.execute(setPageObjects('Animation order', page.id, page.objects, after))
+    this.ctx.changed()
   }
 
   /** Moves the selected objects onto another layer, on top of what is already there. */

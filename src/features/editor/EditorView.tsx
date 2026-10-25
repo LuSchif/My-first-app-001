@@ -13,6 +13,7 @@ import { loadFeatures, saveFeatures } from './featureStore.ts'
 import { Toolbar } from './Toolbar.tsx'
 import { NotesPanel } from '../presentation/NotesPanel.tsx'
 import { SlidesPanel } from '../presentation/SlidesPanel.tsx'
+import { Presenter } from '../presentation/Presenter.tsx'
 
 type Loaded = { doc: NotebookDocument; history: History; autosave: Autosave }
 
@@ -107,6 +108,7 @@ function EditorSession({ doc, history, autosave }: Loaded) {
   }, [autosave])
 
   const slides = doc.notebook.kind === 'presentation'
+  const [presenting, setPresenting] = useState(false)
   const editorState = useSyncExternalStore(
     (fn) => editor?.subscribe(fn) ?? (() => {}),
     () => editor?.state ?? null,
@@ -142,6 +144,24 @@ function EditorSession({ doc, history, autosave }: Loaded) {
             // Back to where the notebook lives: its folder, or the library.
             const folderId = doc.notebook.folderId
             navigate(folderId ? { name: 'folder', id: folderId } : { name: 'library' })
+          }}
+          onPresent={
+            slides
+              ? () => {
+                  editor.finishEditing()
+                  setPresenting(true)
+                }
+              : undefined
+          }
+        />
+      ) : null}
+      {presenting && editor ? (
+        <Presenter
+          doc={doc}
+          start={editorState?.pageIndex ?? 0}
+          onExit={(slide) => {
+            setPresenting(false)
+            editor.goToPage(slide)
           }}
         />
       ) : null}

@@ -21,6 +21,8 @@
   --color-paper: #fffdf8;
   /* Behind the pages in the editor; matches DESK_COLOR in the canvas renderer. */
   --color-desk: #ede4d8;
+  /* Around the slide while presenting. */
+  --color-stage: #000000;
 
   /* Text and icons. ink-muted keeps 4.5:1 contrast on every surface. */
   --color-ink: #3e2d25;

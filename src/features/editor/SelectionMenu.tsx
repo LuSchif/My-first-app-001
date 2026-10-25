@@ -11,6 +11,7 @@ import {
   ChevronsLeft,
   ChevronsRight,
   Scissors,
+  Sparkles,
   Table2,
   SquareRoundCorner,
   TextCursorInput,
@@ -54,6 +55,7 @@ import { ChartEditor } from './ChartEditor.tsx'
 import { TableEditor } from './TableEditor.tsx'
 import { Fragment, useLayoutEffect, useRef, useState } from 'react'
 import { useExpanded } from './useExpanded.ts'
+import { AnimationControls } from '../presentation/AnimationControls.tsx'
 
 const GAP = 14
 /** Space kept free at the screen edges and for the toolbar at the top. */
@@ -181,6 +183,28 @@ function menuItems(
       </MenuButton>
     ),
   })
+  if (editor.slides) {
+    items.push({
+      key: 'animate',
+      node: (
+        <Popover>
+          <PopoverTrigger asChild>
+            <button type="button" aria-pressed={sel.animation !== null} className={pill}>
+              <Sparkles size={18} />
+              Animate
+            </button>
+          </PopoverTrigger>
+          <PopoverContent movable="selection-animate" className="grid w-80 gap-4">
+            <AnimationControls
+              editor={editor}
+              animation={sel.animation}
+              place={sel.animationPlace}
+            />
+          </PopoverContent>
+        </Popover>
+      ),
+    })
+  }
   // Charts and pictures keep their own colors.
   if (sel.boxKind !== 'chart' && sel.boxKind !== 'image') {
     items.push({

@@ -17,6 +17,7 @@ import {
   ScanSearch,
   Settings,
   PenTool,
+  Play,
   Redo2,
   SquareDashed,
   Type,
@@ -78,12 +79,15 @@ export function Toolbar({
   title,
   doc,
   onBack,
+  onPresent,
 }: {
   editor: Editor
   autosave: Autosave
   title: string
   doc: NotebookDocument
   onBack: () => void
+  /** Presentations: starts the slide show. */
+  onPresent?: () => void
 }) {
   const state = useSyncExternalStore(
     (fn) => editor.subscribe(fn),
@@ -266,6 +270,16 @@ export function Toolbar({
               <ControlCenter editor={editor} state={state} />
             </PopoverContent>
           </Popover>
+          {onPresent ? (
+            <button
+              type="button"
+              onClick={onPresent}
+              className="flex h-11 items-center gap-1.5 rounded-control bg-ink px-3 text-sm font-semibold text-ink-inverse hover:opacity-90"
+            >
+              <Play size={16} fill="currentColor" />
+              Present
+            </button>
+          ) : null}
           <Popover
             open={panel === 'layers'}
             onOpenChange={(open) => setPanel(open ? 'layers' : null)}
