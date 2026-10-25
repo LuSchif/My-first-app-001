@@ -24,6 +24,8 @@ import { createPage, withPoints } from '../model/factory.ts'
 import { newId } from '../model/ids.ts'
 import {
   type CanvasObject,
+  type CardStudy,
+  type DocumentKind,
   type Id,
   type BoxFrame,
   type ObjectAnimation,
@@ -318,8 +320,9 @@ export class Editor {
   private readonly laser: LaserPointer
   /** Where the pages sit: A4 for notebooks, slides for presentations. */
   private readonly layout: PageLayout
-  /** A presentation: one slide at a time, chosen from the slide list. */
+  /** One page at a time, fitted to the screen: presentations and flashcard decks. */
   readonly slides: boolean
+  readonly kind: DocumentKind
   /** Laser trail and broom dust. */
   private readonly fx: FxLayer
   private readonly dust = new BroomDust()
@@ -425,8 +428,9 @@ export class Editor {
     host.style.setProperty('-webkit-user-select', 'none')
     host.style.setProperty('-webkit-touch-callout', 'none')
 
-    this.slides = doc.notebook.kind === 'presentation'
-    // A presentation's layout is its own: it remembers which slide is in view.
+    this.kind = doc.notebook.kind ?? 'notebook'
+    this.slides = this.kind !== 'notebook'
+    // A presentation's (or deck's) layout is its own: it remembers which slide is in view.
     this.layout = this.slides ? new PageLayout(pageSizeOf(doc.notebook)) : layoutOf(doc.notebook)
     if (this.slides) this.layout.focus = 0
     this.sceneCanvas = makeCanvas()
@@ -1201,6 +1205,67 @@ export class Editor {
     const page = pages[index]
     if (!page || pages.length <= 1) return
     this.history.execute(removePage('Delete page', page.id))
+  }
+
+  /** Flashcards: a new empty card (front and back) at card position `at`, showing its front. */
+  addCardAt(at: number): void {
+    const { id, paper } = this.doc.notebook
+    const index = Math.max(0, Math.min(this.doc.notebook.pageIds.length, at * 2))
+    this.history.execute(
+      insertPages('Add card', index, [createPage(id, paper), createPage(id, paper)]),
+    )
+    this.goToPage(index)
+  }
+
+  /** Flashcards: a copy of card `at` right after it. */
+  duplicateCard(at: number): void {
+    const pages = this.doc.pageList.slice(at * 2, at * 2 + 2)
+    if (pages.length === 0) return
+    const copies = pages.map((source) => ({
+      ...createPage(this.doc.notebook.id, source.paper),
+      objects: source.objects.map((o) => ({ ...o, id: newId() })),
+      ...(source.background ? { background: source.background } : {}),
+    }))
+    const index = at * 2 + 2
+    this.history.execute(insertPages('Duplicate card', index, copies))
+    this.goToPage(index)
+  }
+
+  /** Flashcards: removes card `at` (both sides). The last card stays. */
+  deleteCard(at: number): void {
+    const pages = this.doc.pageList
+    if (pages.length <= 2) return
+    const sides = pages.slice(at * 2, at * 2 + 2)
+    this.history.execute(
+      compound(
+        'Delete card',
+        sides.map((p) => removePage('Delete card', p.id)),
+      ),
+    )
+  }
+
+  /** Flashcards: moves card `from` to card position `to`, both sides together. */
+  moveCard(from: number, to: number): void {
+    const count = Math.ceil(this.doc.notebook.pageIds.length / 2)
+    const target = Math.max(0, Math.min(count - 1, to))
+    if (from === target || from < 0 || from >= count) return
+    const moves =
+      target > from
+        ? [
+            movePage('Move card', from * 2, target * 2 + 1),
+            movePage('Move card', from * 2, target * 2 + 1),
+          ]
+        : [
+            movePage('Move card', from * 2, target * 2),
+            movePage('Move card', from * 2 + 1, target * 2 + 1),
+          ]
+    this.history.execute(compound('Move card', moves))
+    this.goToPage(target * 2)
+  }
+
+  /** Flashcards: how well the cards are known, after studying. Not an undo step. */
+  setStudy(study: Record<Id, CardStudy>): void {
+    this.doc.updateNotebook({ study })
   }
 
   /** Moves the page (slide) at `from` to `to`, and keeps it in view. */

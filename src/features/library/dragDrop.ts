@@ -36,7 +36,7 @@ const SIDE = 0.25
 /** Near the top or bottom edge, the page scrolls along. */
 const EDGE_SCROLL_PX = 70
 /** Held this close to the bottom of the screen, the trash comes up. */
-export const TRASH_BAND_PX = 120
+export const TRASH_BAND_PX = 150
 
 let state: DragState | null = null
 const listeners = new Set<() => void>()
@@ -124,7 +124,9 @@ export function useDraggable(item: DragItem, onDrop: (target: DropTarget) => voi
       const done = state
       cleanup()
       set(null)
-      if (e.type === 'pointerup' && done?.over) onDrop(done.over)
+      // iPadOS may cancel a touch near the screen's bottom edge (where the trash is) instead of
+      // ending it: a cancel over a drop target counts as a drop there. A drop can be undone.
+      if (done?.over && (e.type === 'pointerup' || e.type === 'pointercancel')) onDrop(done.over)
       // The release must not count as a tap on what is under it.
       const swallow = (ev: Event) => {
         ev.stopPropagation()

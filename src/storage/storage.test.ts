@@ -9,7 +9,7 @@ import { BroomitDatabase } from './db.ts'
 import {
   createNotebookRecord,
   deleteNotebook,
-  deletePage,
+  deletePages,
   listNotebooks,
   loadNotebook,
   saveChanges,
@@ -29,11 +29,11 @@ describe('notebook storage', () => {
     const second = createPage(notebook.id, 'lined')
     const two = { ...notebook, pageIds: [...notebook.pageIds, second.id] }
     await createNotebookRecord(two, [...pages, second], database)
-    await deletePage(two.id, pages[0]!.id, database)
+    await deletePages(two.id, [pages[0]!.id], 1, database)
     let loaded = await loadNotebook(two.id, database)
     expect(loaded?.notebook.pageIds).toEqual([second.id])
     expect(loaded?.pages.map((p) => p.id)).toEqual([second.id])
-    await deletePage(two.id, second.id, database)
+    await deletePages(two.id, [second.id], 1, database)
     loaded = await loadNotebook(two.id, database)
     expect(loaded?.notebook.pageIds).toEqual([second.id])
   })

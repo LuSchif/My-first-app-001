@@ -1,5 +1,5 @@
 import type { UnsavedChanges } from '../engine/document/NotebookDocument.ts'
-import type { Asset, Notebook, Page } from '../engine/model/types.ts'
+import type { Asset, CardStudy, Notebook, Page } from '../engine/model/types.ts'
 import { db, type BroomitDatabase } from './db.ts'
 
 export async function listNotebooks(database: BroomitDatabase = db): Promise<Notebook[]> {
@@ -70,20 +70,35 @@ export async function getAssetBlob(
   return (await database.assets.get(id))?.blob ?? null
 }
 
-/** Removes one page from a notebook. A notebook's last page stays. */
-export async function deletePage(
+/**
+ * Removes pages from a notebook, e.g. one page, or both sides of a flashcard. Nothing is removed
+ * when fewer than `keep` pages would be left.
+ */
+export async function deletePages(
   notebookId: string,
-  pageId: string,
+  pageIds: readonly string[],
+  keep = 1,
   database: BroomitDatabase = db,
 ): Promise<void> {
   await database.transaction('rw', database.notebooks, database.pages, async () => {
     const notebook = await database.notebooks.get(notebookId)
-    if (!notebook || notebook.pageIds.length <= 1 || !notebook.pageIds.includes(pageId)) return
+    if (!notebook) return
+    const gone = new Set(pageIds.filter((id) => notebook.pageIds.includes(id)))
+    if (gone.size === 0 || notebook.pageIds.length - gone.size < keep) return
     await database.notebooks.put({
       ...notebook,
-      pageIds: notebook.pageIds.filter((id) => id !== pageId),
+      pageIds: notebook.pageIds.filter((id) => !gone.has(id)),
       updatedAt: Date.now(),
     })
-    await database.pages.delete(pageId)
+    await database.pages.bulkDelete([...gone])
   })
+}
+
+/** Flashcards: stores how well each card of a deck is known. */
+export async function saveStudy(
+  notebookId: string,
+  study: Record<string, CardStudy>,
+  database: BroomitDatabase = db,
+): Promise<void> {
+  await database.notebooks.update(notebookId, { study })
 }

@@ -4,6 +4,7 @@ import { showNotice } from '../../lib/notices.ts'
 import { deleteFolder, moveFolder, moveNotebook } from '../../storage/folders.ts'
 import { deleteNotebook } from '../../storage/notebooks.ts'
 import { moveToTrash } from './trash.ts'
+import { kindName } from './kinds.ts'
 import { applyDrop, countNotebooks } from './libraryActions.ts'
 import type { Library } from './useLibrary.ts'
 
@@ -83,7 +84,7 @@ export function useDrop(library: Library, reload: () => void) {
 function trashItem(item: DragItem, library: Library, reload: () => void): void {
   if (item.kind === 'notebook') {
     const notebook = library.notebooks.find((n) => n.id === item.id)
-    const what = notebook?.kind === 'presentation' ? 'presentation' : 'notebook'
+    const what = notebook ? kindName(notebook) : 'notebook'
     moveToTrash(
       [item.id],
       `Deleted ${what} “${item.label}”.`,

@@ -1,19 +1,34 @@
-import { FolderInput, MoreHorizontal, Presentation, Trash2 } from 'lucide-react'
+import {
+  FolderClosed,
+  FolderInput,
+  Layers,
+  MoreHorizontal,
+  Presentation,
+  Trash2,
+} from 'lucide-react'
 import { useState } from 'react'
 import { fillToCss, prefersLightText } from '../../engine/model/fill.ts'
+import { dueCount } from '../../engine/model/flashcards.ts'
 import type { Folder, Notebook } from '../../engine/model/types.ts'
 import { Button, IconButton, Popover, PopoverContent, PopoverTrigger } from '../../design/index.ts'
 import { cn } from '../../lib/cn.ts'
 import { formatEdited } from '../../lib/time.ts'
 import { moveNotebook } from '../../storage/folders.ts'
 import { deleteNotebook } from '../../storage/notebooks.ts'
+import { useNow } from '../calendar/useNow.ts'
 import { useDraggable, useDragState, type DropTarget } from './dragDrop.ts'
 import { MoveList } from './MoveList.tsx'
 import { NotebookThumbnail } from './NotebookThumbnail.tsx'
+import { openPeek } from './peek.ts'
+import { kindName } from './kinds.ts'
+
+const tilePress =
+  'touch-manipulation select-none [-webkit-touch-callout:none] transition-transform duration-200 ease-gentle hover:-translate-y-0.5 active:scale-[0.98]'
 
 /**
- * A notebook in the library: its cover opens it; hold (or drag with a mouse) to drop it on a
- * folder; the menu moves or deletes it.
+ * A notebook, presentation or deck of flashcards in the library: a tap looks inside; hold (or
+ * drag with a mouse) to drop it on a folder or the trash; the menu moves or deletes it. With
+ * `showFolder`, the folder it is in shows under its name.
  */
 export function NotebookCard({
   notebook,
@@ -21,12 +36,14 @@ export function NotebookCard({
   onOpen,
   onChanged,
   onDrop,
+  showFolder = false,
 }: {
   notebook: Notebook
   folders: readonly Folder[]
   onOpen: () => void
   onChanged: () => void
   onDrop: (target: DropTarget) => void
+  showFolder?: boolean
 }) {
   const light = prefersLightText(notebook.cover)
   const drag = useDragState()
@@ -35,6 +52,7 @@ export function NotebookCard({
     { kind: 'notebook', id: notebook.id, label: notebook.title },
     onDrop,
   )
+  const open = { type: 'button' as const, onClick: onOpen, 'aria-label': `Open ${notebook.title}` }
   return (
     // min-w-0: a long title must not widen its column; every card has the column's width.
     <li
@@ -45,32 +63,38 @@ export function NotebookCard({
     >
       {notebook.kind === 'presentation' ? (
         <button
-          type="button"
-          onClick={onOpen}
-          aria-label={`Open ${notebook.title}`}
+          {...open}
           {...draggable}
           className={cn(
             // As big as a folder tile.
-            'relative grid aspect-[6/5] w-full min-w-0 touch-manipulation content-end overflow-hidden rounded-card bg-surface-sunken p-2.5 select-none [-webkit-touch-callout:none]',
-            'transition-transform duration-200 ease-gentle hover:-translate-y-0.5 active:scale-[0.98]',
+            'relative grid aspect-[6/5] w-full min-w-0 content-end overflow-hidden rounded-card bg-surface-sunken p-2.5',
+            tilePress,
           )}
         >
           <SlideThumbnail notebook={notebook} />
-          <span className="absolute top-2.5 left-2.5 flex items-center gap-1 rounded-full bg-surface-raised/90 px-2 py-0.5 text-xs font-semibold text-ink-muted shadow-soft">
-            <Presentation size={12} /> Presentation
-          </span>
+          <KindChip icon={<Presentation size={12} />} label="Presentation" />
+        </button>
+      ) : notebook.kind === 'deck' ? (
+        <button
+          {...open}
+          {...draggable}
+          className={cn(
+            'relative grid aspect-[6/5] w-full min-w-0 place-items-center overflow-hidden rounded-card bg-surface-sunken p-3 pt-8',
+            tilePress,
+          )}
+        >
+          <DeckStack notebook={notebook} />
+          <KindChip icon={<Layers size={12} />} label="Flashcards" />
         </button>
       ) : (
         // As tall as a folder tile, standing upright in it.
         <div className="grid aspect-[6/5] w-full place-items-center p-1">
           <button
-            type="button"
-            onClick={onOpen}
-            aria-label={`Open ${notebook.title}`}
+            {...open}
             {...draggable}
             className={cn(
-              'flex aspect-[3/4] h-full min-w-0 touch-manipulation flex-col justify-end overflow-hidden rounded-r-card rounded-l-md p-2.5 text-left shadow-raised select-none [-webkit-touch-callout:none]',
-              'transition-transform duration-200 ease-gentle hover:-translate-y-0.5 active:scale-[0.98]',
+              'flex aspect-[3/4] h-full min-w-0 flex-col justify-end overflow-hidden rounded-r-card rounded-l-md p-2.5 text-left shadow-raised',
+              tilePress,
               light ? 'text-ink-inverse' : 'text-ink',
             )}
             style={{ background: fillToCss(notebook.cover) }}
@@ -84,7 +108,8 @@ export function NotebookCard({
       <div className="flex items-start justify-between gap-1">
         <div className="min-w-0 text-sm">
           <p className="truncate font-semibold">{notebook.title}</p>
-          <p className="text-ink-muted">{notebookDetails(notebook)}</p>
+          <Details notebook={notebook} />
+          {showFolder ? <FolderBadge notebook={notebook} folders={folders} /> : null}
         </div>
         <NotebookMenu notebook={notebook} folders={folders} onChanged={onChanged} />
       </div>
@@ -92,11 +117,90 @@ export function NotebookCard({
   )
 }
 
-/** When it was edited, and how many pages or slides it has. */
-function notebookDetails(notebook: Notebook): string {
+function KindChip({ icon, label }: { icon: React.ReactNode; label: string }) {
+  return (
+    <span className="absolute top-2.5 left-2.5 flex items-center gap-1 rounded-full bg-surface-raised/90 px-2 py-0.5 text-xs font-semibold text-ink-muted shadow-soft">
+      {icon} {label}
+    </span>
+  )
+}
+
+/** When it was edited and how many pages, slides or cards it has; for cards, how many are due. */
+function Details({ notebook }: { notebook: Notebook }) {
+  const now = useNow()
   const pages = notebook.pageIds.length
+  if (notebook.kind === 'deck') {
+    const cards = Math.ceil(pages / 2)
+    const due = dueCount(notebook, now.getTime())
+    return (
+      <p className="text-ink-muted">
+        {cards} {cards === 1 ? 'card' : 'cards'}
+        {due ? (
+          <span className="font-semibold text-accent"> · {due} due</span>
+        ) : (
+          ' · all learned for now'
+        )}
+      </p>
+    )
+  }
   const unit = notebook.kind === 'presentation' ? 'slide' : 'page'
-  return `${formatEdited(notebook.updatedAt)} · ${pages} ${unit}${pages === 1 ? '' : 's'}`
+  return (
+    <p className="text-ink-muted">
+      {formatEdited(notebook.updatedAt)} · {pages} {unit}
+      {pages === 1 ? '' : 's'}
+    </p>
+  )
+}
+
+/** The folder a notebook is in (with the folders around it); a tap looks into it. */
+function FolderBadge({ notebook, folders }: { notebook: Notebook; folders: readonly Folder[] }) {
+  const path: Folder[] = []
+  let id = notebook.folderId
+  while (id) {
+    const folder = folders.find((f) => f.id === id)
+    if (!folder) break
+    path.unshift(folder)
+    id = folder.parentId
+  }
+  const folder = path[path.length - 1]
+  if (!folder) return null
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation()
+        openPeek({ kind: 'folder', id: folder.id })
+      }}
+      title={path.map((f) => f.name).join(' › ')}
+      className="mt-1 flex max-w-full items-center gap-1.5 rounded-full bg-surface-sunken py-0.5 pr-2.5 pl-1.5 text-xs font-semibold text-ink-muted hover:bg-pressed"
+    >
+      <span
+        className="grid size-4 shrink-0 place-items-center rounded-full"
+        style={{ background: fillToCss(folder.fill) }}
+      >
+        <FolderClosed size={10} className="text-ink-inverse" />
+      </span>
+      <span className="truncate">{path.map((f) => f.name).join(' › ')}</span>
+    </button>
+  )
+}
+
+/** A deck: its first card with the next ones stacked behind it. */
+function DeckStack({ notebook, small = false }: { notebook: Notebook; small?: boolean }) {
+  const shadow = 'absolute inset-0 rounded-md bg-paper shadow-soft ring-1 ring-line'
+  return (
+    <span className={cn('relative block', small ? 'w-12' : 'w-[78%]')}>
+      <span className={cn(shadow, 'translate-x-[6%] -translate-y-[10%] rotate-3')} />
+      <span className={cn(shadow, 'translate-x-[3%] -translate-y-[5%] rotate-[1.5deg]')} />
+      <span className="relative block overflow-hidden rounded-md shadow-raised ring-1 ring-line">
+        <NotebookThumbnail
+          notebook={notebook}
+          width={small ? 48 : 240}
+          className="!w-full rounded-none shadow-none"
+        />
+      </span>
+    </span>
+  )
 }
 
 /** A notebook as a row of the list view: a small cover, its title and details, its menu. */
@@ -106,12 +210,14 @@ export function NotebookRow({
   onOpen,
   onChanged,
   onDrop,
+  showFolder = false,
 }: {
   notebook: Notebook
   folders: readonly Folder[]
   onOpen: () => void
   onChanged: () => void
   onDrop: (target: DropTarget) => void
+  showFolder?: boolean
 }) {
   const drag = useDragState()
   const dragging = drag?.item.kind === 'notebook' && drag.item.id === notebook.id
@@ -119,7 +225,6 @@ export function NotebookRow({
     { kind: 'notebook', id: notebook.id, label: notebook.title },
     onDrop,
   )
-  const slides = notebook.kind === 'presentation'
   return (
     <li className={cn('flex items-center gap-1 pr-2 transition-opacity', dragging && 'opacity-40')}>
       <button
@@ -129,8 +234,10 @@ export function NotebookRow({
         className="flex min-w-0 flex-1 touch-manipulation items-center gap-3 px-3 py-2 text-left select-none [-webkit-touch-callout:none]"
       >
         <span className="grid w-12 shrink-0 place-items-center">
-          {slides ? (
+          {notebook.kind === 'presentation' ? (
             <NotebookThumbnail notebook={notebook} width={48} className="!w-12 shadow-soft" />
+          ) : notebook.kind === 'deck' ? (
+            <DeckStack notebook={notebook} small />
           ) : (
             <span
               className="block aspect-[3/4] w-9 rounded-r-md rounded-l-sm shadow-soft"
@@ -141,17 +248,24 @@ export function NotebookRow({
         <span className="min-w-0 flex-1 text-sm">
           <span className="flex items-center gap-1.5">
             <span className="truncate font-semibold">{notebook.title}</span>
-            {slides ? (
+            {notebook.kind === 'presentation' ? (
               <Presentation
                 size={14}
                 aria-label="Presentation"
                 className="shrink-0 text-ink-muted"
               />
+            ) : notebook.kind === 'deck' ? (
+              <Layers size={14} aria-label="Flashcards" className="shrink-0 text-ink-muted" />
             ) : null}
           </span>
-          <span className="block text-ink-muted">{notebookDetails(notebook)}</span>
+          <Details notebook={notebook} />
         </span>
       </button>
+      {showFolder ? (
+        <span className="hidden max-w-[40%] sm:block">
+          <FolderBadge notebook={notebook} folders={folders} />
+        </span>
+      ) : null}
       <NotebookMenu notebook={notebook} folders={folders} onChanged={onChanged} className="" />
     </li>
   )
@@ -230,7 +344,7 @@ function NotebookMenu({
                 onChanged()
               }}
             >
-              Delete notebook
+              Delete {kindName(notebook)}
             </Button>
           </div>
         )}

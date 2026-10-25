@@ -83,8 +83,9 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
 
 - The home screen: a header with the search, tiles/list switch, appearance and backup. Below
   it, today's calendar on the left (about two fifths of the width); on the right a carousel
-  (`Carousel.tsx`): a Create page first, then one page each for the top-level folders, the notebooks (in no folder, or all of them) and the
-  presentations. Swipe or use the arrows and names below it; the page shown is remembered.
+  (`Carousel.tsx`): a Create page first, then one page each for the top-level folders, every
+  notebook, every presentation and every deck of flashcards on the device, wherever it is
+  filed (a chip shows its folder). Each page ends with a + to make one more. Swipe or use the arrows and names below it; the page shown is remembered.
   Both sides are as tall as the screen allows and scroll inside. Folders and notebooks have
   their own sort order (folders: own order, name, recently edited).
 - Folders and notebooks show as tiles or as a list (`libraryLayout.ts`, kept per device; the
@@ -286,6 +287,19 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
   Text on text layers can be tapped and selected from any layer.
 - A layer can be a clipping mask: it shows only where the nearest unclipped layer below has
   content (`render/layers.ts`).
+
+## Flashcards
+
+- A deck is a document with `kind: 'deck'` and index-card pages (`CARD_SIZE`), in pairs: each
+  card's front, then its back (`model/flashcards.ts`). Cards are written and drawn with the
+  same editor and tools; the cards panel on the left shows both sides and adds, copies, moves
+  and deletes whole cards.
+- Studying (`features/flashcards/Study.tsx`) works like Anki with two answers: a known card
+  moves up a box and is due again after 1, 3, 7, 16, 35 or 80 days; a missed one goes back to
+  the first box and comes again three cards later in the same session. How well each card is
+  known is stored on the deck (`Notebook.study`, by front page id), so backups keep it.
+- Decks are notebooks to the library: they go into folders, peek (the cards fan out, with
+  Study and Edit), drag into folders or onto the trash like any other.
 
 ## Presentations
 

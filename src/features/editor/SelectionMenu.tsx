@@ -183,7 +183,7 @@ function menuItems(
       </MenuButton>
     ),
   })
-  if (editor.slides) {
+  if (editor.kind === 'presentation') {
     items.push({
       key: 'animate',
       node: (

@@ -17,6 +17,7 @@ import {
   ScanSearch,
   Settings,
   PenTool,
+  GraduationCap,
   Play,
   Redo2,
   SquareDashed,
@@ -86,7 +87,7 @@ export function Toolbar({
   title: string
   doc: NotebookDocument
   onBack: () => void
-  /** Presentations: starts the slide show. */
+  /** Presentations: starts the slide show; flashcards: starts studying. */
   onPresent?: () => void
 }) {
   const state = useSyncExternalStore(
@@ -95,7 +96,16 @@ export function Toolbar({
   )
   const [panel, setPanel] = useState<ToolId | 'pages' | 'layers' | 'control' | null>(null)
   const { features } = state
-  const unit = editor.slides ? 'Slide' : 'Page'
+  const unit = editor.kind === 'presentation' ? 'Slide' : 'Page'
+  // A deck counts cards, each with a front and a back.
+  const place =
+    editor.kind === 'deck'
+      ? `Card ${Math.floor(state.pageIndex / 2) + 1} · ${state.pageIndex % 2 ? 'Back' : 'Front'}`
+      : `${unit} ${state.pageIndex + 1} of ${state.pageCount}`
+  const shortPlace =
+    editor.kind === 'deck'
+      ? `${Math.floor(state.pageIndex / 2) + 1}${state.pageIndex % 2 ? 'B' : 'F'}`
+      : `${state.pageIndex + 1}/${state.pageCount}`
   const activeLayer = state.layers.find((l) => l.id === state.activeLayerId)
   const [expanded, setExpanded] = useExpanded('broomit.toolbarExpanded')
   const leftCorner = useRef<HTMLDivElement>(null)
@@ -276,8 +286,17 @@ export function Toolbar({
               onClick={onPresent}
               className="flex h-11 items-center gap-1.5 rounded-control bg-ink px-3 text-sm font-semibold text-ink-inverse hover:opacity-90"
             >
-              <Play size={16} fill="currentColor" />
-              Present
+              {editor.kind === 'deck' ? (
+                <>
+                  <GraduationCap size={16} />
+                  Study
+                </>
+              ) : (
+                <>
+                  <Play size={16} fill="currentColor" />
+                  Present
+                </>
+              )}
             </button>
           ) : null}
           <Popover
@@ -312,15 +331,7 @@ export function Toolbar({
                 className="flex h-11 items-center gap-1.5 rounded-control px-3 text-sm font-semibold tabular-nums hover:bg-hover"
               >
                 <LayoutGrid size={18} />
-                {expanded ? (
-                  <span aria-label={`${unit} ${state.pageIndex + 1} of ${state.pageCount}`}>
-                    {state.pageIndex + 1}/{state.pageCount}
-                  </span>
-                ) : (
-                  <>
-                    {unit} {state.pageIndex + 1} of {state.pageCount}
-                  </>
-                )}
+                {expanded ? <span aria-label={place}>{shortPlace}</span> : place}
               </button>
             </DialogTrigger>
             {panel === 'pages' ? (

@@ -15,6 +15,8 @@ import { takeOpeningPage } from './openAt.ts'
 import { NotesPanel } from '../presentation/NotesPanel.tsx'
 import { SlidesPanel } from '../presentation/SlidesPanel.tsx'
 import { Presenter } from '../presentation/Presenter.tsx'
+import { CardsPanel } from '../flashcards/CardsPanel.tsx'
+import { Study } from '../flashcards/Study.tsx'
 
 type Loaded = { doc: NotebookDocument; history: History; autosave: Autosave }
 
@@ -110,8 +112,11 @@ function EditorSession({ doc, history, autosave }: Loaded) {
     }
   }, [autosave])
 
-  const slides = doc.notebook.kind === 'presentation'
+  const kind = doc.notebook.kind ?? 'notebook'
+  const slides = kind !== 'notebook'
   const [presenting, setPresenting] = useState(false)
+  // Flashcards: when studying began, while it goes on.
+  const [studying, setStudying] = useState<number | null>(null)
   const editorState = useSyncExternalStore(
     (fn) => editor?.subscribe(fn) ?? (() => {}),
     () => editor?.state ?? null,
@@ -125,12 +130,21 @@ function EditorSession({ doc, history, autosave }: Loaded) {
   return (
     <div className="fixed inset-0 overflow-hidden bg-desk">
       {slides ? (
-        // A presentation: the slides on the left, the slide with its notes beside them.
+        // A presentation: the slides on the left, the slide with its notes beside them. A deck:
+        // its cards on the left, front and back.
         <div className="absolute inset-0 flex">
-          {editor ? <SlidesPanel editor={editor} state={editorState!} doc={doc} /> : null}
+          {editor ? (
+            kind === 'deck' ? (
+              <CardsPanel editor={editor} state={editorState!} doc={doc} />
+            ) : (
+              <SlidesPanel editor={editor} state={editorState!} doc={doc} />
+            )
+          ) : null}
           <div className="flex min-w-0 flex-1 flex-col">
             <div ref={hostRef} className="relative min-h-0 flex-1" />
-            {editor ? <NotesPanel editor={editor} state={editorState!} doc={doc} /> : null}
+            {editor && kind === 'presentation' ? (
+              <NotesPanel editor={editor} state={editorState!} doc={doc} />
+            ) : null}
           </div>
         </div>
       ) : (
@@ -152,10 +166,20 @@ function EditorSession({ doc, history, autosave }: Loaded) {
             slides
               ? () => {
                   editor.finishEditing()
-                  setPresenting(true)
+                  if (kind === 'deck') setStudying(Date.now())
+                  else setPresenting(true)
                 }
               : undefined
           }
+        />
+      ) : null}
+      {studying !== null && editor ? (
+        <Study
+          deck={doc.notebook}
+          pages={doc.pageList}
+          startedAt={studying}
+          onSave={(study) => editor.setStudy(study)}
+          onExit={() => setStudying(null)}
         />
       ) : null}
       {presenting && editor ? (

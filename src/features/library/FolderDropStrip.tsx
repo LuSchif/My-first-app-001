@@ -1,3 +1,4 @@
+import { Inbox } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 import type { Folder, Notebook } from '../../engine/model/types.ts'
 import { cn } from '../../lib/cn.ts'
@@ -70,7 +71,7 @@ export function FolderDropStrip({
         <p className="px-4 pt-3 text-xs font-semibold tracking-[0.14em] text-ink-muted uppercase">
           Drop into a folder
         </p>
-        {list.length === 0 ? (
+        {list.length === 0 && !notebook.folderId ? (
           <p className="px-4 pt-2 pb-4 text-sm text-ink-muted">
             No folders yet. Make one with the + on the Folders page.
           </p>
@@ -79,6 +80,21 @@ export function FolderDropStrip({
             ref={row}
             className="flex gap-3 overflow-x-auto px-4 pt-2 pb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           >
+            {notebook.folderId ? (
+              // Out of its folder, back to the top level.
+              <div
+                data-drop="root"
+                className={cn(
+                  'grid w-24 shrink-0 justify-items-center gap-1 rounded-card p-1.5 transition-transform duration-150 ease-gentle',
+                  drag?.over?.kind === 'root' && 'scale-110 bg-hover ring-2 ring-accent',
+                )}
+              >
+                <span className="grid aspect-[6/5] w-16 place-items-center rounded-control text-ink-muted ring-2 ring-line ring-inset [border-style:dashed]">
+                  <Inbox size={22} />
+                </span>
+                <span className="w-full truncate text-center text-xs font-semibold">No folder</span>
+              </div>
+            ) : null}
             {list.map(({ folder, depth }) => {
               const current = folder.id === notebook.folderId
               return (

@@ -1,4 +1,13 @@
-import { ChevronLeft, FolderOpen, Presentation, X } from 'lucide-react'
+import {
+  ChevronLeft,
+  FolderOpen,
+  GraduationCap,
+  Layers,
+  Pencil,
+  Presentation,
+  X,
+} from 'lucide-react'
+import { createPortal } from 'react-dom'
 import { useEffect, useState } from 'react'
 import { navigate } from '../../app/router.ts'
 import { fillToCss, prefersLightText } from '../../engine/model/fill.ts'
@@ -7,13 +16,16 @@ import { pageSizeOf } from '../../engine/render/layout.ts'
 import { Button, IconButton } from '../../design/index.ts'
 import { cn } from '../../lib/cn.ts'
 import { formatEdited } from '../../lib/time.ts'
-import { deletePage, loadNotebook } from '../../storage/notebooks.ts'
+import { deletePages, loadNotebook, saveStudy } from '../../storage/notebooks.ts'
 import { PageThumbnail } from '../editor/PageThumbnail.tsx'
 import { openNotebookAt } from '../editor/openAt.ts'
 import { FolderGraphic } from '../folders/FolderGraphic.tsx'
 import { countNotebooks, notebooksIn } from './libraryActions.ts'
 import { NotebookThumbnail } from './NotebookThumbnail.tsx'
 import { openPeek, usePeek } from './peek.ts'
+import { cardsOf, dueCount, type Card } from '../../engine/model/flashcards.ts'
+import { useNow } from '../calendar/useNow.ts'
+import { Study } from '../flashcards/Study.tsx'
 import { useDraggable, useDragState, type DropTarget } from './dragDrop.ts'
 import { moveToTrash, useTrashed } from './trash.ts'
 import { showNotice } from '../../lib/notices.ts'
@@ -79,7 +91,9 @@ export function PeekLayer({ library, reload }: { library: Library; reload: () =>
           onClick={close}
           className="absolute top-3 right-3 z-10"
         />
-        {notebook ? (
+        {notebook?.kind === 'deck' ? (
+          <DeckPeek key={notebook.id} deck={notebook} library={library} reload={reload} />
+        ) : notebook ? (
           <NotebookPeek key={notebook.id} notebook={notebook} library={library} reload={reload} />
         ) : folder ? (
           <FolderPeek key={folder.id} folder={folder} library={library} />
@@ -98,39 +112,18 @@ function NotebookPeek({
   library: Library
   reload: () => void
 }) {
-  const [pages, setPages] = useState<Page[] | null>(null)
+  const [pages, setPages] = usePages(notebook.id)
   const trashed = useTrashed()
   const shownPages = pages?.filter((p) => !trashed.has(p.id)) ?? null
   const slides = notebook.kind === 'presentation'
   const parent = library.folders.find((f) => f.id === notebook.folderId)
-
-  useEffect(() => {
-    let alive = true
-    loadNotebook(notebook.id)
-      .then((data) => alive && setPages(data?.pages ?? []))
-      .catch((err: unknown) => {
-        console.error(err)
-        if (alive) setPages([])
-      })
-    return () => {
-      alive = false
-    }
-  }, [notebook.id])
 
   const count = shownPages?.length ?? notebook.pageIds.length
   const unit = slides ? 'slide' : 'page'
   return (
     <>
       <Side>
-        {parent ? (
-          <button
-            type="button"
-            onClick={() => openPeek({ kind: 'folder', id: parent.id })}
-            className="flex items-center gap-1 self-start rounded-control py-1 pr-2 text-sm font-semibold text-ink-muted hover:bg-hover"
-          >
-            <ChevronLeft size={16} /> {parent.name}
-          </button>
-        ) : null}
+        <BackToFolder folder={parent} />
         <div className="grid flex-1 place-items-center py-4">
           {slides ? (
             <OpeningSlides notebook={notebook} />
@@ -187,7 +180,7 @@ function NotebookPeek({
                   moveToTrash(
                     [page.id],
                     `Deleted ${unit} ${i + 1} of “${notebook.title}”.`,
-                    () => deletePage(notebook.id, page.id),
+                    () => deletePages(notebook.id, [page.id]),
                     () => {
                       setPages((list) => list?.filter((p) => p.id !== page.id) ?? null)
                       reload()
@@ -205,6 +198,244 @@ function NotebookPeek({
         ) : null}
       </Contents>
     </>
+  )
+}
+
+/** A notebook's pages, loaded for its peek; null while loading. */
+function usePages(
+  notebookId: string,
+): [Page[] | null, React.Dispatch<React.SetStateAction<Page[] | null>>] {
+  const [pages, setPages] = useState<Page[] | null>(null)
+  useEffect(() => {
+    let alive = true
+    loadNotebook(notebookId)
+      .then((data) => alive && setPages(data?.pages ?? []))
+      .catch((err: unknown) => {
+        console.error(err)
+        if (alive) setPages([])
+      })
+    return () => {
+      alive = false
+    }
+  }, [notebookId])
+  return [pages, setPages]
+}
+
+/** Back to the folder this is in, as a peek. */
+function BackToFolder({ folder }: { folder: Folder | undefined }) {
+  if (!folder) return null
+  return (
+    <button
+      type="button"
+      onClick={() => openPeek({ kind: 'folder', id: folder.id })}
+      className="flex items-center gap-1 self-start rounded-control py-1 pr-2 text-sm font-semibold text-ink-muted hover:bg-hover"
+    >
+      <ChevronLeft size={16} /> {folder.name}
+    </button>
+  )
+}
+
+/** A deck of flashcards: its cards fan out, each with front and back; study or edit them. */
+function DeckPeek({
+  deck,
+  library,
+  reload,
+}: {
+  deck: Notebook
+  library: Library
+  reload: () => void
+}) {
+  const [pages, setPages] = usePages(deck.id)
+  const [studying, setStudying] = useState<number | null>(null)
+  const trashed = useTrashed()
+  const now = useNow()
+  const cards = cardsOf(deck.pageIds).filter((c) => !trashed.has(c.front))
+  const byId = new Map((pages ?? []).map((p) => [p.id, p]))
+  const due = dueCount(deck, now.getTime())
+  const parent = library.folders.find((f) => f.id === deck.folderId)
+  return (
+    <>
+      <Side>
+        <BackToFolder folder={parent} />
+        <div className="grid flex-1 place-items-center py-4">
+          <OpeningCards deck={deck} />
+        </div>
+        <div className="grid gap-1">
+          <p className="flex items-center gap-1.5 text-lg font-bold">
+            <span className="truncate">{deck.title}</span>
+            <Layers size={16} className="shrink-0 text-ink-muted" />
+          </p>
+          <p className="text-sm text-ink-muted">
+            {cards.length} {cards.length === 1 ? 'card' : 'cards'} ·{' '}
+            {due ? `${due} due now` : 'all learned for now'}
+          </p>
+        </div>
+        <div className="grid gap-2">
+          <Button
+            variant="primary"
+            icon={<GraduationCap size={18} />}
+            disabled={pages === null}
+            onClick={() => setStudying(Date.now())}
+          >
+            Study{due ? ` · ${due} due` : ''}
+          </Button>
+          <Button
+            icon={<Pencil size={18} />}
+            onClick={() => {
+              openPeek(null)
+              navigate({ name: 'notebook', id: deck.id })
+            }}
+          >
+            Edit cards
+          </Button>
+        </div>
+      </Side>
+      <Contents title="Cards">
+        {pages === null ? null : (
+          <ol className="grid grid-cols-[repeat(auto-fill,minmax(16rem,1fr))] gap-4">
+            {cards.map((card, i) => (
+              <PeekCard
+                key={card.front}
+                deck={deck}
+                card={card}
+                number={i + 1}
+                front={byId.get(card.front)}
+                back={card.back === card.front ? undefined : byId.get(card.back)}
+                onDrop={(target) => {
+                  if (target.kind !== 'trash') return
+                  if (cards.length <= 1) {
+                    showNotice('A deck keeps at least one card.')
+                    return
+                  }
+                  const sides = [card.front, card.back]
+                  moveToTrash(
+                    sides,
+                    `Deleted card ${i + 1} of “${deck.title}”.`,
+                    () => deletePages(deck.id, sides, 2),
+                    () => {
+                      setPages((list) => list?.filter((p) => !sides.includes(p.id)) ?? null)
+                      reload()
+                    },
+                  )
+                }}
+              />
+            ))}
+          </ol>
+        )}
+      </Contents>
+      {studying !== null && pages
+        ? createPortal(
+            <Study
+              deck={deck}
+              pages={pages}
+              startedAt={studying}
+              onSave={(study) => void saveStudy(deck.id, study).catch(console.error)}
+              onExit={() => {
+                setStudying(null)
+                reload()
+              }}
+            />,
+            document.body,
+          )
+        : null}
+    </>
+  )
+}
+
+/** One flashcard in a deck's peek, front and back side by side; a tap edits it. */
+function PeekCard({
+  deck,
+  card,
+  number,
+  front,
+  back,
+  onDrop,
+}: {
+  deck: Notebook
+  card: Card
+  number: number
+  front: Page | undefined
+  back: Page | undefined
+  onDrop: (target: DropTarget) => void
+}) {
+  const drag = useDragState()
+  const dragging = drag?.item.kind === 'page' && drag.item.id === card.front
+  const draggable = useDraggable(
+    { kind: 'page', id: card.front, label: `Card ${number}`, notebookId: deck.id },
+    onDrop,
+  )
+  const face = (page: Page | undefined, side: string) => (
+    <span className="relative block overflow-hidden rounded-md shadow-soft ring-1 ring-line">
+      {page ? (
+        <PageThumbnail
+          width={150}
+          page={page}
+          layers={deck.layers}
+          background={deck.background}
+          size={pageSizeOf(deck)}
+        />
+      ) : null}
+      <span className="absolute top-1 left-1 rounded-full bg-surface-raised/90 px-1.5 text-[10px] font-semibold text-ink-muted uppercase">
+        {side}
+      </span>
+    </span>
+  )
+  return (
+    <li
+      className={cn('animate-page-out transition-opacity', dragging && 'opacity-40')}
+      style={stagger(number - 1)}
+    >
+      <button
+        type="button"
+        {...draggable}
+        onClick={() => {
+          openPeek(null)
+          openNotebookAt(deck.id, card.index * 2)
+        }}
+        className="grid w-full touch-manipulation gap-1.5 text-left select-none [-webkit-touch-callout:none]"
+      >
+        <span className="grid grid-cols-2 gap-1.5 transition-transform duration-150 ease-gentle hover:-translate-y-0.5">
+          {face(front, 'Front')}
+          {back ? face(back, 'Back') : null}
+        </span>
+        <span className="text-center text-xs font-semibold text-ink-muted tabular-nums">
+          {number}
+        </span>
+      </button>
+    </li>
+  )
+}
+
+/** A deck: its cards fan out from the stack. */
+function OpeningCards({ deck }: { deck: Notebook }) {
+  const open = useOpened()
+  const behind = Math.min(3, Math.ceil(deck.pageIds.length / 2) - 1)
+  return (
+    <div className="relative w-56">
+      {Array.from({ length: behind }, (_, i) => (
+        <div
+          key={i}
+          className="absolute inset-0 rounded-md bg-paper shadow-soft ring-1 ring-line transition-transform duration-700 ease-gentle"
+          style={{
+            background: deck.background,
+            transform: open
+              ? `rotate(${(i + 1) * 7}deg) translate(${(i + 1) * 10}px, ${-(i + 1) * 4}px)`
+              : 'none',
+            transformOrigin: 'bottom left',
+          }}
+        />
+      ))}
+      <div
+        className="relative overflow-hidden rounded-md shadow-raised ring-1 ring-line transition-transform duration-700 ease-gentle"
+        style={{ transform: open ? 'rotate(-4deg)' : 'none', transformOrigin: 'bottom left' }}
+      >
+        <NotebookThumbnail
+          notebook={deck}
+          width={224}
+          className="!w-full rounded-none shadow-none"
+        />
+      </div>
+    </div>
   )
 }
 
@@ -406,7 +637,7 @@ function FolderPeek({ folder, library }: { folder: Folder; library: Library }) {
                   className="grid w-full justify-items-center gap-1.5"
                 >
                   <span className="grid aspect-[6/5] w-full place-items-center">
-                    {n.kind === 'presentation' ? (
+                    {n.kind === 'presentation' || n.kind === 'deck' ? (
                       <NotebookThumbnail notebook={n} width={120} className="!w-full shadow-soft" />
                     ) : (
                       <span

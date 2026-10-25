@@ -1,11 +1,21 @@
-import { ChevronRight, FolderPlus, NotebookPen, Plus, Presentation, Search, X } from 'lucide-react'
+import {
+  ChevronRight,
+  FolderPlus,
+  Layers,
+  NotebookPen,
+  Plus,
+  Presentation,
+  Search,
+  X,
+} from 'lucide-react'
 import { useState } from 'react'
 import { navigate } from '../../app/router.ts'
 import { Button, Dialog, DialogTrigger } from '../../design/index.ts'
 import { Carousel, type CarouselPage } from './Carousel.tsx'
 import { FolderDropStrip } from './FolderDropStrip.tsx'
 import { PeekLayer } from './Peek.tsx'
-import type { Notebook } from '../../engine/model/types.ts'
+import { NewDeckDialog } from '../flashcards/NewDeckDialog.tsx'
+import type { DocumentKind } from '../../engine/model/types.ts'
 import { FolderEditorDialog } from '../folders/FolderEditorDialog.tsx'
 import { CalendarHome } from '../calendar/CalendarHome.tsx'
 import { AppearanceMenu } from './AppearanceMenu.tsx'
@@ -27,11 +37,6 @@ import { useLibrary, type Library } from './useLibrary.ts'
 import { useStoredState } from './useStoredState.ts'
 import { LayoutToggle } from './LayoutToggle.tsx'
 import { useLibraryLayout, type LibraryLayout } from './libraryLayout.ts'
-
-const FILTERS = [
-  ['unfiled', 'Not in a folder'],
-  ['all', 'All notebooks'],
-] as const
 
 /**
  * The home screen: today's calendar on the left; on the right, buttons for a new folder,
@@ -103,11 +108,7 @@ export function LibraryView() {
   )
 }
 
-const isPresentation = (n: Notebook) => n.kind === 'presentation'
-const PAGES = ['create', 'folders', 'notebooks', 'presentations'] as const
-
-const emptyNote =
-  'rounded-card px-4 py-8 text-center text-sm text-ink-muted ring-2 ring-line ring-inset [border-style:dashed]'
+const PAGES = ['create', 'folders', 'notebooks', 'presentations', 'flashcards'] as const
 
 /** The folders, the notebooks and the presentations, one page of the carousel each. */
 function Browser({
@@ -138,22 +139,41 @@ function Browser({
     'recent',
     NOTEBOOK_SORTS.map(([v]) => v),
   )
-  const [filter, setFilter] = useStoredState<'unfiled' | 'all'>(
-    'broomit.notebookFilter',
-    'unfiled',
-    FILTERS.map(([v]) => v),
-  )
   const topFolders = sortFolders(
     library.folders.filter((f) => f.parentId === null),
     folderSort,
     library,
   )
-  const all = library.notebooks.filter((n) => !isPresentation(n))
-  const notebooks = sortNotebooks(
-    filter === 'all' ? all : all.filter((n) => n.folderId === null),
-    notebookSort,
+  // Every notebook, presentation and deck on the device, wherever it is filed.
+  const ofKind = (kind: DocumentKind) =>
+    sortNotebooks(
+      library.notebooks.filter((n) => (n.kind ?? 'notebook') === kind),
+      notebookSort,
+    )
+  const sortMenu = (label: string) => (
+    <SortMenu
+      label={label}
+      value={notebookSort}
+      options={NOTEBOOK_SORTS}
+      onChange={setNotebookSort}
+    />
   )
-  const presentations = sortNotebooks(library.notebooks.filter(isPresentation), notebookSort)
+  const documents = (kind: DocumentKind, add: string, empty: string): React.ReactNode => {
+    const list = ofKind(kind)
+    return (
+      <>
+        {list.length === 0 ? <p className="mb-4 text-sm text-ink-muted">{empty}</p> : null}
+        <NotebookGrid
+          notebooks={list}
+          library={library}
+          reload={reload}
+          layout={layout}
+          showFolder
+          add={{ label: add, onAdd: () => setCreating(kind) }}
+        />
+      </>
+    )
+  }
 
   const pages: CarouselPage[] = [
     {
@@ -193,59 +213,44 @@ function Browser({
           onChange={setFolderSort}
         />
       ),
-      content: topFolders.length ? (
-        <FolderGrid
-          folders={topFolders}
-          library={library}
-          sortable={folderSort === 'custom'}
-          reload={reload}
-          layout={layout}
-        />
-      ) : (
-        <p className={emptyNote}>No folders yet. Make one for each subject under Create.</p>
+      content: (
+        <>
+          {topFolders.length === 0 ? (
+            <p className="mb-4 text-sm text-ink-muted">
+              No folders yet. Make one for each subject.
+            </p>
+          ) : null}
+          <FolderGrid
+            folders={topFolders}
+            library={library}
+            sortable={folderSort === 'custom'}
+            reload={reload}
+            layout={layout}
+            add={{ label: 'New folder', onAdd: () => setCreating('folder') }}
+          />
+        </>
       ),
     },
     {
       key: 'notebooks',
       title: 'Notebooks',
-      // Dropping a notebook here takes it out of its folder.
-      drop: 'root',
-      actions: (
-        <>
-          <SortMenu label="Show" value={filter} options={FILTERS} onChange={setFilter} />
-          <SortMenu
-            label="Sort notebooks"
-            value={notebookSort}
-            options={NOTEBOOK_SORTS}
-            onChange={setNotebookSort}
-          />
-        </>
-      ),
-      content: notebooks.length ? (
-        <NotebookGrid notebooks={notebooks} library={library} reload={reload} layout={layout} />
-      ) : (
-        <p className={emptyNote}>
-          {filter === 'unfiled' && all.length > 0
-            ? 'Every notebook is in a folder. Drop one here to take it out.'
-            : 'No notebooks yet. Make one under Create.'}
-        </p>
-      ),
+      actions: sortMenu('Sort notebooks'),
+      content: documents('notebook', 'New notebook', 'No notebooks yet.'),
     },
     {
       key: 'presentations',
       title: 'Presentations',
-      actions: (
-        <SortMenu
-          label="Sort presentations"
-          value={notebookSort}
-          options={NOTEBOOK_SORTS}
-          onChange={setNotebookSort}
-        />
-      ),
-      content: presentations.length ? (
-        <NotebookGrid notebooks={presentations} library={library} reload={reload} layout={layout} />
-      ) : (
-        <p className={emptyNote}>No presentations yet. Make one under Create.</p>
+      actions: sortMenu('Sort presentations'),
+      content: documents('presentation', 'New presentation', 'No presentations yet.'),
+    },
+    {
+      key: 'flashcards',
+      title: 'Flashcards',
+      actions: sortMenu('Sort flashcards'),
+      content: documents(
+        'deck',
+        'New flashcards',
+        'No flashcards yet. Make a deck, write on its cards with your pencil, then study it.',
       ),
     },
   ]
@@ -254,8 +259,8 @@ function Browser({
       <Carousel
         pages={pages}
         index={PAGES.indexOf(page)}
-        onIndex={(i) => setPage(PAGES[i] ?? 'notebooks')}
-        // A held notebook or presentation can be dropped into any folder from here.
+        onIndex={(i) => setPage(PAGES[i] ?? 'create')}
+        // A held notebook, presentation or deck can be dropped into any folder from here.
         overlay={<FolderDropStrip folders={library.folders} notebooks={library.notebooks} />}
         className="min-h-[28rem] flex-1"
       />
@@ -281,7 +286,7 @@ const CREATE_OPTIONS: [NonNullable<Creating>, string, string, React.ReactNode][]
   [
     'folder',
     'Folder',
-    'Keep notebooks and presentations together, e.g. one folder per subject.',
+    'Keep notebooks, presentations and flashcards together, e.g. one folder per subject.',
     <FolderPlus key="f" size={26} />,
   ],
   [
@@ -290,9 +295,15 @@ const CREATE_OPTIONS: [NonNullable<Creating>, string, string, React.ReactNode][]
     'Slides made with the same pens and tools, with animations, presented full screen.',
     <Presentation key="p" size={26} />,
   ],
+  [
+    'deck',
+    'Flashcards',
+    'Cards with a front and a back. Study them: what you know comes back later, what you don’t comes again soon.',
+    <Layers key="d" size={26} />,
+  ],
 ]
 
-type Creating = 'notebook' | 'presentation' | 'folder' | null
+type Creating = DocumentKind | 'folder' | null
 
 /** The dialog that makes a new folder, notebook or presentation. */
 function Creator({
@@ -319,6 +330,13 @@ function Creator({
         />
       ) : creating === 'presentation' ? (
         <NewPresentationDialog
+          folders={library.folders}
+          folderId={null}
+          onFoldersChanged={reload}
+          onCreated={onCreated}
+        />
+      ) : creating === 'deck' ? (
+        <NewDeckDialog
           folders={library.folders}
           folderId={null}
           onFoldersChanged={reload}
@@ -512,6 +530,35 @@ export function NewPresentationButton({
       </DialogTrigger>
       {open ? (
         <NewPresentationDialog
+          folders={library?.folders ?? []}
+          folderId={folderId}
+          onFoldersChanged={reload}
+          onCreated={onCreated}
+        />
+      ) : null}
+    </Dialog>
+  )
+}
+
+export function NewDeckButton({
+  library,
+  reload,
+  onCreated,
+  folderId = null,
+}: {
+  library: Library | null
+  reload: () => void
+  onCreated: (id: string) => void
+  folderId?: string | null
+}) {
+  const [open, setOpen] = useState(false)
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button icon={<Layers size={18} />}>New flashcards</Button>
+      </DialogTrigger>
+      {open ? (
+        <NewDeckDialog
           folders={library?.folders ?? []}
           folderId={folderId}
           onFoldersChanged={reload}

@@ -42,6 +42,8 @@ export interface Notebook {
   schemaVersion: number
   /** A notebook when absent. */
   kind?: DocumentKind
+  /** Flashcards: how well each card is known, by the id of its front page. */
+  study?: Record<Id, CardStudy>
   /** The size of every page; A4 (PAGE_SIZE) when absent. */
   pageSize?: PageSize
   title: string
@@ -337,4 +339,20 @@ export const SLIDE_SIZES = {
   standard: { width: 800, height: 600 },
 } as const
 
-export type DocumentKind = 'notebook' | 'presentation'
+/**
+ * What a document is: a notebook of pages, a presentation of slides, or a deck of flashcards
+ * (pages in pairs: each card's front, then its back).
+ */
+export type DocumentKind = 'notebook' | 'presentation' | 'deck'
+
+/** A flashcard's size: a landscape index card. */
+export const CARD_SIZE: PageSize = { width: 640, height: 400 }
+
+/** How well a flashcard is known: its box (0 = learning) and when it is next due. */
+export interface CardStudy {
+  box: number
+  /** Milliseconds since the epoch. */
+  due: number
+  /** How often it was answered. */
+  reviews: number
+}
