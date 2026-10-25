@@ -15,7 +15,12 @@ import {
   type NotebookSort,
 } from '../library/librarySort.ts'
 import { folderPath } from '../library/libraryActions.ts'
-import { NewFolderButton, NewNotebookButton, Section } from '../library/LibraryView.tsx'
+import {
+  NewFolderButton,
+  NewNotebookButton,
+  NewPresentationButton,
+  Section,
+} from '../library/LibraryView.tsx'
 import { SortMenu } from '../library/SortMenu.tsx'
 import { useLibrary } from '../library/useLibrary.ts'
 import { useStoredState } from '../library/useStoredState.ts'
@@ -117,6 +122,12 @@ export function FolderView({ id }: { id: string }) {
               ) : null}
             </Dialog>
             <NewFolderButton reload={reload} parentId={folder.id} label="New folder" />
+            <NewPresentationButton
+              library={library}
+              reload={reload}
+              folderId={folder.id}
+              onCreated={(nb) => navigate({ name: 'notebook', id: nb })}
+            />
             <NewNotebookButton
               library={library}
               reload={reload}

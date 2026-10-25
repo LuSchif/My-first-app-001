@@ -1,10 +1,9 @@
 import { Copy, FilePlus2, LoaderCircle, MoreHorizontal, Share, Trash2 } from 'lucide-react'
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useEffect, useState, useSyncExternalStore } from 'react'
 import type { NotebookDocument } from '../../engine/document/NotebookDocument.ts'
 import type { Editor, PaperScope } from '../../engine/editor/Editor.ts'
-import type { LayerDef, Page, PageSize, PaperKind } from '../../engine/model/types.ts'
+import type { PaperKind } from '../../engine/model/types.ts'
 import { pageSizeOf } from '../../engine/render/layout.ts'
-import { drawPage, preloadPictures } from '../../engine/render/pageImage.ts'
 import {
   Button,
   DialogContent,
@@ -17,6 +16,7 @@ import {
 import { cn } from '../../lib/cn.ts'
 import { PAPER_OPTIONS, paperPreviewStyle } from '../paper.ts'
 import { exportPages, type ExportFormat } from './exporting.ts'
+import { PageThumbnail } from './PageThumbnail.tsx'
 
 const THUMB_WIDTH = 168
 
@@ -123,7 +123,8 @@ export function PagesOverview({
                 index === currentIndex ? 'ring-3 ring-caramel' : 'ring-1 ring-line',
               )}
             >
-              <Thumbnail
+              <PageThumbnail
+                width={THUMB_WIDTH}
                 page={page}
                 layers={layers}
                 background={background}
@@ -327,43 +328,5 @@ function PageActionList({
         </Button>
       )}
     </>
-  )
-}
-
-/** A small picture of a page, redrawn when the page changes. */
-function Thumbnail({
-  page,
-  layers,
-  background,
-  size,
-}: {
-  page: Page
-  layers: readonly LayerDef[]
-  background: string | undefined
-  size: PageSize
-}) {
-  const ref = useRef<HTMLCanvasElement>(null)
-  useEffect(() => {
-    const canvas = ref.current
-    if (!canvas) return
-    const dpr = window.devicePixelRatio || 1
-    const scale = (THUMB_WIDTH * dpr) / size.width
-    canvas.width = Math.round(size.width * scale)
-    canvas.height = Math.round(size.height * scale)
-    const draw = () => drawPage(canvas.getContext('2d')!, page, layers, scale, background, size)
-    draw()
-    let alive = true
-    void preloadPictures([page]).then(() => alive && draw())
-    return () => {
-      alive = false
-    }
-  }, [page, layers, background, size])
-  return (
-    <canvas
-      ref={ref}
-      className="block w-full bg-paper"
-      style={{ aspectRatio: `${size.width} / ${size.height}` }}
-      aria-hidden="true"
-    />
   )
 }

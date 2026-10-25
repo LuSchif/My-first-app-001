@@ -1,4 +1,4 @@
-import { FolderInput, MoreHorizontal, Trash2 } from 'lucide-react'
+import { FolderInput, MoreHorizontal, Presentation, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { fillToCss, prefersLightText } from '../../engine/model/fill.ts'
 import type { Folder, Notebook } from '../../engine/model/types.ts'
@@ -9,6 +9,7 @@ import { moveNotebook } from '../../storage/folders.ts'
 import { deleteNotebook } from '../../storage/notebooks.ts'
 import { useDraggable, useDragState, type DropTarget } from './dragDrop.ts'
 import { MoveList } from './MoveList.tsx'
+import { NotebookThumbnail } from './NotebookThumbnail.tsx'
 
 /**
  * A notebook in the library: its cover opens it; hold (or drag with a mouse) to drop it on a
@@ -43,27 +44,52 @@ export function NotebookCard({
         dragging && 'opacity-40',
       )}
     >
-      <button
-        type="button"
-        onClick={onOpen}
-        aria-label={`Open ${notebook.title}`}
-        {...draggable}
-        className={cn(
-          'flex aspect-[3/4] w-full min-w-0 touch-manipulation flex-col justify-end overflow-hidden rounded-r-card rounded-l-md p-3.5 text-left shadow-raised select-none [-webkit-touch-callout:none]',
-          'transition-transform duration-200 ease-gentle hover:-translate-y-0.5 active:scale-[0.98]',
-          light ? 'text-ink-inverse' : 'text-ink',
-        )}
-        style={{ background: fillToCss(notebook.cover) }}
-      >
-        <span className="line-clamp-3 text-lg leading-tight font-bold [overflow-wrap:anywhere]">
-          {notebook.title}
-        </span>
-      </button>
+      {notebook.kind === 'presentation' ? (
+        <button
+          type="button"
+          onClick={onOpen}
+          aria-label={`Open ${notebook.title}`}
+          {...draggable}
+          className={cn(
+            'relative grid aspect-[3/4] w-full min-w-0 touch-manipulation content-center overflow-hidden rounded-card bg-surface-sunken p-3 select-none [-webkit-touch-callout:none]',
+            'transition-transform duration-200 ease-gentle hover:-translate-y-0.5 active:scale-[0.98]',
+          )}
+        >
+          <SlideThumbnail notebook={notebook} />
+          <span className="absolute top-2.5 left-2.5 flex items-center gap-1 rounded-full bg-surface-raised/90 px-2 py-0.5 text-xs font-semibold text-ink-muted shadow-soft">
+            <Presentation size={12} /> Presentation
+          </span>
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={onOpen}
+          aria-label={`Open ${notebook.title}`}
+          {...draggable}
+          className={cn(
+            'flex aspect-[3/4] w-full min-w-0 touch-manipulation flex-col justify-end overflow-hidden rounded-r-card rounded-l-md p-3.5 text-left shadow-raised select-none [-webkit-touch-callout:none]',
+            'transition-transform duration-200 ease-gentle hover:-translate-y-0.5 active:scale-[0.98]',
+            light ? 'text-ink-inverse' : 'text-ink',
+          )}
+          style={{ background: fillToCss(notebook.cover) }}
+        >
+          <span className="line-clamp-3 text-lg leading-tight font-bold [overflow-wrap:anywhere]">
+            {notebook.title}
+          </span>
+        </button>
+      )}
       <div className="flex items-start justify-between gap-1">
         <div className="min-w-0 text-sm">
           <p className="truncate font-semibold">{notebook.title}</p>
           <p className="text-ink-muted">
-            {formatEdited(notebook.updatedAt)} · {pages} {pages === 1 ? 'page' : 'pages'}
+            {formatEdited(notebook.updatedAt)} · {pages}{' '}
+            {notebook.kind === 'presentation'
+              ? pages === 1
+                ? 'slide'
+                : 'slides'
+              : pages === 1
+                ? 'page'
+                : 'pages'}
           </p>
         </div>
         <NotebookMenu notebook={notebook} folders={folders} onChanged={onChanged} />
@@ -149,5 +175,18 @@ function NotebookMenu({
         )}
       </PopoverContent>
     </Popover>
+  )
+}
+
+/** A presentation's first slide, as wide as the card. */
+function SlideThumbnail({ notebook }: { notebook: Notebook }) {
+  return (
+    <span className="block w-full overflow-hidden rounded-md shadow-raised">
+      <NotebookThumbnail
+        notebook={notebook}
+        width={480}
+        className="!w-full rounded-none shadow-none"
+      />
+    </span>
   )
 }

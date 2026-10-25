@@ -1,7 +1,9 @@
 import {
   compound,
   insertPages,
+  movePage,
   removePage,
+  setPageProps,
   setLayers,
   setNotebookBackground,
   setNotebookPaper,
@@ -34,7 +36,7 @@ import {
   type TextObject,
   type TextStyle,
 } from '../model/types.ts'
-import { layoutOf, type PageLayout } from '../render/layout.ts'
+import { layoutOf, pageSizeOf, PageLayout } from '../render/layout.ts'
 import { enterPage, renderScene, setDeskColor, type View } from '../render/SceneRenderer.ts'
 import { PAPER_STYLE } from '../render/paper.ts'
 import { paintStroke, setInkStyle, strokeBounds } from '../render/strokes.ts'
@@ -157,6 +159,8 @@ const HIGHLIGHTER_OPACITY = 0.45
 /** Space kept free above the first page for the floating toolbar. */
 const TOP_INSET = 84
 const SIDE_MARGIN = 24
+/** Room around a slide in a presentation. */
+const SLIDE_MARGIN = 32
 /** Room on the right for the recent colors bar. */
 const RIGHT_INSET = 76
 /** Resting the pen this long after drawing a shape turns it into the perfect shape. */
@@ -312,6 +316,8 @@ export class Editor {
   private readonly laser: LaserPointer
   /** Where the pages sit: A4 for notebooks, slides for presentations. */
   private readonly layout: PageLayout
+  /** A presentation: one slide at a time, chosen from the slide list. */
+  readonly slides: boolean
   /** Laser trail and broom dust. */
   private readonly fx: FxLayer
   private readonly dust = new BroomDust()
@@ -417,7 +423,10 @@ export class Editor {
     host.style.setProperty('-webkit-user-select', 'none')
     host.style.setProperty('-webkit-touch-callout', 'none')
 
-    this.layout = layoutOf(doc.notebook)
+    this.slides = doc.notebook.kind === 'presentation'
+    // A presentation's layout is its own: it remembers which slide is in view.
+    this.layout = this.slides ? new PageLayout(pageSizeOf(doc.notebook)) : layoutOf(doc.notebook)
+    if (this.slides) this.layout.focus = 0
     this.sceneCanvas = makeCanvas()
     this.inkLayer = document.createElement('div')
     Object.assign(this.inkLayer.style, { position: 'absolute', inset: '0', pointerEvents: 'none' })
@@ -1183,7 +1192,53 @@ export class Editor {
     this.history.execute(removePage('Delete page', page.id))
   }
 
+  /** Moves the page (slide) at `from` to `to`, and keeps it in view. */
+  movePageTo(from: number, to: number): void {
+    const count = this.doc.notebook.pageIds.length
+    const target = Math.max(0, Math.min(count - 1, to))
+    if (from === target || from < 0 || from >= count) return
+    this.history.execute(movePage(this.slides ? 'Move slide' : 'Move page', from, target))
+    this.goToPage(target)
+  }
+
+  /** A slide's speaker notes; an empty text removes them. */
+  setNotes(pageId: Id, notes: string): void {
+    const page = this.doc.page(pageId)
+    if (!page || (page.notes ?? '') === notes) return
+    this.history.execute(
+      setPageProps(
+        'Notes',
+        pageId,
+        { notes: page.notes },
+        { notes: notes.trim() ? notes : undefined },
+      ),
+    )
+  }
+
+  /** A presentation: shows slide `index`, fitted to the screen. */
+  goToPage(index: number): void {
+    if (!this.slides) {
+      this.scrollToPage(index)
+      return
+    }
+    const target = Math.max(0, Math.min(this.doc.notebook.pageIds.length - 1, index))
+    if (target !== this.layout.focus) {
+      this.text.finish()
+      this.selection.clear()
+      this.paths.clear()
+      this.dismissSuggestion()
+      this.layout.focus = target
+    }
+    this.update({ pageIndex: target })
+    this.setCamera({ zoom: 0, offsetX: 0, offsetY: 0 })
+    this.requestRender()
+  }
+
   scrollToPage(index: number): void {
+    if (this.slides) {
+      this.goToPage(index)
+      return
+    }
     const z = this.camera.zoom
     this.setCamera({ ...this.camera, offsetY: TOP_INSET - this.layout.origin(index).y * z })
   }
@@ -1220,6 +1275,8 @@ export class Editor {
     const pageCount = this.doc.notebook.pageIds.length
     if (pageCount !== this._state.pageCount) {
       this.update({ pageCount })
+      // A deleted last slide (or an undone new one) leaves the slide before it in view.
+      if (this.slides && (this.layout.focus ?? 0) >= pageCount) this.goToPage(pageCount - 1)
       this.setCamera(this.camera)
     }
     // The editor already painted its own new stroke; everything else needs a redraw.
@@ -1340,11 +1397,48 @@ export class Editor {
   // ---------- Camera and rendering ----------
 
   private fitZoom(): number {
+    if (this.slides) {
+      const { width, height } = this.slideArea()
+      return Math.min(width / this.layout.size.width, height / this.layout.size.height)
+    }
     return Math.min(1.6, (this.view.width - SIDE_MARGIN * 2) / this.layout.size.width)
+  }
+
+  /** The part of the screen a slide fits into: below the toolbar, inside the margins. */
+  private slideArea(): { top: number; width: number; height: number } {
+    const bottom = Math.max(SLIDE_MARGIN, this.bottomInset)
+    return {
+      top: TOP_INSET,
+      width: Math.max(1, this.view.width - SLIDE_MARGIN * 2),
+      height: Math.max(1, this.view.height - TOP_INSET - bottom),
+    }
+  }
+
+  /** A presentation keeps its slide in view: centered when it fits, never lost when zoomed in. */
+  private clampSlideCamera(c: Camera): Camera {
+    const fit = this.fitZoom()
+    const zoom = Math.min(fit * 8, Math.max(fit, c.zoom))
+    const area = this.slideArea()
+    const o = this.layout.origin(this.layout.focus ?? 0)
+    const w = this.layout.size.width * zoom
+    const h = this.layout.size.height * zoom
+    const axis = (start: number, room: number, size: number, offset: number, world: number) => {
+      if (size <= room) return start + (room - size) / 2 - world * zoom
+      // Zoomed in: the slide's edges may not come inside the area.
+      const max = start - world * zoom
+      const min = start + room - size - world * zoom
+      return Math.min(max, Math.max(min, offset))
+    }
+    return {
+      zoom,
+      offsetX: axis(SLIDE_MARGIN, area.width, w, c.offsetX, o.x),
+      offsetY: axis(area.top, area.height, h, c.offsetY, o.y),
+    }
   }
 
   /** Keeps the pages in reach: centered when narrower than the screen, never lost off-screen. */
   private clampCamera(c: Camera): Camera {
+    if (this.slides) return this.clampSlideCamera(c)
     const fit = this.fitZoom()
     const zoom = Math.min(fit * 8, Math.max(fit * 0.5, c.zoom))
     const { width, height } = this.view
@@ -1367,10 +1461,12 @@ export class Editor {
     if (this._state.inspect) this.closeInspect()
     this.camera = this.clampCamera(c)
     const center = (this.view.height / 2 - this.camera.offsetY) / this.camera.zoom
-    const pageIndex = Math.max(
-      0,
-      Math.min(this._state.pageCount - 1, Math.floor((center + 14) / this.layout.pitch)),
-    )
+    const pageIndex =
+      this.layout.focus ??
+      Math.max(
+        0,
+        Math.min(this._state.pageCount - 1, Math.floor((center + 14) / this.layout.pitch)),
+      )
     if (pageIndex !== this._state.pageIndex) this.update({ pageIndex })
     this.requestRender()
     // Frames, handles, offers and the text field follow the page.
@@ -1427,6 +1523,7 @@ export class Editor {
         this.layout,
         this.hidden,
         this.doc.notebook.background,
+        this.layout.focus,
       )
     })
   }
@@ -1741,6 +1838,8 @@ export class Editor {
 
   /** Whether the view shows the end of the last page. */
   private atBottom(): boolean {
+    // Presentations get new slides from the slide list.
+    if (this.slides) return false
     const { height } = this.view
     const pagesHeight =
       this.layout.contentHeight(this.doc.notebook.pageIds.length) * this.camera.zoom

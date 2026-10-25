@@ -62,6 +62,8 @@ export function renderScene(
   hidden: ReadonlySet<string> = new Set(),
   /** The notebook's background color; a page's own color wins. */
   background?: string,
+  /** Draw only this page (a presentation shows one slide at a time). */
+  only: number | null = null,
 ): void {
   const { dpr } = view
   ctx.setTransform(1, 0, 0, 1, 0, 0)
@@ -70,6 +72,7 @@ export function renderScene(
 
   const world = visibleWorld(camera, view)
   pages.forEach((page, index) => {
+    if (only !== null && index !== only) return
     const { width, height } = layout.size
     const o = layout.origin(index)
     const rect = { minX: o.x, minY: o.y, maxX: o.x + width, maxY: o.y + height }

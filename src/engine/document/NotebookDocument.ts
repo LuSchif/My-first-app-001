@@ -70,6 +70,21 @@ export class NotebookDocument {
     this.emit({ type: 'page', pageId })
   }
 
+  /** Changes a slide's notes or transition (presentations). */
+  setPageProps(pageId: Id, patch: Partial<Pick<Page, 'notes' | 'transition'>>): void {
+    const page = this.pages.get(pageId)
+    if (!page) return
+    const next: Page = { ...page, updatedAt: Date.now() }
+    for (const [key, value] of Object.entries(patch) as [keyof typeof patch, unknown][]) {
+      if (value === undefined || value === '') delete next[key]
+      else (next as unknown as Record<string, unknown>)[key] = value
+    }
+    this.pages.set(pageId, next)
+    this.dirtyPages.add(pageId)
+    this.notebookDirty = true
+    this.emit({ type: 'page', pageId })
+  }
+
   /** Replaces the page order; pages listed here that are not loaded yet must be added first. */
   setPageIds(pageIds: Id[]): void {
     this._notebook = { ...this._notebook, pageIds }

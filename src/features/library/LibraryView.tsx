@@ -1,4 +1,4 @@
-import { FolderPlus, Plus, Search, X } from 'lucide-react'
+import { FolderPlus, Plus, Presentation, Search, X } from 'lucide-react'
 import { useState } from 'react'
 import { navigate } from '../../app/router.ts'
 import { Button, Dialog, DialogTrigger } from '../../design/index.ts'
@@ -17,6 +17,7 @@ import {
 } from './librarySort.ts'
 import { BackupMenu, InstallHint } from './KeepSafe.tsx'
 import { NewNotebookDialog } from './NewNotebookDialog.tsx'
+import { NewPresentationDialog } from './NewPresentationDialog.tsx'
 import { SortMenu } from './SortMenu.tsx'
 import { useLibrary, type Library } from './useLibrary.ts'
 import { useStoredState } from './useStoredState.ts'
@@ -45,6 +46,7 @@ export function LibraryView() {
             <AppearanceMenu />
             <BackupMenu onRestored={reload} />
             <NewFolderButton reload={reload} />
+            <NewPresentationButton library={library} reload={reload} onCreated={open} />
             <NewNotebookButton library={library} reload={reload} onCreated={open} />
           </div>
         </header>
@@ -248,6 +250,7 @@ function EmptyState({
       </p>
       <div className="flex flex-wrap justify-center gap-2">
         <NewFolderButton reload={reload} />
+        <NewPresentationButton library={library} reload={reload} onCreated={onCreated} />
         <NewNotebookButton library={library} reload={reload} onCreated={onCreated} />
       </div>
     </div>
@@ -329,6 +332,35 @@ export function NewNotebookButton({
       </DialogTrigger>
       {open ? (
         <NewNotebookDialog
+          folders={library?.folders ?? []}
+          folderId={folderId}
+          onFoldersChanged={reload}
+          onCreated={onCreated}
+        />
+      ) : null}
+    </Dialog>
+  )
+}
+
+export function NewPresentationButton({
+  library,
+  reload,
+  onCreated,
+  folderId = null,
+}: {
+  library: Library | null
+  reload: () => void
+  onCreated: (id: string) => void
+  folderId?: string | null
+}) {
+  const [open, setOpen] = useState(false)
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button icon={<Presentation size={18} />}>New presentation</Button>
+      </DialogTrigger>
+      {open ? (
+        <NewPresentationDialog
           folders={library?.folders ?? []}
           folderId={folderId}
           onFoldersChanged={reload}

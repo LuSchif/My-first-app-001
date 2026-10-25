@@ -105,6 +105,36 @@ export function removePage(label: string, pageId: Id): Command {
   }
 }
 
+/** Moves the page at `from` to `to` in the page order. */
+export function movePage(label: string, from: number, to: number): Command {
+  let before: Id[] = []
+  return {
+    label,
+    apply: (doc) => {
+      before = doc.notebook.pageIds
+      const ids = [...before]
+      const [moved] = ids.splice(from, 1)
+      if (moved) ids.splice(to, 0, moved)
+      doc.setPageIds(ids)
+    },
+    revert: (doc) => doc.setPageIds(before),
+  }
+}
+
+/** A slide's speaker notes or transition (presentations). */
+export function setPageProps(
+  label: string,
+  pageId: Id,
+  before: Partial<Pick<Page, 'notes' | 'transition'>>,
+  after: Partial<Pick<Page, 'notes' | 'transition'>>,
+): Command {
+  return {
+    label,
+    apply: (doc) => doc.setPageProps(pageId, after),
+    revert: (doc) => doc.setPageProps(pageId, before),
+  }
+}
+
 /** Several commands undone and redone as one step. */
 export function compound(label: string, commands: Command[]): Command {
   return {

@@ -91,6 +91,7 @@ export function Toolbar({
   )
   const [panel, setPanel] = useState<ToolId | 'pages' | 'layers' | 'control' | null>(null)
   const { features } = state
+  const unit = editor.slides ? 'Slide' : 'Page'
   const activeLayer = state.layers.find((l) => l.id === state.activeLayerId)
   const [expanded, setExpanded] = useExpanded('broomit.toolbarExpanded')
   const leftCorner = useRef<HTMLDivElement>(null)
@@ -298,12 +299,12 @@ export function Toolbar({
               >
                 <LayoutGrid size={18} />
                 {expanded ? (
-                  <span aria-label={`Page ${state.pageIndex + 1} of ${state.pageCount}`}>
+                  <span aria-label={`${unit} ${state.pageIndex + 1} of ${state.pageCount}`}>
                     {state.pageIndex + 1}/{state.pageCount}
                   </span>
                 ) : (
                   <>
-                    Page {state.pageIndex + 1} of {state.pageCount}
+                    {unit} {state.pageIndex + 1} of {state.pageCount}
                   </>
                 )}
               </button>

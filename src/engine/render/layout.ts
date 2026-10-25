@@ -11,6 +11,11 @@ export class PageLayout {
   readonly size: PageSize
   /** From the top of one page to the top of the next. */
   readonly pitch: number
+  /**
+   * In a presentation, only the slide in view takes input; points over the others (hidden
+   * around it) belong to no page.
+   */
+  focus: number | null = null
 
   constructor(size: PageSize) {
     this.size = size
@@ -30,6 +35,7 @@ export class PageLayout {
     if (x < 0 || x > this.size.width || y < 0) return -1
     const index = Math.floor(y / this.pitch)
     if (index >= pageCount) return -1
+    if (this.focus !== null && index !== this.focus) return -1
     return y - index * this.pitch <= this.size.height ? index : -1
   }
 }

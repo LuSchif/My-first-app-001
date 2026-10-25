@@ -67,10 +67,38 @@ export interface Page {
   background?: string
   /** Drawing order within each layer: later objects are drawn on top. */
   objects: CanvasObject[]
+  /** Presentations: what the speaker wants to say on this slide; never shown while presenting. */
+  notes?: string
+  /** Presentations: how this slide comes in when presenting. */
+  transition?: SlideTransition
   updatedAt: number
 }
 
 export type CanvasObject = StrokeObject | TextObject | FillObject | BoxObject
+
+/** How a slide replaces the one before it. */
+export interface SlideTransition {
+  effect: 'fade' | 'push' | 'cover' | 'zoom'
+  /** In milliseconds. */
+  duration: number
+}
+
+/**
+ * Presentations: how an object appears while presenting. Objects with an animation appear in
+ * the order of `order`; each starts on a tap, together with the one before, or after it.
+ */
+export interface ObjectAnimation {
+  effect: 'fade' | 'rise' | 'fly-left' | 'fly-right' | 'zoom' | 'wipe'
+  start: 'tap' | 'with' | 'after'
+  order: number
+  /** In milliseconds. */
+  duration: number
+}
+
+/** Anything placed on a page can be animated in a presentation. */
+interface Animatable {
+  animation?: ObjectAnimation
+}
 
 /** Objects that sit in a rectangle on the page: pictures, tables and charts. */
 export type BoxObject = ImageObject | TableObject | ChartObject
@@ -88,7 +116,7 @@ export interface BoxFrame {
 }
 
 /** A picture. The image data lives in the asset store; `assetId` refers to it. */
-export interface ImageObject extends BoxFrame {
+export interface ImageObject extends BoxFrame, Animatable {
   id: Id
   type: 'image'
   layerId: Id
@@ -104,7 +132,7 @@ export interface ImageObject extends BoxFrame {
  * A table. Column widths and row heights are in points and add up to the frame's width and
  * height; they keep the spacing of a hand-drawn table it was made from.
  */
-export interface TableObject extends BoxFrame {
+export interface TableObject extends BoxFrame, Animatable {
   id: Id
   type: 'table'
   layerId: Id
@@ -132,7 +160,7 @@ export interface TableStyle {
 export type ChartKind = 'bar' | 'line' | 'pie' | 'donut'
 
 /** A chart drawn from its own small data table. */
-export interface ChartObject extends BoxFrame {
+export interface ChartObject extends BoxFrame, Animatable {
   id: Id
   type: 'chart'
   layerId: Id
@@ -187,7 +215,7 @@ export type GradientPaint = LinearGradientFill | RadialGradientFill
 /** Tape is a straight band that covers what is below until it is tapped open. */
 export type InkTool = 'pen' | 'highlighter' | 'tape'
 
-export interface StrokeObject {
+export interface StrokeObject extends Animatable {
   id: Id
   type: 'stroke'
   layerId: Id
@@ -225,7 +253,7 @@ export interface StrokeObject {
 export type StrokeDash = 'dashed' | 'dotted'
 
 /** A filled area, e.g. the inside of a drawn circle. Drawn below its outline. */
-export interface FillObject {
+export interface FillObject extends Animatable {
   id: Id
   type: 'fill'
   layerId: Id
@@ -274,7 +302,7 @@ export interface TextSpan {
   style: SpanStyle
 }
 
-export interface TextObject {
+export interface TextObject extends Animatable {
   id: Id
   type: 'text'
   layerId: Id

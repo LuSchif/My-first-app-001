@@ -4,7 +4,9 @@ import {
   SCHEMA_VERSION,
   type Folder,
   type LayerDef,
+  type DocumentKind,
   type Notebook,
+  type PageSize,
   type Page,
   type PaperKind,
   type StrokeObject,
@@ -52,6 +54,9 @@ export function createNotebook(options: {
   paper: PaperKind
   cover: Fill
   folderId?: string | null
+  /** A presentation has slides of `pageSize` instead of A4 pages. */
+  kind?: DocumentKind
+  pageSize?: PageSize
 }): { notebook: Notebook; pages: Page[] } {
   const now = Date.now()
   const id = newId()
@@ -59,6 +64,8 @@ export function createNotebook(options: {
   const notebook: Notebook = {
     id,
     schemaVersion: SCHEMA_VERSION,
+    ...(options.kind && options.kind !== 'notebook' ? { kind: options.kind } : {}),
+    ...(options.pageSize ? { pageSize: options.pageSize } : {}),
     title: options.title,
     folderId: options.folderId ?? null,
     cover: options.cover,

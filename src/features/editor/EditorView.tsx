@@ -11,6 +11,8 @@ import { setImageLoader } from '../../engine/render/images.ts'
 import { getAssetBlob, loadNotebook, saveChanges } from '../../storage/notebooks.ts'
 import { loadFeatures, saveFeatures } from './featureStore.ts'
 import { Toolbar } from './Toolbar.tsx'
+import { NotesPanel } from '../presentation/NotesPanel.tsx'
+import { SlidesPanel } from '../presentation/SlidesPanel.tsx'
 
 type Loaded = { doc: NotebookDocument; history: History; autosave: Autosave }
 
@@ -104,6 +106,12 @@ function EditorSession({ doc, history, autosave }: Loaded) {
     }
   }, [autosave])
 
+  const slides = doc.notebook.kind === 'presentation'
+  const editorState = useSyncExternalStore(
+    (fn) => editor?.subscribe(fn) ?? (() => {}),
+    () => editor?.state ?? null,
+  )
+
   const title = useSyncExternalStore(
     (fn) => doc.subscribe(fn),
     () => doc.notebook.title,
@@ -111,7 +119,18 @@ function EditorSession({ doc, history, autosave }: Loaded) {
 
   return (
     <div className="fixed inset-0 overflow-hidden bg-desk">
-      <div ref={hostRef} className="absolute inset-0" />
+      {slides ? (
+        // A presentation: the slides on the left, the slide with its notes beside them.
+        <div className="absolute inset-0 flex">
+          {editor ? <SlidesPanel editor={editor} state={editorState!} doc={doc} /> : null}
+          <div className="flex min-w-0 flex-1 flex-col">
+            <div ref={hostRef} className="relative min-h-0 flex-1" />
+            {editor ? <NotesPanel editor={editor} state={editorState!} doc={doc} /> : null}
+          </div>
+        </div>
+      ) : (
+        <div ref={hostRef} className="absolute inset-0" />
+      )}
       {editor ? (
         <Toolbar
           editor={editor}
