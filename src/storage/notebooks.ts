@@ -69,3 +69,21 @@ export async function getAssetBlob(
 ): Promise<Blob | null> {
   return (await database.assets.get(id))?.blob ?? null
 }
+
+/** Removes one page from a notebook. A notebook's last page stays. */
+export async function deletePage(
+  notebookId: string,
+  pageId: string,
+  database: BroomitDatabase = db,
+): Promise<void> {
+  await database.transaction('rw', database.notebooks, database.pages, async () => {
+    const notebook = await database.notebooks.get(notebookId)
+    if (!notebook || notebook.pageIds.length <= 1 || !notebook.pageIds.includes(pageId)) return
+    await database.notebooks.put({
+      ...notebook,
+      pageIds: notebook.pageIds.filter((id) => id !== pageId),
+      updatedAt: Date.now(),
+    })
+    await database.pages.delete(pageId)
+  })
+}

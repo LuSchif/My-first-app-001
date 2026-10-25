@@ -7,12 +7,18 @@ import type { Id } from '../../engine/model/types.ts'
  * onto a "no folder" area. Drop targets are marked in the DOM:
  *   data-drop="folder" data-drop-id="<id>"   a folder
  *   data-drop="root"                          the top level (no folder)
+ *   data-drop="trash"                         the trash, at the bottom while dragging
  *   data-drop-sort, data-drop-axis="y"        sorts beside the folder (above or below)
  */
 
-export type DragItem = { kind: 'folder' | 'notebook'; id: Id; label: string }
+export type DragItem =
+  | { kind: 'folder' | 'notebook'; id: Id; label: string }
+  /** A page of a notebook, held in its peek; it can only go to the trash. */
+  | { kind: 'page'; id: Id; label: string; notebookId: Id }
 export type DropTarget =
-  { kind: 'folder'; id: Id; place: 'inside' | 'before' | 'after' } | { kind: 'root' }
+  | { kind: 'folder'; id: Id; place: 'inside' | 'before' | 'after' }
+  | { kind: 'root' }
+  | { kind: 'trash' }
 
 interface DragState {
   item: DragItem
@@ -29,6 +35,8 @@ const SLOP_PX = 10
 const SIDE = 0.25
 /** Near the top or bottom edge, the page scrolls along. */
 const EDGE_SCROLL_PX = 70
+/** Held this close to the bottom of the screen, the trash comes up. */
+export const TRASH_BAND_PX = 120
 
 let state: DragState | null = null
 const listeners = new Set<() => void>()
@@ -57,6 +65,8 @@ export function refreshDropTarget(): void {
 function targetAt(x: number, y: number, item: DragItem): DropTarget | null {
   const el = document.elementFromPoint(x, y)?.closest<HTMLElement>('[data-drop]')
   if (!el) return null
+  if (el.dataset.drop === 'trash') return { kind: 'trash' }
+  if (item.kind === 'page') return null
   if (el.dataset.drop === 'root') return { kind: 'root' }
   const id = el.dataset.dropId
   if (!id || (item.kind === 'folder' && id === item.id)) return null
@@ -91,8 +101,14 @@ export function useDraggable(item: DragItem, onDrop: (target: DropTarget) => voi
     const stopTouch = (e: TouchEvent) => e.preventDefault()
     const scroll = () => {
       if (!state) return
-      const h = window.innerHeight
-      const dy = state.y < EDGE_SCROLL_PX ? -10 : state.y > h - EDGE_SCROLL_PX ? 10 : 0
+      // The bottom band belongs to the trash; just above it, the page scrolls down.
+      const bottom = window.innerHeight - TRASH_BAND_PX
+      const dy =
+        state.y < EDGE_SCROLL_PX
+          ? -10
+          : state.y > bottom - EDGE_SCROLL_PX && state.y < bottom
+            ? 10
+            : 0
       if (dy) {
         window.scrollBy(0, dy)
         set({ ...state, over: targetAt(state.x, state.y, state.item) })

@@ -82,8 +82,8 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
 ## Library and folders
 
 - The home screen: a header with the search, tiles/list switch, appearance and backup. Below
-  it, today's calendar on the left (about two fifths of the width); on the right a carousel (`Carousel.tsx`) with one
-  page each for the top-level folders, the notebooks (in no folder, or all of them) and the
+  it, today's calendar on the left (about two fifths of the width); on the right a carousel
+  (`Carousel.tsx`): a Create page first, then one page each for the top-level folders, the notebooks (in no folder, or all of them) and the
   presentations. Swipe or use the arrows and names below it; the page shown is remembered.
   Both sides are as tall as the screen allows and scroll inside. Folders and notebooks have
   their own sort order (folders: own order, name, recently edited).
@@ -98,10 +98,17 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
   its slides, a folder opens and shows its folders and notebooks. A tap on a page opens the
   notebook there (`editor/openAt.ts`); "Open" opens it from the start, "Open folder" shows the
   folder's own page (`#/folder/<id>`).
-- Each carousel page has a big + that makes a folder, notebook or presentation. While a
+- The carousel's first page, Create, lists what can be made (notebook, folder, presentation);
+  it is the page shown on first start. While a
   notebook or presentation is held, every folder slides up in a row at the bottom of the
   carousel (`FolderDropStrip.tsx`); holding it near either end scrolls the row. Every move
   into or out of a folder shows a notice with Undo (`lib/notices.ts`).
+- Held near the bottom of the screen, anything (folder, notebook, presentation, or a page in a
+  notebook's peek) brings up the trash (`TrashZone.tsx`). Dropped there it disappears at once
+  but is deleted for good only after the notice's Undo has run out (`trash.ts`); a notebook
+  keeps its last page.
+- Dialogs close only by their close button or a tap on the dimmed backdrop: on iPad other
+  touches could count as "outside" and lose what was being set up.
 - Holding a folder or notebook (or dragging it with a mouse) picks it up: dropped on a folder it
   goes inside; dropped at a folder's left or right edge, a folder is sorted there; dropped on the
   notebooks area or the "Library" step of a folder path, it leaves its folder. Every card also has

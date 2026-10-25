@@ -22,7 +22,10 @@ export function DialogContent({
 }) {
   return (
     <RadixDialog.Portal>
-      <RadixDialog.Overlay className="fixed inset-0 z-50 animate-fade-in bg-scrim backdrop-blur-[2px]" />
+      <RadixDialog.Overlay
+        data-dialog-overlay=""
+        className="fixed inset-0 z-50 animate-fade-in bg-scrim backdrop-blur-[2px]"
+      />
       <RadixDialog.Content
         // Focus the dialog itself, not its first field: on iPad a focused field opens the
         // keyboard bar before anyone asked to type. Tapping the field opens the full keyboard.
@@ -30,13 +33,13 @@ export function DialogContent({
           e.preventDefault()
           ;(e.currentTarget as HTMLElement | null)?.focus()
         }}
-        // Typing on the app's own keyboard is part of using the dialog, not a tap outside it.
+        // Only a tap on the dimmed backdrop closes the dialog. On iPad a touch can otherwise
+        // count as "outside" (a control that re-rendered under the finger, the app's own
+        // keyboard, focus moving away) and throw away what was being set up.
         onPointerDownOutside={(e) => {
-          if ((e.target as Element | null)?.closest?.('[data-virtual-keyboard]')) e.preventDefault()
+          if (!(e.target as Element | null)?.closest?.('[data-dialog-overlay]')) e.preventDefault()
         }}
-        onInteractOutside={(e) => {
-          if ((e.target as Element | null)?.closest?.('[data-virtual-keyboard]')) e.preventDefault()
-        }}
+        onFocusOutside={(e) => e.preventDefault()}
         // Radix expects either a Description or an explicit "no description".
         {...(description ? {} : { 'aria-describedby': undefined })}
         className={cn(

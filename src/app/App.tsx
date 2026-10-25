@@ -12,6 +12,7 @@ import { useRoute } from './router.ts'
 import { UpdateBanner } from './UpdateBanner.tsx'
 import { ReminderToasts } from '../features/calendar/ReminderToasts.tsx'
 import { Notices } from './Notices.tsx'
+import { TrashZone } from '../features/library/TrashZone.tsx'
 
 export function App() {
   const route = useRoute()
@@ -38,6 +39,7 @@ export function App() {
       <UpdateBanner />
       <ReminderToasts />
       <Notices />
+      <TrashZone />
     </TooltipProvider>
   )
 }

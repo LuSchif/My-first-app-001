@@ -4,7 +4,8 @@ import { useDragState } from './dragDrop.ts'
 /** What is being dragged, under the finger, and where it would go. */
 export function DragGhost() {
   const drag = useDragState()
-  if (!drag) return null
+  // Over the trash, the trash itself says what is about to go.
+  if (!drag || drag.over?.kind === 'trash') return null
   const hint =
     drag.over?.kind === 'root'
       ? 'No folder'

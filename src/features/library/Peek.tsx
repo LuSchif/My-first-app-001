@@ -7,13 +7,16 @@ import { pageSizeOf } from '../../engine/render/layout.ts'
 import { Button, IconButton } from '../../design/index.ts'
 import { cn } from '../../lib/cn.ts'
 import { formatEdited } from '../../lib/time.ts'
-import { loadNotebook } from '../../storage/notebooks.ts'
+import { deletePage, loadNotebook } from '../../storage/notebooks.ts'
 import { PageThumbnail } from '../editor/PageThumbnail.tsx'
 import { openNotebookAt } from '../editor/openAt.ts'
 import { FolderGraphic } from '../folders/FolderGraphic.tsx'
 import { countNotebooks, notebooksIn } from './libraryActions.ts'
 import { NotebookThumbnail } from './NotebookThumbnail.tsx'
 import { openPeek, usePeek } from './peek.ts'
+import { useDraggable, useDragState, type DropTarget } from './dragDrop.ts'
+import { moveToTrash, useTrashed } from './trash.ts'
+import { showNotice } from '../../lib/notices.ts'
 import type { Library } from './useLibrary.ts'
 
 /** Pages shown at most; the rest are a tap on "Open" away. */
@@ -39,7 +42,7 @@ const stagger = (i: number) => ({ animationDelay: `${PAGES_START_MS + i * PAGE_S
  * book and its pages come out to the right; a folder opens and shows what is in it. A tap on a
  * page opens the notebook there.
  */
-export function PeekLayer({ library }: { library: Library }) {
+export function PeekLayer({ library, reload }: { library: Library; reload: () => void }) {
   const target = usePeek()
   const close = () => openPeek(null)
 
@@ -77,7 +80,7 @@ export function PeekLayer({ library }: { library: Library }) {
           className="absolute top-3 right-3 z-10"
         />
         {notebook ? (
-          <NotebookPeek key={notebook.id} notebook={notebook} library={library} />
+          <NotebookPeek key={notebook.id} notebook={notebook} library={library} reload={reload} />
         ) : folder ? (
           <FolderPeek key={folder.id} folder={folder} library={library} />
         ) : null}
@@ -86,10 +89,19 @@ export function PeekLayer({ library }: { library: Library }) {
   )
 }
 
-function NotebookPeek({ notebook, library }: { notebook: Notebook; library: Library }) {
+function NotebookPeek({
+  notebook,
+  library,
+  reload,
+}: {
+  notebook: Notebook
+  library: Library
+  reload: () => void
+}) {
   const [pages, setPages] = useState<Page[] | null>(null)
+  const trashed = useTrashed()
+  const shownPages = pages?.filter((p) => !trashed.has(p.id)) ?? null
   const slides = notebook.kind === 'presentation'
-  const size = pageSizeOf(notebook)
   const parent = library.folders.find((f) => f.id === notebook.folderId)
 
   useEffect(() => {
@@ -105,7 +117,7 @@ function NotebookPeek({ notebook, library }: { notebook: Notebook; library: Libr
     }
   }, [notebook.id])
 
-  const count = notebook.pageIds.length
+  const count = shownPages?.length ?? notebook.pageIds.length
   const unit = slides ? 'slide' : 'page'
   return (
     <>
@@ -147,7 +159,7 @@ function NotebookPeek({ notebook, library }: { notebook: Notebook; library: Libr
         </Button>
       </Side>
       <Contents title={slides ? 'Slides' : 'Pages'}>
-        {pages === null ? null : (
+        {pages === null || shownPages === null ? null : (
           <ol
             className={cn(
               'grid gap-4',
@@ -156,40 +168,97 @@ function NotebookPeek({ notebook, library }: { notebook: Notebook; library: Libr
                 : 'grid-cols-[repeat(auto-fill,minmax(7.5rem,1fr))]',
             )}
           >
-            {pages.slice(0, MAX_PAGES).map((page, i) => (
-              <li key={page.id} className="animate-page-out" style={stagger(i)}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    openPeek(null)
-                    openNotebookAt(notebook.id, i)
-                  }}
-                  className="grid w-full gap-1.5 text-left"
-                >
-                  <span className="block overflow-hidden rounded-md shadow-soft ring-1 ring-line transition-transform duration-150 ease-gentle hover:-translate-y-0.5">
-                    <PageThumbnail
-                      width={slides ? 220 : 150}
-                      page={page}
-                      layers={notebook.layers}
-                      background={notebook.background}
-                      size={size}
-                    />
-                  </span>
-                  <span className="text-center text-xs font-semibold text-ink-muted tabular-nums">
-                    {i + 1}
-                  </span>
-                </button>
-              </li>
+            {shownPages.slice(0, MAX_PAGES).map((page, i) => (
+              <PeekPage
+                key={page.id}
+                notebook={notebook}
+                page={page}
+                number={i + 1}
+                index={pages.indexOf(page)}
+                width={slides ? 220 : 150}
+                onDrop={(target) => {
+                  if (target.kind !== 'trash') return
+                  if (shownPages.length <= 1) {
+                    showNotice(
+                      `A ${slides ? 'presentation' : 'notebook'} keeps at least one ${unit}.`,
+                    )
+                    return
+                  }
+                  moveToTrash(
+                    [page.id],
+                    `Deleted ${unit} ${i + 1} of “${notebook.title}”.`,
+                    () => deletePage(notebook.id, page.id),
+                    () => {
+                      setPages((list) => list?.filter((p) => p.id !== page.id) ?? null)
+                      reload()
+                    },
+                  )
+                }}
+              />
             ))}
           </ol>
         )}
-        {pages && pages.length > MAX_PAGES ? (
+        {shownPages && shownPages.length > MAX_PAGES ? (
           <p className="mt-4 text-sm text-ink-muted">
-            And {pages.length - MAX_PAGES} more {unit}s.
+            And {shownPages.length - MAX_PAGES} more {unit}s.
           </p>
         ) : null}
       </Contents>
     </>
+  )
+}
+
+/** One page in a notebook's peek: a tap opens the notebook there; hold it to drag it. */
+function PeekPage({
+  notebook,
+  page,
+  number,
+  index,
+  width,
+  onDrop,
+}: {
+  notebook: Notebook
+  page: Page
+  number: number
+  /** Where the page is in the notebook. */
+  index: number
+  width: number
+  onDrop: (target: DropTarget) => void
+}) {
+  const drag = useDragState()
+  const dragging = drag?.item.kind === 'page' && drag.item.id === page.id
+  const draggable = useDraggable(
+    { kind: 'page', id: page.id, label: `Page ${number}`, notebookId: notebook.id },
+    onDrop,
+  )
+  return (
+    <li
+      className={cn('animate-page-out transition-opacity', dragging && 'opacity-40')}
+      style={stagger(number - 1)}
+    >
+      <button
+        type="button"
+        {...draggable}
+        onClick={() => {
+          openPeek(null)
+          openNotebookAt(notebook.id, index)
+        }}
+        className="grid w-full touch-manipulation gap-1.5 text-left select-none [-webkit-touch-callout:none]"
+      >
+        <span className="block overflow-hidden rounded-md shadow-soft ring-1 ring-line transition-transform duration-150 ease-gentle hover:-translate-y-0.5">
+          <PageThumbnail
+            width={width}
+            page={page}
+            layers={notebook.layers}
+            background={notebook.background}
+            size={pageSizeOf(notebook)}
+          />
+        </span>
+        <span className="text-center text-xs font-semibold text-ink-muted tabular-nums">
+          {number}
+        </span>
+      </button>
+    </li>
   )
 }
 

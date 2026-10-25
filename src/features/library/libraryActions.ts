@@ -7,6 +7,8 @@ import type { DragItem, DropTarget } from './dragDrop.ts'
  * the folder, or before or after it among the same folders.
  */
 export async function applyDrop(item: DragItem, target: DropTarget, folders: Folder[]) {
+  // The trash is handled by `useDrop`; pages only go there.
+  if (target.kind === 'trash' || item.kind === 'page') return
   if (item.kind === 'notebook') {
     await moveNotebook(item.id, target.kind === 'root' ? null : target.id)
     return

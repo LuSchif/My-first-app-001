@@ -1,7 +1,7 @@
-import { FolderPlus, Plus, Presentation, Search, X } from 'lucide-react'
+import { ChevronRight, FolderPlus, NotebookPen, Plus, Presentation, Search, X } from 'lucide-react'
 import { useState } from 'react'
 import { navigate } from '../../app/router.ts'
-import { Button, Dialog, DialogTrigger, IconButton } from '../../design/index.ts'
+import { Button, Dialog, DialogTrigger } from '../../design/index.ts'
 import { Carousel, type CarouselPage } from './Carousel.tsx'
 import { FolderDropStrip } from './FolderDropStrip.tsx'
 import { PeekLayer } from './Peek.tsx'
@@ -97,14 +97,14 @@ export function LibraryView() {
           </a>
         </footer>
       </div>
-      {library ? <PeekLayer library={library} /> : null}
+      {library ? <PeekLayer library={library} reload={reload} /> : null}
       <DragGhost />
     </div>
   )
 }
 
 const isPresentation = (n: Notebook) => n.kind === 'presentation'
-const PAGES = ['folders', 'notebooks', 'presentations'] as const
+const PAGES = ['create', 'folders', 'notebooks', 'presentations'] as const
 
 const emptyNote =
   'rounded-card px-4 py-8 text-center text-sm text-ink-muted ring-2 ring-line ring-inset [border-style:dashed]'
@@ -124,7 +124,8 @@ function Browser({
   const [creating, setCreating] = useState<Creating>(null)
   const [page, setPage] = useStoredState<(typeof PAGES)[number]>(
     'broomit.libraryPage',
-    'notebooks',
+    // The first page anyone sees: what they can make.
+    'create',
     PAGES,
   )
   const [folderSort, setFolderSort] = useStoredState<FolderSort>(
@@ -156,18 +157,41 @@ function Browser({
 
   const pages: CarouselPage[] = [
     {
+      key: 'create',
+      title: 'Create',
+      content: (
+        <ul className="grid gap-3">
+          {CREATE_OPTIONS.map(([kind, title, text, icon]) => (
+            <li key={kind}>
+              <button
+                type="button"
+                onClick={() => setCreating(kind)}
+                className="flex w-full items-center gap-4 rounded-card bg-surface p-4 text-left ring-1 ring-line transition-transform duration-150 ease-gentle hover:bg-surface-sunken active:scale-[0.99]"
+              >
+                <span className="grid size-14 shrink-0 place-items-center rounded-control bg-ink text-ink-inverse shadow-soft">
+                  {icon}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-base font-bold">{title}</span>
+                  <span className="block text-sm text-ink-muted">{text}</span>
+                </span>
+                <ChevronRight size={20} className="shrink-0 text-ink-muted" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      ),
+    },
+    {
       key: 'folders',
       title: 'Folders',
       actions: (
-        <>
-          <SortMenu
-            label="Sort folders"
-            value={folderSort}
-            options={FOLDER_SORTS}
-            onChange={setFolderSort}
-          />
-          <AddButton label="New folder" onClick={() => setCreating('folder')} />
-        </>
+        <SortMenu
+          label="Sort folders"
+          value={folderSort}
+          options={FOLDER_SORTS}
+          onChange={setFolderSort}
+        />
       ),
       content: topFolders.length ? (
         <FolderGrid
@@ -178,7 +202,7 @@ function Browser({
           layout={layout}
         />
       ) : (
-        <p className={emptyNote}>No folders yet. Make one for each subject with the +.</p>
+        <p className={emptyNote}>No folders yet. Make one for each subject under Create.</p>
       ),
     },
     {
@@ -195,7 +219,6 @@ function Browser({
             options={NOTEBOOK_SORTS}
             onChange={setNotebookSort}
           />
-          <AddButton label="New notebook" onClick={() => setCreating('notebook')} />
         </>
       ),
       content: notebooks.length ? (
@@ -204,7 +227,7 @@ function Browser({
         <p className={emptyNote}>
           {filter === 'unfiled' && all.length > 0
             ? 'Every notebook is in a folder. Drop one here to take it out.'
-            : 'No notebooks yet. Make one with the +.'}
+            : 'No notebooks yet. Make one under Create.'}
         </p>
       ),
     },
@@ -212,22 +235,17 @@ function Browser({
       key: 'presentations',
       title: 'Presentations',
       actions: (
-        <>
-          <SortMenu
-            label="Sort presentations"
-            value={notebookSort}
-            options={NOTEBOOK_SORTS}
-            onChange={setNotebookSort}
-          />
-          <AddButton label="New presentation" onClick={() => setCreating('presentation')} />
-        </>
+        <SortMenu
+          label="Sort presentations"
+          value={notebookSort}
+          options={NOTEBOOK_SORTS}
+          onChange={setNotebookSort}
+        />
       ),
       content: presentations.length ? (
         <NotebookGrid notebooks={presentations} library={library} reload={reload} layout={layout} />
       ) : (
-        <p className={emptyNote}>
-          No presentations yet. Make one with the +: slides with the same pens and tools.
-        </p>
+        <p className={emptyNote}>No presentations yet. Make one under Create.</p>
       ),
     },
   ]
@@ -252,17 +270,27 @@ function Browser({
   )
 }
 
-/** The big + of a carousel page. */
-function AddButton({ label, onClick }: { label: string; onClick: () => void }) {
-  return (
-    <IconButton
-      label={label}
-      icon={<Plus size={22} />}
-      onClick={onClick}
-      className="ml-1 rounded-full bg-ink text-ink-inverse shadow-soft hover:bg-mocha"
-    />
-  )
-}
+/** What the Create page makes, in this order. */
+const CREATE_OPTIONS: [NonNullable<Creating>, string, string, React.ReactNode][] = [
+  [
+    'notebook',
+    'Notebook',
+    'Pages to write and draw on with your pencil, on the paper you choose.',
+    <NotebookPen key="n" size={26} />,
+  ],
+  [
+    'folder',
+    'Folder',
+    'Keep notebooks and presentations together, e.g. one folder per subject.',
+    <FolderPlus key="f" size={26} />,
+  ],
+  [
+    'presentation',
+    'Presentation',
+    'Slides made with the same pens and tools, with animations, presented full screen.',
+    <Presentation key="p" size={26} />,
+  ],
+]
 
 type Creating = 'notebook' | 'presentation' | 'folder' | null
 

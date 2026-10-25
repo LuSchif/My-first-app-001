@@ -9,6 +9,7 @@ import { BroomitDatabase } from './db.ts'
 import {
   createNotebookRecord,
   deleteNotebook,
+  deletePage,
   listNotebooks,
   loadNotebook,
   saveChanges,
@@ -22,6 +23,21 @@ function newNotebook(title = 'Biology') {
 }
 
 describe('notebook storage', () => {
+  it('deletes one page, but never the last one', async () => {
+    const database = freshDb()
+    const { notebook, pages } = newNotebook()
+    const second = createPage(notebook.id, 'lined')
+    const two = { ...notebook, pageIds: [...notebook.pageIds, second.id] }
+    await createNotebookRecord(two, [...pages, second], database)
+    await deletePage(two.id, pages[0]!.id, database)
+    let loaded = await loadNotebook(two.id, database)
+    expect(loaded?.notebook.pageIds).toEqual([second.id])
+    expect(loaded?.pages.map((p) => p.id)).toEqual([second.id])
+    await deletePage(two.id, second.id, database)
+    loaded = await loadNotebook(two.id, database)
+    expect(loaded?.notebook.pageIds).toEqual([second.id])
+  })
+
   it('stores a new notebook and loads it back', async () => {
     const database = freshDb()
     const { notebook, pages } = newNotebook()

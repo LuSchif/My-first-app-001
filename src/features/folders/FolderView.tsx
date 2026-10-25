@@ -184,7 +184,7 @@ export function FolderView({ id }: { id: string }) {
           )}
         </Section>
       </div>
-      <PeekLayer library={library} />
+      <PeekLayer library={library} reload={reload} />
       <DragGhost />
     </div>
   )

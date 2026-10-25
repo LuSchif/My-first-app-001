@@ -1,8 +1,10 @@
 import type { Folder, Notebook } from '../../engine/model/types.ts'
 import type { DragItem, DropTarget } from './dragDrop.ts'
 import { showNotice } from '../../lib/notices.ts'
-import { moveFolder, moveNotebook } from '../../storage/folders.ts'
-import { applyDrop } from './libraryActions.ts'
+import { deleteFolder, moveFolder, moveNotebook } from '../../storage/folders.ts'
+import { deleteNotebook } from '../../storage/notebooks.ts'
+import { moveToTrash } from './trash.ts'
+import { applyDrop, countNotebooks } from './libraryActions.ts'
 import type { Library } from './useLibrary.ts'
 
 export type FolderSort = 'custom' | 'name' | 'recent'
@@ -48,6 +50,10 @@ export function sortNotebooks(list: Notebook[], sort: NotebookSort): Notebook[] 
  */
 export function useDrop(library: Library, reload: () => void) {
   return (item: DragItem) => (target: DropTarget) => {
+    if (target.kind === 'trash') {
+      trashItem(item, library, reload)
+      return
+    }
     const into = target.kind === 'root' ? null : target.place === 'inside' ? target.id : undefined
     const before =
       item.kind === 'notebook'
@@ -70,5 +76,30 @@ export function useDrop(library: Library, reload: () => void) {
       })
       .catch((err: unknown) => console.error(err))
       .finally(reload)
+  }
+}
+
+/** Drops a folder (with everything in it), notebook or presentation on the trash. */
+function trashItem(item: DragItem, library: Library, reload: () => void): void {
+  if (item.kind === 'notebook') {
+    const notebook = library.notebooks.find((n) => n.id === item.id)
+    const what = notebook?.kind === 'presentation' ? 'presentation' : 'notebook'
+    moveToTrash(
+      [item.id],
+      `Deleted ${what} “${item.label}”.`,
+      () => deleteNotebook(item.id),
+      reload,
+    )
+  } else if (item.kind === 'folder') {
+    const count = countNotebooks(library.folders, library.notebooks, item.id)
+    const contents = count
+      ? ` and the ${count} ${count === 1 ? 'notebook' : 'notebooks'} in it`
+      : ''
+    moveToTrash(
+      [item.id],
+      `Deleted folder “${item.label}”${contents}.`,
+      () => deleteFolder(item.id, false),
+      reload,
+    )
   }
 }
