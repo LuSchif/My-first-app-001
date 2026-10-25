@@ -70,10 +70,10 @@ function draftEvent(at?: Date): OwnEvent {
 }
 
 /**
- * The calendar on the home screen: yesterday, today and tomorrow at a glance, scrollable
- * through the day and to other days. A tap opens the whole calendar.
+ * The calendar on the home screen: yesterday, today and tomorrow at a glance (or only today,
+ * with `todayOnly`), scrollable through the day. A tap opens the whole calendar.
  */
-export function CalendarHome() {
+export function CalendarHome({ todayOnly = false }: { todayOnly?: boolean }) {
   const data = useCalendar()
   const [setUp, setSetUp] = useState(readSetUp)
   const [open, setOpen] = useState(false)
@@ -105,10 +105,11 @@ export function CalendarHome() {
     <>
       <section
         aria-label="Calendar"
-        className="overflow-hidden rounded-panel bg-surface-raised shadow-soft ring-1 ring-line"
+        className="@container overflow-hidden rounded-panel bg-surface-raised shadow-soft ring-1 ring-line"
       >
         {configured ? (
           <Widget
+            todayOnly={todayOnly}
             data={data}
             onOpen={() => setOpen(true)}
             onEntry={openEntry}
@@ -162,7 +163,7 @@ export function CalendarHome() {
 function Setup({ onOwn }: { onOwn: () => void }) {
   if (deviceCalendarsAvailable()) return <AppSetup onOwn={onOwn} />
   return (
-    <div className="grid gap-4 p-5 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)] sm:items-center sm:gap-8">
+    <div className="grid gap-4 p-5 @2xl:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)] @2xl:items-center @2xl:gap-8">
       <div className="grid gap-2">
         <p className="flex items-center gap-2 text-lg font-bold">
           <CalendarDays size={20} /> Your calendar
@@ -231,12 +232,14 @@ function AppSetup({ onOwn }: { onOwn: () => void }) {
 }
 
 function Widget({
+  todayOnly,
   data,
   onOpen,
   onEntry,
   onDay,
   onSources,
 }: {
+  todayOnly: boolean
   data: CalendarData
   onOpen: () => void
   onEntry: (entry: Entry) => void
@@ -246,7 +249,10 @@ function Widget({
   const now = useNow()
   const todayKey = dayKey(now)
   const today = useMemo(() => new Date(`${todayKey}T00:00`), [todayKey])
-  const days = useMemo(() => Array.from({ length: 29 }, (_, i) => addDays(today, i - 7)), [today])
+  const days = useMemo(
+    () => (todayOnly ? [today] : Array.from({ length: 29 }, (_, i) => addDays(today, i - 7))),
+    [today, todayOnly],
+  )
   const entries = useMemo(
     () => entriesIn(data, days[0]!, addDays(days[days.length - 1]!, 1)),
     [data, days],
@@ -295,14 +301,14 @@ function Widget({
       </div>
       <TimeGrid
         days={days}
-        visibleDays={3}
-        firstVisible={addDays(today, -1)}
+        visibleDays={todayOnly ? 1 : 3}
+        firstVisible={todayOnly ? today : addDays(today, -1)}
         entries={entries}
         marks={data.days}
         hourHeight={40}
         onEntryTap={onEntry}
         onDayTap={onDay}
-        className="h-64"
+        className={todayOnly ? 'h-[22rem]' : 'h-64'}
       />
     </div>
   )

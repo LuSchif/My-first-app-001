@@ -29,7 +29,6 @@ export function NotebookCard({
   onDrop: (target: DropTarget) => void
 }) {
   const light = prefersLightText(notebook.cover)
-  const pages = notebook.pageIds.length
   const drag = useDragState()
   const dragging = drag?.item.kind === 'notebook' && drag.item.id === notebook.id
   const draggable = useDraggable(
@@ -81,19 +80,75 @@ export function NotebookCard({
       <div className="flex items-start justify-between gap-1">
         <div className="min-w-0 text-sm">
           <p className="truncate font-semibold">{notebook.title}</p>
-          <p className="text-ink-muted">
-            {formatEdited(notebook.updatedAt)} · {pages}{' '}
-            {notebook.kind === 'presentation'
-              ? pages === 1
-                ? 'slide'
-                : 'slides'
-              : pages === 1
-                ? 'page'
-                : 'pages'}
-          </p>
+          <p className="text-ink-muted">{notebookDetails(notebook)}</p>
         </div>
         <NotebookMenu notebook={notebook} folders={folders} onChanged={onChanged} />
       </div>
+    </li>
+  )
+}
+
+/** When it was edited, and how many pages or slides it has. */
+function notebookDetails(notebook: Notebook): string {
+  const pages = notebook.pageIds.length
+  const unit = notebook.kind === 'presentation' ? 'slide' : 'page'
+  return `${formatEdited(notebook.updatedAt)} · ${pages} ${unit}${pages === 1 ? '' : 's'}`
+}
+
+/** A notebook as a row of the list view: a small cover, its title and details, its menu. */
+export function NotebookRow({
+  notebook,
+  folders,
+  onOpen,
+  onChanged,
+  onDrop,
+}: {
+  notebook: Notebook
+  folders: readonly Folder[]
+  onOpen: () => void
+  onChanged: () => void
+  onDrop: (target: DropTarget) => void
+}) {
+  const drag = useDragState()
+  const dragging = drag?.item.kind === 'notebook' && drag.item.id === notebook.id
+  const draggable = useDraggable(
+    { kind: 'notebook', id: notebook.id, label: notebook.title },
+    onDrop,
+  )
+  const slides = notebook.kind === 'presentation'
+  return (
+    <li className={cn('flex items-center gap-1 pr-2 transition-opacity', dragging && 'opacity-40')}>
+      <button
+        type="button"
+        {...draggable}
+        onClick={onOpen}
+        className="flex min-w-0 flex-1 touch-manipulation items-center gap-3 px-3 py-2 text-left select-none [-webkit-touch-callout:none]"
+      >
+        <span className="grid w-12 shrink-0 place-items-center">
+          {slides ? (
+            <NotebookThumbnail notebook={notebook} width={48} className="!w-12 shadow-soft" />
+          ) : (
+            <span
+              className="block aspect-[3/4] w-9 rounded-r-md rounded-l-sm shadow-soft"
+              style={{ background: fillToCss(notebook.cover) }}
+            />
+          )}
+        </span>
+        <span className="min-w-0 flex-1 text-sm">
+          <span className="flex items-center gap-1.5">
+            <span className="truncate font-semibold">{notebook.title}</span>
+            {slides ? (
+              <Presentation
+                size={14}
+                aria-label="Presentation"
+                className="shrink-0 text-ink-muted"
+              />
+            ) : null}
+          </span>
+          <span className="block text-ink-muted">{notebookDetails(notebook)}</span>
+        </span>
+      </button>
+      <NotebookMenu notebook={notebook} folders={folders} onChanged={onChanged} className="" />
     </li>
   )
 }
@@ -102,10 +157,12 @@ function NotebookMenu({
   notebook,
   folders,
   onChanged,
+  className = '-mt-2 -mr-2',
 }: {
   notebook: Notebook
   folders: readonly Folder[]
   onChanged: () => void
+  className?: string
 }) {
   const [open, setOpen] = useState(false)
   const [view, setView] = useState<'menu' | 'move' | 'delete'>('menu')
@@ -121,7 +178,7 @@ function NotebookMenu({
         <IconButton
           label={`More for ${notebook.title}`}
           icon={<MoreHorizontal size={20} />}
-          className="-mt-2 -mr-2"
+          className={className}
         />
       </PopoverTrigger>
       <PopoverContent align="end" className="grid w-72 gap-1 p-2">

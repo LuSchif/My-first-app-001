@@ -81,10 +81,14 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
 
 ## Library and folders
 
-- The dashboard has a search over folder and notebook names, then, top to bottom, the
-  top-level folders, the six most recently edited notebooks and the notebooks in no folder (or
-  all of them); folders and
-  notebooks have their own sort order (folders: own order, name, recently edited).
+- The home screen: a header with the search, tiles/list switch, appearance, backup and one
+  "New" menu (notebook, presentation, folder). Below it, today's calendar at the top left and,
+  beside it, the top-level folders and the notebooks in no folder (or all of them); below
+  those, every presentation. Folders and notebooks have their own sort order (folders: own
+  order, name, recently edited).
+- Folders and notebooks show as tiles or as a list (`libraryLayout.ts`, kept per device; the
+  same choice applies inside folders). In the list a folder opens with one tap, and folders are
+  sorted by dropping them above or below another (`data-drop-axis="y"`).
 - A folder has a name, a fill (one color, or a linear or radial gradient with any number of
   stops and a direction) and an icon from four groups (school, study, work, personal). Folders
   can hold folders (`parentId`); their order among siblings is `order`.
@@ -172,8 +176,8 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
 
 ## Calendar
 
-- The home screen shows a calendar: yesterday, today and tomorrow in a time grid that scrolls
-  through the day and sideways to other days; a tap opens the whole calendar (day, 3 days, week,
+- The home screen shows today's calendar in a time grid that scrolls through the day
+  (`CalendarHome` can also show yesterday to tomorrow); a tap opens the whole calendar (day, 3 days, week,
   month). Code in `src/features/calendar/`.
 - Calendars are added by iCal link (WebUntis, Google, iCloud, Outlook) or as an .ics file, and
   read with an own parser (`ics.ts`: time zones, repeating events, exceptions). The last loaded

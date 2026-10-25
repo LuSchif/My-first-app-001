@@ -152,6 +152,79 @@ export function FolderCard({
   )
 }
 
+/**
+ * A folder as a row of the list view: a tap opens it. Hold it to drag it onto another folder,
+ * or above or below one to sort it there.
+ */
+export function FolderRow({
+  folder,
+  folders,
+  notebooks,
+  onOpenFolder,
+  onChanged,
+  onDrop,
+  sortable,
+}: {
+  folder: Folder
+  folders: readonly Folder[]
+  notebooks: readonly Notebook[]
+  onOpenFolder: () => void
+  onChanged: () => void
+  onDrop: (target: DropTarget) => void
+  sortable: boolean
+}) {
+  const drag = useDragState()
+  const draggable = useDraggable({ kind: 'folder', id: folder.id, label: folder.name }, onDrop)
+  const over = drag?.over?.kind === 'folder' && drag.over.id === folder.id ? drag.over.place : null
+  const dragging = drag?.item.kind === 'folder' && drag.item.id === folder.id
+  const count = countNotebooks(folders, notebooks, folder.id)
+  const subfolders = folders.filter((f) => f.parentId === folder.id).length
+  return (
+    <li
+      data-drop="folder"
+      data-drop-id={folder.id}
+      data-drop-axis="y"
+      {...(sortable ? { 'data-drop-sort': '' } : {})}
+      className={cn(
+        'relative flex items-center gap-1 pr-2 transition-opacity',
+        dragging && 'opacity-40',
+        over === 'inside' && 'bg-hover',
+      )}
+    >
+      {over === 'before' || over === 'after' ? (
+        <span
+          aria-hidden="true"
+          className={cn(
+            'absolute inset-x-3 h-1 rounded-full bg-accent',
+            over === 'before' ? '-top-0.5' : '-bottom-0.5',
+          )}
+        />
+      ) : null}
+      <button
+        type="button"
+        {...draggable}
+        onClick={onOpenFolder}
+        className="flex min-w-0 flex-1 touch-manipulation items-center gap-3 px-3 py-2 text-left select-none [-webkit-touch-callout:none]"
+      >
+        <FolderGraphic
+          fill={folder.fill}
+          icon={folder.icon}
+          open={over === 'inside'}
+          className="w-12 shrink-0"
+        />
+        <span className="min-w-0 flex-1 text-sm">
+          <span className="block truncate font-semibold">{folder.name}</span>
+          <span className="block text-ink-muted">
+            {count} {count === 1 ? 'notebook' : 'notebooks'}
+            {subfolders ? ` · ${subfolders} ${subfolders === 1 ? 'folder' : 'folders'}` : ''}
+          </span>
+        </span>
+      </button>
+      <FolderMenu folder={folder} folders={folders} onChanged={onChanged} className="" />
+    </li>
+  )
+}
+
 /** The notebooks sliding out of an opened folder. */
 function Preview({
   folder,
@@ -220,10 +293,12 @@ function FolderMenu({
   folder,
   folders,
   onChanged,
+  className = '-mt-2 -mr-2',
 }: {
   folder: Folder
   folders: readonly Folder[]
   onChanged: () => void
+  className?: string
 }) {
   const [open, setOpen] = useState(false)
   const [view, setView] = useState<'menu' | 'move' | 'delete'>('menu')
@@ -254,7 +329,7 @@ function FolderMenu({
           <IconButton
             label={`More for ${folder.name}`}
             icon={<MoreHorizontal size={20} />}
-            className="-mt-2 -mr-2"
+            className={className}
           />
         </PopoverTrigger>
         <PopoverContent align="end" className="grid w-72 gap-1 p-2">

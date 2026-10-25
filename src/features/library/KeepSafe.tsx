@@ -1,6 +1,6 @@
 import { ArchiveRestore, Download, FileUp, HardDriveDownload, Share, X } from 'lucide-react'
 import { useRef, useState } from 'react'
-import { Button, Popover, PopoverContent, PopoverTrigger } from '../../design/index.ts'
+import { Button, IconButton, Popover, PopoverContent, PopoverTrigger } from '../../design/index.ts'
 import { isInstalled } from '../../lib/install.ts'
 import { formatEdited } from '../../lib/time.ts'
 import {
@@ -94,9 +94,11 @@ export function BackupMenu({ onRestored }: { onRestored: () => void }) {
         }}
       >
         <PopoverTrigger asChild>
-          <Button variant="secondary" icon={<HardDriveDownload size={18} />}>
-            Backup
-          </Button>
+          <IconButton
+            label="Backup"
+            icon={<HardDriveDownload size={20} />}
+            className="bg-surface-raised ring-1 ring-line ring-inset hover:bg-surface-sunken"
+          />
         </PopoverTrigger>
         <PopoverContent align="end" className="grid w-80 gap-3">
           <div className="grid gap-1">

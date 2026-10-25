@@ -7,6 +7,7 @@ import type { Id } from '../../engine/model/types.ts'
  * onto a "no folder" area. Drop targets are marked in the DOM:
  *   data-drop="folder" data-drop-id="<id>"   a folder
  *   data-drop="root"                          the top level (no folder)
+ *   data-drop-sort, data-drop-axis="y"        sorts beside the folder (above or below)
  */
 
 export type DragItem = { kind: 'folder' | 'notebook'; id: Id; label: string }
@@ -57,8 +58,9 @@ function targetAt(x: number, y: number, item: DragItem): DropTarget | null {
   if (item.kind === 'notebook' || el.dataset.dropSort === undefined) {
     return { kind: 'folder', id, place: 'inside' }
   }
+  // Tiles sort left and right of each other, list rows above and below.
   const r = el.getBoundingClientRect()
-  const t = (x - r.left) / r.width
+  const t = el.dataset.dropAxis === 'y' ? (y - r.top) / r.height : (x - r.left) / r.width
   return { kind: 'folder', id, place: t < SIDE ? 'before' : t > 1 - SIDE ? 'after' : 'inside' }
 }
 

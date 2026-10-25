@@ -1,7 +1,7 @@
 import { Palette } from 'lucide-react'
 import { useState } from 'react'
 import {
-  Button,
+  IconButton,
   ColorPicker,
   ColorSwatch,
   Popover,
@@ -16,6 +16,9 @@ import {
   THEME_PRESETS,
   type ThemeSetting,
 } from '../../design/theme.ts'
+
+/** The look of the round icon buttons in the library's header. */
+const HEADER_BUTTON = 'bg-surface-raised ring-1 ring-line ring-inset hover:bg-surface-sunken'
 
 /** Colors the interface: a preset or any color, light or dark. */
 export function AppearanceMenu() {
@@ -32,7 +35,7 @@ export function AppearanceMenu() {
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button icon={<Palette size={18} />}>Appearance</Button>
+        <IconButton label="Appearance" icon={<Palette size={20} />} className={HEADER_BUTTON} />
       </PopoverTrigger>
       <PopoverContent align="end" className="grid w-80 gap-4">
         <p className="text-sm font-semibold">Interface colors</p>

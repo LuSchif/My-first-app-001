@@ -24,6 +24,8 @@ import {
 import { SortMenu } from '../library/SortMenu.tsx'
 import { useLibrary } from '../library/useLibrary.ts'
 import { useStoredState } from '../library/useStoredState.ts'
+import { LayoutToggle } from '../library/LayoutToggle.tsx'
+import { useLibraryLayout } from '../library/libraryLayout.ts'
 import { FolderEditorDialog } from './FolderEditorDialog.tsx'
 import { FolderGraphic } from './FolderGraphic.tsx'
 
@@ -31,6 +33,7 @@ import { FolderGraphic } from './FolderGraphic.tsx'
 export function FolderView({ id }: { id: string }) {
   const { library, error, reload } = useLibrary()
   const [editing, setEditing] = useState(false)
+  const [layout, setLayout] = useLibraryLayout()
   const [folderSort, setFolderSort] = useStoredState<FolderSort>(
     'broomit.folderSort',
     'custom',
@@ -107,6 +110,7 @@ export function FolderView({ id }: { id: string }) {
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
+            <LayoutToggle value={layout} onChange={setLayout} />
             <Dialog open={editing} onOpenChange={setEditing}>
               <DialogTrigger asChild>
                 <Button icon={<Pencil size={18} />}>Edit</Button>
@@ -154,6 +158,7 @@ export function FolderView({ id }: { id: string }) {
               library={library}
               sortable={folderSort === 'custom'}
               reload={reload}
+              layout={layout}
             />
           </Section>
         ) : null}
@@ -170,7 +175,7 @@ export function FolderView({ id }: { id: string }) {
           }
         >
           {notebooks.length ? (
-            <NotebookGrid notebooks={notebooks} library={library} reload={reload} />
+            <NotebookGrid notebooks={notebooks} library={library} reload={reload} layout={layout} />
           ) : (
             <p className="rounded-card px-4 py-10 text-center text-sm text-ink-muted ring-2 ring-line ring-inset [border-style:dashed]">
               No notebooks here yet. Create one, or drag one onto this folder in the library.

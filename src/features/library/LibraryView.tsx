@@ -1,7 +1,15 @@
-import { FolderPlus, Plus, Presentation, Search, X } from 'lucide-react'
+import { FolderPlus, NotebookPen, Plus, Presentation, Search, X } from 'lucide-react'
 import { useState } from 'react'
 import { navigate } from '../../app/router.ts'
-import { Button, Dialog, DialogTrigger } from '../../design/index.ts'
+import {
+  Button,
+  Dialog,
+  DialogTrigger,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '../../design/index.ts'
+import type { Notebook } from '../../engine/model/types.ts'
 import { FolderEditorDialog } from '../folders/FolderEditorDialog.tsx'
 import { CalendarHome } from '../calendar/CalendarHome.tsx'
 import { AppearanceMenu } from './AppearanceMenu.tsx'
@@ -21,54 +29,75 @@ import { NewPresentationDialog } from './NewPresentationDialog.tsx'
 import { SortMenu } from './SortMenu.tsx'
 import { useLibrary, type Library } from './useLibrary.ts'
 import { useStoredState } from './useStoredState.ts'
+import { LayoutToggle } from './LayoutToggle.tsx'
+import { useLibraryLayout, type LibraryLayout } from './libraryLayout.ts'
 
-const RECENT_COUNT = 6
 const FILTERS = [
   ['unfiled', 'Not in a folder'],
   ['all', 'All notebooks'],
 ] as const
 
 /**
- * The dashboard: search, the folders, the most recently edited notebooks, and the notebooks
- * that are in no folder (or all of them). Folders and notebooks can be sorted and filtered.
+ * The home screen: today's calendar at the top left; beside it the folders and the notebooks
+ * that are in no folder (or all of them), sorted and filtered as chosen; below, the
+ * presentations. Everything shows as tiles or as a list.
  */
 export function LibraryView() {
   const { library, error, reload } = useLibrary()
   const [query, setQuery] = useState('')
+  const [layout, setLayout] = useLibraryLayout()
   const open = (id: string) => navigate({ name: 'notebook', id })
+  const empty = library !== null && library.folders.length === 0 && library.notebooks.length === 0
+  const searching = query.trim() !== ''
 
   return (
     <div className="min-h-full px-4 pt-[calc(2rem+env(safe-area-inset-top))] pb-16 sm:px-8">
-      <div className="mx-auto grid max-w-5xl gap-8">
-        <header className="flex flex-wrap items-center justify-between gap-4">
-          <h1 className="text-3xl font-bold tracking-tight">Broomit</h1>
-          <div className="flex flex-wrap gap-2">
+      <div className="mx-auto grid max-w-6xl gap-8">
+        <header className="flex flex-wrap items-center gap-3">
+          <h1 className="mr-2 text-3xl font-bold tracking-tight">Broomit</h1>
+          <div className="order-last w-full sm:order-none sm:w-auto sm:min-w-[14rem] sm:flex-1">
+            <SearchField value={query} onChange={setQuery} />
+          </div>
+          <div className="ml-auto flex items-center gap-2">
+            <LayoutToggle value={layout} onChange={setLayout} />
             <AppearanceMenu />
             <BackupMenu onRestored={reload} />
-            <NewFolderButton reload={reload} />
-            <NewPresentationButton library={library} reload={reload} onCreated={open} />
-            <NewNotebookButton library={library} reload={reload} onCreated={open} />
+            <NewMenu library={library} reload={reload} onCreated={open} />
           </div>
         </header>
 
-        <CalendarHome />
-
-        <SearchField value={query} onChange={setQuery} />
-
         <InstallHint />
 
-        {error ? (
-          <p className="text-danger">
-            Your notebooks could not be loaded. Reload the page; if it keeps happening, this browser
-            may be blocking storage.
-          </p>
-        ) : library === null ? null : query.trim() ? (
-          <SearchResults query={query.trim()} library={library} reload={reload} />
-        ) : library.folders.length === 0 && library.notebooks.length === 0 ? (
-          <EmptyState library={library} reload={reload} onCreated={open} />
-        ) : (
-          <Dashboard library={library} reload={reload} />
-        )}
+        {/* Today on the left; the folders and notebooks beside it. */}
+        <div className="grid items-start gap-8 md:grid-cols-[minmax(15rem,19rem)_minmax(0,1fr)]">
+          <aside className="md:sticky md:top-[calc(1.5rem+env(safe-area-inset-top))]">
+            <CalendarHome todayOnly />
+          </aside>
+          <div className="grid min-w-0 gap-8">
+            {error ? (
+              <p className="text-danger">
+                Your notebooks could not be loaded. Reload the page; if it keeps happening, this
+                browser may be blocking storage.
+              </p>
+            ) : library === null ? null : searching ? (
+              <SearchResults
+                query={query.trim()}
+                library={library}
+                reload={reload}
+                layout={layout}
+              />
+            ) : empty ? (
+              <EmptyState library={library} reload={reload} onCreated={open} />
+            ) : (
+              <Dashboard library={library} reload={reload} layout={layout} />
+            )}
+          </div>
+        </div>
+
+        {/* Below: everything else. */}
+        {library && !searching && !empty ? (
+          <Presentations library={library} reload={reload} layout={layout} onCreated={open} />
+        ) : null}
 
         <footer className="flex gap-4 pt-6 text-sm text-ink-muted">
           <a href="./design.html" className="underline-offset-4 hover:underline">
@@ -84,7 +113,17 @@ export function LibraryView() {
   )
 }
 
-function Dashboard({ library, reload }: { library: Library; reload: () => void }) {
+const isPresentation = (n: Notebook) => n.kind === 'presentation'
+
+function Dashboard({
+  library,
+  reload,
+  layout,
+}: {
+  library: Library
+  reload: () => void
+  layout: LibraryLayout
+}) {
   const [folderSort, setFolderSort] = useStoredState<FolderSort>(
     'broomit.folderSort',
     'custom',
@@ -100,14 +139,14 @@ function Dashboard({ library, reload }: { library: Library; reload: () => void }
     'unfiled',
     FILTERS.map(([v]) => v),
   )
-  const recent = sortNotebooks(library.notebooks, 'recent').slice(0, RECENT_COUNT)
   const topFolders = sortFolders(
     library.folders.filter((f) => f.parentId === null),
     folderSort,
     library,
   )
+  const all = library.notebooks.filter((n) => !isPresentation(n))
   const notebooks = sortNotebooks(
-    filter === 'all' ? library.notebooks : library.notebooks.filter((n) => n.folderId === null),
+    filter === 'all' ? all : all.filter((n) => n.folderId === null),
     notebookSort,
   )
 
@@ -130,14 +169,9 @@ function Dashboard({ library, reload }: { library: Library; reload: () => void }
           sortable={folderSort === 'custom'}
           reload={reload}
           newFolderParent={null}
+          layout={layout}
         />
       </Section>
-
-      {library.folders.length > 0 && recent.length > 0 ? (
-        <Section title="Recent">
-          <NotebookGrid notebooks={recent} library={library} reload={reload} />
-        </Section>
-      ) : null}
 
       <Section
         title="Notebooks"
@@ -156,10 +190,10 @@ function Dashboard({ library, reload }: { library: Library; reload: () => void }
         }
       >
         {notebooks.length ? (
-          <NotebookGrid notebooks={notebooks} library={library} reload={reload} />
+          <NotebookGrid notebooks={notebooks} library={library} reload={reload} layout={layout} />
         ) : (
           <p className="rounded-card px-4 py-8 text-center text-sm text-ink-muted ring-2 ring-line ring-inset [border-style:dashed]">
-            {filter === 'unfiled' && library.notebooks.length > 0
+            {filter === 'unfiled' && all.length > 0
               ? 'Every notebook is in a folder. Drop one here to take it out.'
               : 'No notebooks yet.'}
           </p>
@@ -169,14 +203,112 @@ function Dashboard({ library, reload }: { library: Library; reload: () => void }
   )
 }
 
+/** Every presentation, wherever it is filed, most recently edited first. */
+function Presentations({
+  library,
+  reload,
+  layout,
+  onCreated,
+}: {
+  library: Library
+  reload: () => void
+  layout: LibraryLayout
+  onCreated: (id: string) => void
+}) {
+  const presentations = sortNotebooks(library.notebooks.filter(isPresentation), 'recent')
+  return (
+    <Section
+      title="Presentations"
+      actions={<NewPresentationButton library={library} reload={reload} onCreated={onCreated} />}
+    >
+      {presentations.length ? (
+        <NotebookGrid notebooks={presentations} library={library} reload={reload} layout={layout} />
+      ) : (
+        <p className="rounded-card px-4 py-8 text-center text-sm text-ink-muted ring-2 ring-line ring-inset [border-style:dashed]">
+          No presentations yet. Make slides with the same pens and tools, then present them.
+        </p>
+      )}
+    </Section>
+  )
+}
+
+/** One button for everything new: a notebook, a presentation or a folder. */
+function NewMenu({
+  library,
+  reload,
+  onCreated,
+}: {
+  library: Library | null
+  reload: () => void
+  onCreated: (id: string) => void
+}) {
+  const [menu, setMenu] = useState(false)
+  const [creating, setCreating] = useState<'notebook' | 'presentation' | 'folder' | null>(null)
+  const item =
+    'flex min-h-12 w-full items-center gap-3 rounded-control px-3 text-left text-sm font-semibold hover:bg-hover'
+  const pick = (kind: 'notebook' | 'presentation' | 'folder') => {
+    setMenu(false)
+    setCreating(kind)
+  }
+  return (
+    <>
+      <Popover open={menu} onOpenChange={setMenu}>
+        <PopoverTrigger asChild>
+          <Button variant="primary" icon={<Plus size={18} />}>
+            New
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent align="end" className="grid w-64 gap-0.5 p-1.5">
+          <button type="button" className={item} onClick={() => pick('notebook')}>
+            <NotebookPen size={18} /> Notebook
+          </button>
+          <button type="button" className={item} onClick={() => pick('presentation')}>
+            <Presentation size={18} /> Presentation
+          </button>
+          <button type="button" className={item} onClick={() => pick('folder')}>
+            <FolderPlus size={18} /> Folder
+          </button>
+        </PopoverContent>
+      </Popover>
+      <Dialog open={creating !== null} onOpenChange={(o) => !o && setCreating(null)}>
+        {creating === 'notebook' ? (
+          <NewNotebookDialog
+            folders={library?.folders ?? []}
+            folderId={null}
+            onFoldersChanged={reload}
+            onCreated={onCreated}
+          />
+        ) : creating === 'presentation' ? (
+          <NewPresentationDialog
+            folders={library?.folders ?? []}
+            folderId={null}
+            onFoldersChanged={reload}
+            onCreated={onCreated}
+          />
+        ) : creating === 'folder' ? (
+          <FolderEditorDialog
+            parentId={null}
+            onSaved={() => {
+              setCreating(null)
+              reload()
+            }}
+          />
+        ) : null}
+      </Dialog>
+    </>
+  )
+}
+
 function SearchResults({
   query,
   library,
   reload,
+  layout,
 }: {
   query: string
   library: Library
   reload: () => void
+  layout: LibraryLayout
 }) {
   const q = query.toLocaleLowerCase()
   const folders = library.folders.filter((f) => f.name.toLocaleLowerCase().includes(q))
@@ -191,12 +323,18 @@ function SearchResults({
     <>
       {folders.length ? (
         <Section title={`Folders (${folders.length})`}>
-          <FolderGrid folders={folders} library={library} sortable={false} reload={reload} />
+          <FolderGrid
+            folders={folders}
+            library={library}
+            sortable={false}
+            reload={reload}
+            layout={layout}
+          />
         </Section>
       ) : null}
       {notebooks.length ? (
         <Section title={`Notebooks (${notebooks.length})`}>
-          <NotebookGrid notebooks={notebooks} library={library} reload={reload} />
+          <NotebookGrid notebooks={notebooks} library={library} reload={reload} layout={layout} />
         </Section>
       ) : null}
     </>
