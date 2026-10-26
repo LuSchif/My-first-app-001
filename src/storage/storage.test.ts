@@ -23,6 +23,33 @@ function newNotebook(title = 'Biology') {
 }
 
 describe('notebook storage', () => {
+  it('loads a handwritten stroke back exactly as it was saved', async () => {
+    const database = freshDb()
+    const { notebook, pages } = newNotebook()
+    const page = pages[0]!
+    const stroke = {
+      id: 'ink-1',
+      type: 'stroke' as const,
+      layerId: notebook.layers[0]!.id,
+      tool: 'pen' as const,
+      color: '#3e2d25',
+      width: 2,
+      opacity: 1,
+      points: [10.25, 20.5, 11.125, 21.75, 13.0625, 22.875],
+      widths: [1.8, 2.1, 2.4],
+      input: {
+        device: 'pen' as const,
+        t: [0, 4, 8],
+        p: [0.312, 0.5, 0.744],
+        altitude: [52.5, 51.9, 50.2],
+        azimuth: [31.4, 31.6, 32],
+      },
+    }
+    await createNotebookRecord(notebook, [{ ...page, objects: [stroke] }], database)
+    const loaded = await loadNotebook(notebook.id, database)
+    expect(loaded?.pages[0]?.objects[0]).toEqual(stroke)
+  })
+
   it('deletes one page, but never the last one', async () => {
     const database = freshDb()
     const { notebook, pages } = newNotebook()

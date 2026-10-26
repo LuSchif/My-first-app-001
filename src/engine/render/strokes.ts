@@ -55,14 +55,58 @@ export function strokeBounds(stroke: StrokeObject): Rect {
   return rect
 }
 
+/**
+ * The color a stroke is painted in. A highlighter is painted opaque in its color already faded
+ * by its opacity, with the "darken" blend: over paper it looks the same as see-through ink, but
+ * where two marks of one color overlap they stay one even tint instead of getting darker, and
+ * text under it stays as dark as it was.
+ */
+export function inkColor(stroke: Pick<StrokeObject, 'color' | 'opacity'> & { tool?: string }) {
+  if (stroke.tool !== 'highlighter') return stroke.color
+  return fadeToWhite(stroke.color, stroke.opacity)
+}
+
+/** How a stroke blends with what is below it. */
+export function inkBlend(stroke: { tool?: string }): GlobalCompositeOperation {
+  return stroke.tool === 'highlighter' ? 'darken' : 'source-over'
+}
+
+/** The opacity a stroke is drawn with (a highlighter's is in its color already). */
+export function inkAlpha(stroke: Pick<StrokeObject, 'opacity'> & { tool?: string }): number {
+  return stroke.tool === 'highlighter' ? 1 : stroke.opacity
+}
+
+const faded = new Map<string, string>()
+
+/** `color` (#rrggbb) at `opacity` over white, as an opaque color. */
+export function fadeToWhite(color: string, opacity: number): string {
+  const key = `${color}/${opacity}`
+  let out = faded.get(key)
+  if (!out) {
+    const hex = /^#?([0-9a-f]{6})$/i.exec(color)?.[1]
+    if (!hex) return color
+    const a = Math.min(1, Math.max(0, opacity))
+    out = `#${[0, 2, 4]
+      .map((i) => {
+        const c = parseInt(hex.slice(i, i + 2), 16)
+        return Math.round(255 + (c - 255) * a)
+          .toString(16)
+          .padStart(2, '0')
+      })
+      .join('')}`
+    faded.set(key, out)
+  }
+  return out
+}
+
 export function setInkStyle(
   ctx: CanvasRenderingContext2D,
-  stroke: Pick<StrokeObject, 'width' | 'color' | 'dash'>,
+  stroke: Pick<StrokeObject, 'width' | 'color' | 'dash' | 'opacity'> & { tool?: string },
 ): void {
   ctx.lineWidth = stroke.width
   ctx.lineCap = 'round'
   ctx.lineJoin = 'round'
-  ctx.strokeStyle = stroke.color
+  ctx.strokeStyle = inkColor(stroke)
   ctx.setLineDash(dashPattern(stroke))
 }
 
@@ -84,9 +128,9 @@ export function paintStroke(ctx: CanvasRenderingContext2D, stroke: StrokeObject)
     return
   }
   setInkStyle(ctx, stroke)
-  ctx.globalAlpha = stroke.opacity
+  ctx.globalAlpha = inkAlpha(stroke)
   // Highlighter tints what is below instead of covering it, like a real marker.
-  ctx.globalCompositeOperation = stroke.tool === 'highlighter' ? 'multiply' : 'source-over'
+  ctx.globalCompositeOperation = inkBlend(stroke)
   let width = stroke.width
   if (stroke.outline) {
     // The contour is a line of its own color underneath; reaching inside, it leaves a thinner
@@ -99,7 +143,7 @@ export function paintStroke(ctx: CanvasRenderingContext2D, stroke: StrokeObject)
   }
   ctx.strokeStyle = stroke.gradient
     ? canvasGradient(ctx, stroke.gradient, rectOf(boundsOfPoints(stroke.points, 0)))
-    : stroke.color
+    : inkColor(stroke)
   if (width > 0.05) {
     ctx.lineWidth = width
     ctx.stroke(strokePath(stroke))
@@ -113,8 +157,8 @@ function paintNibStroke(
   ctx: CanvasRenderingContext2D,
   stroke: StrokeObject & { widths: number[] },
 ): void {
-  ctx.globalAlpha = stroke.opacity
-  ctx.globalCompositeOperation = stroke.tool === 'highlighter' ? 'multiply' : 'source-over'
+  ctx.globalAlpha = inkAlpha(stroke)
+  ctx.globalCompositeOperation = inkBlend(stroke)
   let shrink = 0
   if (stroke.outline) {
     const { outer, inner } = outlineReach(stroke.outline)
@@ -124,7 +168,7 @@ function paintNibStroke(
   }
   ctx.fillStyle = stroke.gradient
     ? canvasGradient(ctx, stroke.gradient, rectOf(boundsOfPoints(stroke.points, 0)))
-    : stroke.color
+    : inkColor(stroke)
   ctx.fill(nibPath(stroke, -shrink))
   ctx.globalAlpha = 1
   ctx.globalCompositeOperation = 'source-over'

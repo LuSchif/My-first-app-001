@@ -607,6 +607,17 @@ function PenSettings({ editor, state }: { editor: Editor; state: EditorState }) 
         onChange={(width) => editor.setPen({ width })}
         format={(v) => `${v} pt`}
       />
+      {pen.nib === 'fountain' ? (
+        <Slider
+          label="Pressure sensitivity"
+          value={Math.round(pen.sensitivity * 100)}
+          min={0}
+          max={100}
+          step={5}
+          onChange={(v) => editor.setPen({ sensitivity: v / 100 })}
+          format={(v) => (v === 0 ? 'Off' : `${v}%`)}
+        />
+      ) : null}
       <Slider
         label="Opacity"
         value={Math.round(pen.opacity * 100)}
@@ -631,6 +642,15 @@ function HighlighterSettings({ editor, state }: { editor: Editor; state: EditorS
         max={40}
         onChange={(width) => editor.setHighlighter({ width })}
         format={(v) => `${v} pt`}
+      />
+      <Slider
+        label="Opacity"
+        value={Math.round(highlighter.opacity * 100)}
+        min={15}
+        max={90}
+        step={5}
+        onChange={(v) => editor.setHighlighter({ opacity: v / 100 })}
+        format={(v) => `${v}%`}
       />
       <div role="group" aria-label="Highlighter colors" className="flex flex-wrap">
         {HIGHLIGHTER_COLORS.map(([name, color]) => (

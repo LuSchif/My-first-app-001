@@ -16,6 +16,14 @@ export interface ScreenSample {
   t: number
   /** Pen pressure from 0 to 1; 0.5 when the device does not report it. */
   p: number
+  /** Pen tilt where the device reports it: altitude and azimuth in radians. */
+  tilt?: Tilt
+}
+
+export interface Tilt {
+  /** π/2 when the pen stands upright, smaller as it leans over. */
+  altitude: number
+  azimuth: number
 }
 
 /**
@@ -38,7 +46,7 @@ export class StrokeSampler {
   private lastTime = -Infinity
 
   /** Returns true when a new smoothed point was added. */
-  add(x: number, y: number, timeStamp: number, pressure = 0.5): boolean {
+  add(x: number, y: number, timeStamp: number, pressure = 0.5, tilt?: Tilt): boolean {
     this.received++
     if (timeStamp < this.lastStamp) {
       this.filtered++
@@ -53,11 +61,12 @@ export class StrokeSampler {
     this.lastStamp = timeStamp
     this.lastTime = t
 
-    this.tip = { x, y, t, p: pressure }
+    this.tip = tilt ? { x, y, t, p: pressure, tilt } : { x, y, t, p: pressure }
     this.raw.push(this.tip)
     if (this.raw.length > 32) this.raw.shift()
 
-    const p = { x: this.fx.filter(x, dt), y: this.fy.filter(y, dt), t, p: pressure }
+    const p: ScreenSample = { x: this.fx.filter(x, dt), y: this.fy.filter(y, dt), t, p: pressure }
+    if (tilt) p.tilt = tilt
     const n = this.points.length
     const last = this.points[n - 1]
     if (last) {

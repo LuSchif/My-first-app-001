@@ -233,6 +233,11 @@ export interface StrokeObject extends Animatable {
    * for drawing, and `width` stays the pen's base width.
    */
   widths?: number[]
+  /**
+   * How the stroke was written, one value per point of `points`: kept so a stroke can be
+   * redrawn or re-evaluated later exactly as it was input. Shapes and edited paths have none.
+   */
+  input?: StrokeInput
   /** The last point connects back to the first (shapes made with Auto shape). */
   closed?: boolean
   /** Straight lines between the points instead of a smooth curve (polygons). */
@@ -253,6 +258,18 @@ export interface StrokeObject extends Animatable {
 }
 
 export type StrokeDash = 'dashed' | 'dotted'
+
+/** The recorded input of a handwritten stroke; every array has one value per point. */
+export interface StrokeInput {
+  device: 'pen' | 'touch' | 'mouse'
+  /** Milliseconds since the stroke began. */
+  t: number[]
+  /** Pressure from 0 to 1 (0.5 where the device reports none). */
+  p: number[]
+  /** Apple Pencil only, where the browser reports it: altitude (90 = upright) and azimuth, in degrees. */
+  altitude?: number[]
+  azimuth?: number[]
+}
 
 /** A filled area, e.g. the inside of a drawn circle. Drawn below its outline. */
 export interface FillObject extends Animatable {

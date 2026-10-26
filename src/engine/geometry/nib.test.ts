@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { directionFactor, flattenStroke, nibWidthAt, pressureFactor } from './nib.ts'
+import { directionFactor, flattenStroke, nibWidthAt, pressureFactor, tiltFactor } from './nib.ts'
 import { eraseFromStroke } from './erase.ts'
 
 describe('fountain pen nib', () => {
@@ -32,5 +32,23 @@ describe('fountain pen nib', () => {
     expect(pieces).toHaveLength(2)
     for (const p of pieces!) expect(p.widths).toHaveLength(p.points.length / 2)
     expect(pieces![1]!.widths!.at(-1)).toBe(5)
+  })
+})
+
+describe('pressure sensitivity and tilt', () => {
+  it('turns pressure off at 0 and doubles its effect at 1', () => {
+    expect(pressureFactor(1, 0)).toBe(1)
+    expect(pressureFactor(0.1, 0)).toBe(1)
+    const normal = pressureFactor(1)
+    const strong = pressureFactor(1, 1)
+    expect(strong - 1).toBeCloseTo((normal - 1) * 2, 5)
+    expect(pressureFactor(0, 1)).toBeGreaterThan(0)
+  })
+
+  it('draws wider when the pen leans over, unchanged when tilt is unknown', () => {
+    expect(tiltFactor(undefined)).toBe(1)
+    expect(tiltFactor(55)).toBeCloseTo(1, 5)
+    expect(tiltFactor(25)).toBeGreaterThan(1)
+    expect(tiltFactor(90)).toBeLessThan(1)
   })
 })

@@ -328,7 +328,7 @@ export function applySuggestion(
     const { strokeIds, arrow } = suggestion
     const shaft = objects.find((o) => o.id === strokeIds[0])
     if (shaft?.type !== 'stroke') return [...objects]
-    const { path: _path, closed: _closed, widths: _widths, dash, ...ink } = shaft
+    const { path: _path, closed: _closed, widths: _widths, input: _input, dash, ...ink } = shaft
     // A dashed shaft stays dashed; the head is always solid.
     const clean: StrokeObject[] = [
       {
@@ -349,7 +349,14 @@ export function applySuggestion(
     const { strokeIds } = suggestion
     const first = objects.find((o) => o.id === strokeIds[strokeIds.length - 1])
     if (first?.type !== 'stroke') return [...objects]
-    const { path: _path, closed: _closed, straight: _straight, dash: _dash, ...ink } = first
+    const {
+      path: _path,
+      closed: _closed,
+      straight: _straight,
+      dash: _dash,
+      input: _input,
+      ...ink
+    } = first
     const clean: StrokeObject[] = suggestion.strokes.map((c) => ({
       ...ink,
       id: newId(),

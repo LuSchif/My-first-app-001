@@ -14,10 +14,37 @@ const HAIRLINE = 0.28
 /** Distance in points between the circles a stroke is drawn with. */
 const FLATTEN_STEP = 1
 
-/** Width factor for pressure from 0 to 1; a light touch (0.5 when unknown) keeps the base width. */
-export function pressureFactor(pressure: number): number {
+/** How strongly pressure changes the width by default (see `NibOptions.sensitivity`). */
+export const DEFAULT_SENSITIVITY = 0.5
+
+/**
+ * Width factor for pressure from 0 to 1; a light touch (0.5 when unknown) keeps about the base
+ * width. `sensitivity` from 0 (pressure changes nothing) to 1 (twice the default effect).
+ */
+export function pressureFactor(pressure: number, sensitivity = DEFAULT_SENSITIVITY): number {
   const p = Math.min(1, Math.max(0, pressure))
-  return 0.3 + 1.4 * Math.pow(p, 0.85)
+  const full = 0.3 + 1.4 * Math.pow(p, 0.85)
+  return Math.max(0.12, 1 + (full - 1) * sensitivity * 2)
+}
+
+/** The altitude (degrees) a pen is usually held at while writing: no change in width. */
+const WRITING_ALTITUDE = 55
+
+/**
+ * Width factor for the pen's tilt: held flatter, the nib touches with more of its side and draws
+ * wider; held upright, a little thinner. 1 when the tilt is unknown.
+ */
+export function tiltFactor(altitudeDeg: number | undefined): number {
+  if (altitudeDeg === undefined) return 1
+  const lean = (WRITING_ALTITUDE - altitudeDeg) / WRITING_ALTITUDE
+  return 1 + 0.6 * Math.min(1, Math.max(-0.3, lean))
+}
+
+export interface NibOptions {
+  /** How strongly pressure changes the width, from 0 to 1. */
+  sensitivity?: number
+  /** The pen's altitude at each point, in degrees, where it is known. */
+  altitudes?: readonly (number | undefined)[]
 }
 
 /** Width factor for a stroke moving in direction (dx, dy). */
@@ -36,8 +63,10 @@ export function nibWidthAt(
   pressures: readonly number[],
   base: number,
   i: number,
+  options: NibOptions = {},
 ): number {
-  const p = pressureFactor(pressures[i] ?? 0.5)
+  const p =
+    pressureFactor(pressures[i] ?? 0.5, options.sensitivity) * tiltFactor(options.altitudes?.[i])
   const n = points.length / 2
   const a = i < 2 ? 0 : i - 2
   const b = i < 2 ? Math.min(2, n - 1) : i

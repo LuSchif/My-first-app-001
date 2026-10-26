@@ -15,11 +15,17 @@ import {
 import type { History } from '../commands/History.ts'
 import { fillBaseColor, type Fill } from '../model/fill.ts'
 import type { NotebookDocument } from '../document/NotebookDocument.ts'
-import { flattenStroke, nibWidthAt, traceNib } from '../geometry/nib.ts'
+import {
+  DEFAULT_SENSITIVITY,
+  flattenStroke,
+  nibWidthAt,
+  traceNib,
+  type NibOptions,
+} from '../geometry/nib.ts'
 import { eraseFromStroke, strokeTouchesCircle } from '../geometry/erase.ts'
 import { intersects } from '../geometry/rect.ts'
 import type { Camera, Point } from '../geometry/camera.ts'
-import { StrokeSampler } from '../input/StrokeSampler.ts'
+import { StrokeSampler, type Tilt } from '../input/StrokeSampler.ts'
 import { createPage, withPoints } from '../model/factory.ts'
 import { newId } from '../model/ids.ts'
 import {
@@ -36,6 +42,7 @@ import {
   type PageSize,
   type PaperKind,
   type StrokeDash,
+  type StrokeInput,
   type StrokeObject,
   type TextObject,
   type TextStyle,
@@ -43,7 +50,7 @@ import {
 import { layoutOf, pageSizeOf, PageLayout } from '../render/layout.ts'
 import { enterPage, renderScene, setDeskColor, type View } from '../render/SceneRenderer.ts'
 import { PAPER_STYLE } from '../render/paper.ts'
-import { paintStroke, setInkStyle, strokeBounds } from '../render/strokes.ts'
+import { inkAlpha, paintStroke, setInkStyle, strokeBounds } from '../render/strokes.ts'
 import { perfectShape, recognizeShape, regionAt, type Shape } from '../geometry/shapes.ts'
 import {
   SMOOTH_RADIUS,
@@ -57,6 +64,7 @@ import { boundsOfPoints } from '../geometry/rect.ts'
 import { drawBroom } from '../render/broomGlyph.ts'
 import { objectBounds, paintObject } from '../render/objects.ts'
 import { onImageLoaded } from '../render/images.ts'
+import { PageCache } from '../render/pageCache.ts'
 import { invalidateTextLayouts, layoutText } from '../render/text.ts'
 import type { EditorContext } from './context.ts'
 import { hitsObject, recolor } from './selection.ts'
@@ -110,8 +118,16 @@ export type PenNib = 'ballpoint' | 'fountain'
 
 export interface EditorState {
   tool: ToolId
-  pen: { color: string; width: number; opacity: number; dash: StrokeDash | null; nib: PenNib }
-  highlighter: { color: string; width: number }
+  pen: {
+    color: string
+    width: number
+    opacity: number
+    dash: StrokeDash | null
+    nib: PenNib
+    /** Fountain pen: how strongly pressure changes the width, from 0 to 1. */
+    sensitivity: number
+  }
+  highlighter: { color: string; width: number; opacity: number }
   broom: { size: number; mode: BroomMode }
   tape: { color: string; width: number }
   laserColor: string
@@ -160,6 +176,10 @@ export interface EditorState {
 }
 
 const HIGHLIGHTER_OPACITY = 0.45
+/** How long the screen must be still before sharp page pictures are made. */
+const CACHE_DELAY_MS = 160
+/** After writing, pictures wait this long, so a pause between words is never spent on them. */
+const CACHE_AFTER_INK_MS = 1500
 /** Space kept free above the first page for the floating toolbar. */
 const TOP_INSET = 84
 const SIDE_MARGIN = 24
@@ -205,6 +225,8 @@ interface InkSession {
   /** Fountain pen only: pressure and line width of each point in `local`, and smoothed widths. */
   nib: boolean
   pressures: number[]
+  /** The pen's altitude in degrees at each point of `local`, where the device reports it. */
+  altitudes: (number | undefined)[]
   rawWidths: number[]
   smoothWidths: number[]
   /** Smoothed points that can no longer change (see smoothedAt). */
@@ -356,6 +378,11 @@ export class Editor {
   private hostRect: DOMRect
   private renderQueued = false
   private paintedByEditor = false
+  /** Pictures of finished pages, for fast panning and zooming (see pageCache.ts). */
+  private readonly pageCache = new PageCache()
+  private cacheTimer: ReturnType<typeof setTimeout> | null = null
+  /** When ink was last finished, so pictures are made in a real pause (performance.now()). */
+  private lastInkAt = -Infinity
   private session: Session | null = null
   private tipDirty: DeviceRect | null = null
 
@@ -391,8 +418,15 @@ export class Editor {
     this.history = history
     this._state = {
       tool: 'pen',
-      pen: { color: '#3e2d25', width: 2, opacity: 1, dash: null, nib: 'ballpoint' },
-      highlighter: { color: '#f2cf4a', width: 14 },
+      pen: {
+        color: '#3e2d25',
+        width: 2,
+        opacity: 1,
+        dash: null,
+        nib: 'ballpoint',
+        sensitivity: DEFAULT_SENSITIVITY,
+      },
+      highlighter: { color: '#f2cf4a', width: 14, opacity: HIGHLIGHTER_OPACITY },
       broom: { size: 16, mode: 'precise' },
       tape: { color: '#d9b48f', width: 22 },
       laserColor: '#e0533f',
@@ -496,6 +530,7 @@ export class Editor {
     if (document.fonts) {
       this.listen(document.fonts as unknown as HTMLElement, 'loadingdone', () => {
         invalidateTextLayouts()
+        this.pageCache.clear()
         this.requestRender()
       })
       for (const family of ['Lora Variable', 'Caveat Variable', 'JetBrains Mono Variable']) {
@@ -527,7 +562,13 @@ export class Editor {
     this.cleanups.push(() => observer.disconnect())
     this.cleanups.push(doc.subscribe(() => this.onDocumentChange()))
     // Pictures load after the first frame; draw again once one is ready.
-    this.cleanups.push(onImageLoaded(() => this.requestRender()))
+    this.cleanups.push(
+      onImageLoaded(() => {
+        // A picture made before an image arrived would miss it.
+        this.pageCache.clear()
+        this.requestRender()
+      }),
+    )
     this.cleanups.push(history.subscribe(() => this.syncHistory()))
     this.resize()
   }
@@ -1401,6 +1442,7 @@ export class Editor {
 
   dispose(): void {
     this.text.finish()
+    if (this.cacheTimer) clearTimeout(this.cacheTimer)
     if (this.noticeTimer) clearTimeout(this.noticeTimer)
     this.cancelLongPress()
     this.cleanups.forEach((fn) => fn())
@@ -1674,7 +1716,7 @@ export class Editor {
     this.renderQueued = true
     requestAnimationFrame(() => {
       this.renderQueued = false
-      renderScene(
+      const stale = renderScene(
         this.scene,
         this.doc.pageList,
         this.doc.notebook.layers,
@@ -1684,8 +1726,43 @@ export class Editor {
         this.hidden,
         this.doc.notebook.background,
         this.layout.focus,
+        this.pageCache,
       )
+      this.scheduleCacheBuild(stale)
     })
+  }
+
+  /**
+   * Once the screen has been still for a moment (no zoom, pan or ink), makes sharp pictures of
+   * the pages that were drawn directly or from a scaled picture, then shows them.
+   */
+  private scheduleCacheBuild(stale: number[], delay = CACHE_DELAY_MS): void {
+    if (this.cacheTimer) clearTimeout(this.cacheTimer)
+    this.cacheTimer = null
+    if (stale.length === 0) return
+    this.cacheTimer = setTimeout(() => {
+      this.cacheTimer = null
+      // Never in the middle of writing, and not right after: the pen must not wait for it.
+      if (this.session || performance.now() - this.lastInkAt < CACHE_AFTER_INK_MS) {
+        this.scheduleCacheBuild(stale, CACHE_AFTER_INK_MS)
+        return
+      }
+      const pages = this.doc.pageList
+      for (const index of stale) {
+        const page = pages[index]
+        if (!page) continue
+        this.pageCache.build(
+          page,
+          index,
+          this.doc.notebook.layers,
+          this.doc.notebook.background,
+          this.camera,
+          this.view.dpr,
+          this.layout,
+        )
+      }
+      this.requestRender()
+    }, delay)
   }
 
   // ---------- Pointer input ----------
@@ -2249,7 +2326,7 @@ export class Editor {
         tool: highlighter ? 'highlighter' : 'pen',
         color: settings.color,
         width: settings.width,
-        opacity: highlighter ? HIGHLIGHTER_OPACITY : this._state.pen.opacity,
+        opacity: highlighter ? this._state.highlighter.opacity : this._state.pen.opacity,
         ...(!highlighter && !fountain && this._state.pen.dash
           ? { dash: this._state.pen.dash }
           : {}),
@@ -2258,6 +2335,7 @@ export class Editor {
       local: [],
       nib: fountain,
       pressures: [],
+      altitudes: [],
       rawWidths: [],
       smoothWidths: [],
       smooth: [],
@@ -2270,9 +2348,9 @@ export class Editor {
     }
     this.session = session
     this.host.setPointerCapture(e.pointerId)
-    // The ink layers show the stroke exactly as it will look once finished.
-    this.inkLayer.style.opacity = String(session.stroke.opacity * layer.opacity)
-    this.inkLayer.style.mixBlendMode = highlighter ? 'multiply' : 'normal'
+    // The ink layers show the stroke exactly as it will look once finished (see inkColor).
+    this.inkLayer.style.opacity = String(inkAlpha(session.stroke) * layer.opacity)
+    this.inkLayer.style.mixBlendMode = highlighter ? 'darken' : 'normal'
 
     this.addInkSample(session, e)
     this.armHold(session)
@@ -2283,19 +2361,42 @@ export class Editor {
 
   private addInkSample(s: InkSession, e: PointerEvent): void {
     const p = this.screenPos(e)
-    if (!s.sampler.add(p.x, p.y, e.timeStamp, this.pressureOf(e))) return
+    if (!s.sampler.add(p.x, p.y, e.timeStamp, this.pressureOf(e), tiltOf(e))) return
     const last = s.sampler.points[s.sampler.points.length - 1]!
     const local = this.toPageLocal(last, s.pageIndex)
     s.local.push(local.x, local.y)
     if (!s.nib) return
     s.pressures.push(last.p)
+    s.altitudes.push(last.tilt ? (last.tilt.altitude * 180) / Math.PI : undefined)
     // The first widths look ahead to the third point (see nibWidthAt); after that they are final.
     const n = s.local.length / 2
     const from = n <= 3 ? 0 : s.rawWidths.length
     s.rawWidths.length = from
     for (let i = from; i < n; i++) {
-      s.rawWidths.push(nibWidthAt(s.local, s.pressures, s.stroke.width, i))
+      s.rawWidths.push(nibWidthAt(s.local, s.pressures, s.stroke.width, i, this.nibOptions(s)))
     }
+  }
+
+  private nibOptions(s: InkSession): NibOptions {
+    return { sensitivity: this._state.pen.sensitivity, altitudes: s.altitudes }
+  }
+
+  /** The stroke's recorded input, one entry per point of `drawnPoints`. */
+  private inputRecord(s: InkSession): StrokeInput {
+    const samples = s.sampler.finalPoints()
+    const t0 = samples[0]?.t ?? 0
+    const device = s.pointerType === 'pen' || s.pointerType === 'touch' ? s.pointerType : 'mouse'
+    const record: StrokeInput = {
+      device,
+      t: samples.map((p) => Math.round(p.t - t0)),
+      p: samples.map((p) => Math.round(p.p * 1000) / 1000),
+    }
+    if (samples.some((p) => p.tilt)) {
+      const deg = (r: number) => Math.round(((r * 180) / Math.PI) * 10) / 10
+      record.altitude = samples.map((p) => (p.tilt ? deg(p.tilt.altitude) : 90))
+      record.azimuth = samples.map((p) => (p.tilt ? deg(p.tilt.azimuth) : 0))
+    }
+    return record
   }
 
   /** Pen pressure from 0 to 1; fingers and mice report none, so they draw at the base width. */
@@ -2441,8 +2542,12 @@ export class Editor {
       prs.push(prs[prs.length - 1] ?? 0.5)
     }
     const widths = s.rawWidths.slice(offset)
+    // Points past the last sample (tip, prediction) lean like the last one did.
+    const tilts = this.nibOptions(s)
+    const lastAltitude = s.altitudes[s.altitudes.length - 1]
+    const options = { ...tilts, altitudes: [...s.altitudes, lastAltitude, lastAltitude] }
     for (let i = n; i < pts.length / 2; i++) {
-      widths.push(nibWidthAt(pts, prs, s.stroke.width, i))
+      widths.push(nibWidthAt(pts, prs, s.stroke.width, i, options))
     }
     const tail = pts.slice(offset * 2)
     const end: number[] = []
@@ -2514,8 +2619,13 @@ export class Editor {
   /** The fountain pen's width at each point of `drawnPoints`. */
   private drawnWidths(s: InkSession): number[] {
     const raw = this.rawPoints(s)
-    const pressures = s.sampler.finalPoints().map((p) => p.p)
-    const widths = pressures.map((_, i) => nibWidthAt(raw, pressures, s.stroke.width, i))
+    const samples = s.sampler.finalPoints()
+    const pressures = samples.map((p) => p.p)
+    const options = {
+      sensitivity: this._state.pen.sensitivity,
+      altitudes: samples.map((p) => (p.tilt ? (p.tilt.altitude * 180) / Math.PI : undefined)),
+    }
+    const widths = pressures.map((_, i) => nibWidthAt(raw, pressures, s.stroke.width, i, options))
     return widths.map((_, i) => smoothedValueAt(widths, i))
   }
 
@@ -2583,8 +2693,8 @@ export class Editor {
       const stroke: StrokeObject = snapped
         ? { ...s.stroke, points, closed: snapped.closed, straight: snapped.straight }
         : s.nib
-          ? { ...s.stroke, points, widths: this.drawnWidths(s) }
-          : { ...s.stroke, points }
+          ? { ...s.stroke, points, widths: this.drawnWidths(s), input: this.inputRecord(s) }
+          : { ...s.stroke, points, input: this.inputRecord(s) }
       // A highlighter stroke over typed text becomes a neat highlight of that text.
       if (stroke.tool === 'highlighter' && this._state.features.smartHighlight) {
         const marked = highlightText(page.objects, stroke, this.doc.notebook.layers)
@@ -2610,6 +2720,9 @@ export class Editor {
       this.history.execute(setPageObjects('Draw', page.id, page.objects, [...page.objects, stroke]))
       this.rememberColor(stroke.color)
       this.paintedByEditor = false
+      this.lastInkAt = performance.now()
+      // The page's picture no longer matches; a new one is made in the next pause.
+      if (onTop) this.scheduleCacheBuild([s.pageIndex], CACHE_AFTER_INK_MS)
       // A line made perfectly straight can still complete a table.
       if (this._state.features.suggestions)
         this.scheduleSuggestion(page.id, stroke, Boolean(snapped))
@@ -3043,7 +3156,7 @@ export class Editor {
           } else next.push(object)
           continue
         }
-        const pieces = eraseFromStroke(object.points, object.widths, cx, cy, reach)
+        const pieces = eraseFromStroke(object.points, object.widths, cx, cy, reach, object.input)
         if (!pieces) {
           next.push(object)
           continue
@@ -3051,7 +3164,7 @@ export class Editor {
         changed = true
         swept = object.color
         for (const piece of pieces) {
-          next.push({ ...withPoints(object, piece.points, piece.widths), id: newId() })
+          next.push({ ...withPoints(object, piece.points, piece.widths, piece.input), id: newId() })
         }
       }
       if (!changed) continue
@@ -3213,4 +3326,22 @@ function objectLabel(o: CanvasObject): string {
   if (o.type === 'image') return 'Picture'
   if (o.type === 'table') return 'Table'
   return 'Chart'
+}
+
+/**
+ * The pen's tilt, where the browser reports it: Safari gives Apple Pencil's altitude and
+ * azimuth; others give tiltX/tiltY, converted here. Fingers and mice have none.
+ */
+function tiltOf(e: PointerEvent): Tilt | undefined {
+  if (e.pointerType !== 'pen') return undefined
+  const angles = e as PointerEvent & { altitudeAngle?: number; azimuthAngle?: number }
+  if (typeof angles.altitudeAngle === 'number' && typeof angles.azimuthAngle === 'number') {
+    // Exactly upright with no direction is what browsers report for pens without tilt.
+    if (angles.altitudeAngle === Math.PI / 2 && angles.azimuthAngle === 0) return undefined
+    return { altitude: angles.altitudeAngle, azimuth: angles.azimuthAngle }
+  }
+  if (!e.tiltX && !e.tiltY) return undefined
+  const tx = Math.tan((e.tiltX * Math.PI) / 180)
+  const ty = Math.tan((e.tiltY * Math.PI) / 180)
+  return { altitude: Math.atan2(1, Math.hypot(tx, ty)), azimuth: Math.atan2(ty, tx) }
 }

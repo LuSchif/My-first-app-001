@@ -161,6 +161,30 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
   hook and two dots) offers a clean clef on the staff line it belongs to
   (`engine/geometry/clefs.ts`). Clean clefs are strokes with thick and thin parts.
 
+## Handwriting engine
+
+The ink pipeline, from pen to storage, each part in its own module:
+
+| Part         | Where                                      | What it does                                                                                                                                                                                                      |
+| ------------ | ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Input        | `Editor` pointer handlers                  | Pointer Events with `getCoalescedEvents()` (every 240 Hz Pencil sample); the pen always wins over touch (palm rejection); fingers pan while a pencil is in use.                                                   |
+| Sampling     | `input/StrokeSampler.ts`                   | Drops late, doubled and sub-pixel samples, spaces equal time stamps, 1€ filter against jitter (strong when slow, none when fast). Keeps time, pressure and tilt per sample.                                       |
+| Smoothing    | `geometry/strokePath.ts`                   | A small kernel over the samples, then a Catmull-Rom curve as cubic Béziers; round caps and joins.                                                                                                                 |
+| Live drawing | `Editor.drawInk`                           | Settled curve segments go once onto the wet canvas; only the unsettled end (to the tip and a short prediction) is redrawn per event. `getPredictedEvents()` (or extrapolation) is drawn only there, never stored. |
+| Storage      | `StrokeObject`                             | Page coordinates in points (zoom never changes them), widths per point for the fountain pen, and `input`: time, pressure, tilt and device per point. Saved by the autosave, one record per page.                  |
+| Rendering    | `render/strokes.ts`, `render/pageCache.ts` | Path2D per stroke, cached for its life; finished pages as pictures, so panning and zooming do not redraw thousands of strokes. Pictures are made in pauses, never while writing.                                  |
+| Erasing      | `geometry/erase.ts`                        | Whole strokes, or precise cuts that keep each remaining piece as its own stroke with its widths and recorded input.                                                                                               |
+| Undo         | `commands/`                                | Every change (draw, erase, move, recolor, …) is a command; a broom sweep is one step.                                                                                                                             |
+
+- Pens: the ballpoint draws one width; the fountain pen's width follows pressure (adjustable
+  sensitivity, off to strong), direction (an angled nib) and, where Safari reports it, tilt.
+  Without pressure (finger, mouse) it keeps the base width.
+- The highlighter's opacity is adjustable. It is painted opaque in its color faded by that
+  opacity with the darken blend, so marks of one color overlapping stay one tint and text under
+  it stays dark.
+- Browsers give no direct access to Apple Pencil's hover distance, barrel roll or squeeze;
+  tilt comes as altitude/azimuth (Safari) or tiltX/tiltY, and is left out where not reported.
+
 ## Pens and tools
 
 - The fountain pen stores a width per point (`StrokeObject.widths`): wide across the nib's

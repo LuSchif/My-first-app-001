@@ -4,6 +4,7 @@ import type { LayerDef, Page } from '../model/types.ts'
 import type { PageLayout } from './layout.ts'
 import { drawPaper, PAPER_STYLE } from './paper.ts'
 import { paintLayers } from './layers.ts'
+import type { PageCache } from './pageCache.ts'
 
 export const DESK_COLOR = '#ede4d8'
 let deskColor = DESK_COLOR
@@ -50,7 +51,11 @@ export function visibleWorld(camera: Camera, view: View): Rect {
   }
 }
 
-/** Draws the desk, every visible page with its paper, and the objects of all visible layers. */
+/**
+ * Draws the desk, every visible page with its paper, and the objects of all visible layers. With
+ * a `cache`, pages are drawn from their pictures where possible (see pageCache.ts); the result
+ * lists the pages whose picture should be made or made sharp once the screen settles.
+ */
 export function renderScene(
   ctx: CanvasRenderingContext2D,
   pages: readonly Page[],
@@ -64,7 +69,9 @@ export function renderScene(
   background?: string,
   /** Draw only this page (a presentation shows one slide at a time). */
   only: number | null = null,
-): void {
+  cache?: PageCache,
+): number[] {
+  const stale: number[] = []
   const { dpr } = view
   ctx.setTransform(1, 0, 0, 1, 0, 0)
   ctx.fillStyle = deskColor
@@ -87,6 +94,14 @@ export function renderScene(
     ctx.fillRect(o.x, o.y, width, height)
     ctx.restore()
 
+    // Objects drawn elsewhere right now (being moved, typed) must not show twice.
+    const hiding = hidden.size > 0 && page.objects.some((obj) => hidden.has(obj.id))
+    if (cache && !hiding) {
+      const drawn = cache.draw(ctx, page, index, layers, background, camera, dpr, layout)
+      if (drawn !== 'sharp') stale.push(index)
+      if (drawn !== 'none') return
+    }
+
     ctx.save()
     enterPage(ctx, camera, dpr, index, layout)
     drawPaper(ctx, page.paper, camera.zoom, layout.size)
@@ -99,4 +114,5 @@ export function renderScene(
     paintLayers(ctx, page.objects, layers, local, hidden)
     ctx.restore()
   })
+  return stale
 }

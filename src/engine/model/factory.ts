@@ -9,6 +9,7 @@ import {
   type PageSize,
   type Page,
   type PaperKind,
+  type StrokeInput,
   type StrokeObject,
 } from './types.ts'
 
@@ -79,12 +80,16 @@ export function createNotebook(options: {
   return { notebook, pages: [page] }
 }
 
-/** The same stroke along new points; a vector path no longer matches them and is dropped. */
+/**
+ * The same stroke along new points; a vector path and per-point values no longer match them
+ * and are dropped, unless new ones are given.
+ */
 export function withPoints(
   stroke: StrokeObject,
   points: number[],
   widths?: number[],
+  input?: StrokeInput,
 ): StrokeObject {
-  const { path: _path, widths: _widths, ...rest } = stroke
-  return widths ? { ...rest, points, widths } : { ...rest, points }
+  const { path: _path, widths: _widths, input: _input, ...rest } = stroke
+  return { ...rest, points, ...(widths ? { widths } : {}), ...(input ? { input } : {}) }
 }

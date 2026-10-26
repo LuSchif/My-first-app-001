@@ -1,7 +1,10 @@
+import type { StrokeInput } from '../model/types.ts'
+
 /**
  * Precise erasing: cuts the parts of a stroke that lie under the broom and returns the pieces
- * that remain. Long segments are subdivided first, so a broom passing between two distant
- * samples still cuts the line.
+ * that remain, each a stroke of its own. Long segments are subdivided first, so a broom passing
+ * between two distant samples still cuts the line. Every per-point value of the stroke (line
+ * width, time, pressure, tilt) is carried into the pieces, interpolated where points are added.
  */
 export function eraseFromPoints(
   points: readonly number[],
@@ -16,21 +19,67 @@ export interface StrokePiece {
   points: number[]
   /** The line width at each point, for strokes that have one. */
   widths?: number[]
+  /** The recorded input of each remaining point, for strokes that have it. */
+  input?: StrokeInput
 }
 
-/** Like `eraseFromPoints`, keeping each remaining point's line width. */
+/** Per-point values travelling with the points: name and values. */
+type Channels = [string, readonly number[]][]
+
+function channelsOf(widths?: readonly number[], input?: StrokeInput): Channels {
+  const out: Channels = []
+  if (widths) out.push(['widths', widths])
+  if (input) {
+    out.push(['t', input.t], ['p', input.p])
+    if (input.altitude) out.push(['altitude', input.altitude])
+    if (input.azimuth) out.push(['azimuth', input.azimuth])
+  }
+  return out
+}
+
+function pieceOf(points: number[], values: Map<string, number[]>, input?: StrokeInput) {
+  const piece: StrokePiece = { points }
+  const widths = values.get('widths')
+  if (widths) piece.widths = widths
+  if (input) {
+    const t = values.get('t')!
+    // Each piece keeps its own clock, starting at its first point.
+    const t0 = t[0] ?? 0
+    piece.input = {
+      device: input.device,
+      t: t.map((v) => Math.round(v - t0)),
+      p: values.get('p')!,
+      ...(values.has('altitude') ? { altitude: values.get('altitude')! } : {}),
+      ...(values.has('azimuth') ? { azimuth: values.get('azimuth')! } : {}),
+    }
+  }
+  return piece
+}
+
+/** Like `eraseFromPoints`, keeping each remaining point's line width and recorded input. */
 export function eraseFromStroke(
   points: readonly number[],
   widths: readonly number[] | undefined,
   cx: number,
   cy: number,
   radius: number,
+  input?: StrokeInput,
 ): StrokePiece[] | null {
-  const dense = subdivide(points, widths, Math.max(radius / 2, 0.5))
+  // Input that does not match the points (an older edit) is left behind rather than misplaced.
+  const n = points.length / 2
+  const recorded = input && input.t.length === n && input.p.length === n ? input : undefined
+  const channels = channelsOf(widths?.length === n ? widths : undefined, recorded)
+  const dense = subdivide(points, channels, Math.max(radius / 2, 0.5))
   const r2 = radius * radius
   let hit = false
   const pieces: StrokePiece[] = []
-  let current: StrokePiece = widths ? { points: [], widths: [] } : { points: [] }
+  let current: number[] = []
+  let values = new Map<string, number[]>(channels.map(([k]) => [k, []]))
+  const close = () => {
+    if (current.length > 0) pieces.push(pieceOf(current, values, recorded))
+    current = []
+    values = new Map(channels.map(([k]) => [k, []]))
+  }
   for (let i = 0; i < dense.points.length / 2; i++) {
     const x = dense.points[i * 2]!
     const y = dense.points[i * 2 + 1]!
@@ -38,15 +87,14 @@ export function eraseFromStroke(
     const dy = y - cy
     if (dx * dx + dy * dy <= r2) {
       hit = true
-      if (current.points.length > 0) pieces.push(current)
-      current = widths ? { points: [], widths: [] } : { points: [] }
+      close()
     } else {
-      current.points.push(x, y)
-      current.widths?.push(dense.widths[i]!)
+      current.push(x, y)
+      for (const [k, list] of dense.values) values.get(k)!.push(list[i]!)
     }
   }
   if (!hit) return null
-  if (current.points.length > 0) pieces.push(current)
+  close()
   // A lone leftover sample would show as a dot; drop it.
   return pieces.filter((p) => p.points.length >= 4)
 }
@@ -89,31 +137,33 @@ export function distanceToSegment(
   return Math.hypot(px - (ax + t * dx), py - (ay + t * dy))
 }
 
+/** Adds points along segments longer than `maxStep`, interpolating every per-point value. */
 function subdivide(
   points: readonly number[],
-  widths: readonly number[] | undefined,
+  channels: Channels,
   maxStep: number,
-): { points: number[]; widths: number[] } {
+): { points: number[]; values: Map<string, number[]> } {
   const out: number[] = []
-  const outW: number[] = []
+  const values = new Map<string, number[]>(channels.map(([k]) => [k, []]))
   const n = points.length / 2
   for (let i = 0; i < n; i++) {
     const x = points[i * 2]!
     const y = points[i * 2 + 1]!
-    const w = widths?.[i] ?? 0
     if (i > 0) {
       const px = points[i * 2 - 2]!
       const py = points[i * 2 - 1]!
-      const pw = widths?.[i - 1] ?? 0
       const steps = Math.floor(Math.hypot(x - px, y - py) / maxStep)
       for (let s = 1; s <= steps; s++) {
         const t = s / (steps + 1)
         out.push(px + (x - px) * t, py + (y - py) * t)
-        outW.push(pw + (w - pw) * t)
+        for (const [k, list] of channels) {
+          const a = list[i - 1]!
+          values.get(k)!.push(a + (list[i]! - a) * t)
+        }
       }
     }
     out.push(x, y)
-    outW.push(w)
+    for (const [k, list] of channels) values.get(k)!.push(list[i]!)
   }
-  return { points: out, widths: outW }
+  return { points: out, values }
 }
