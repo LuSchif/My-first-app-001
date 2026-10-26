@@ -10,37 +10,39 @@ describe('StrokeSampler', () => {
     expect(s.filtered).toBe(1)
   })
 
-  it('keeps every sample when many share one time stamp', () => {
+  it('keeps every sample when many share one time stamp, spaced in time', () => {
     const s = new StrokeSampler()
     for (let i = 0; i < 20; i++) s.add(i * 5, 0, 100)
-    // The smoothing may merge the very first samples, but none is rejected as late.
-    expect(s.points.length).toBeGreaterThan(15)
-    expect(s.points.at(-1)!.x).toBeGreaterThan(80)
+    expect(s.points).toHaveLength(20)
+    const times = s.points.map((p) => p.t)
+    expect(new Set(times).size).toBe(20)
   })
 
-  it('ignores sub-pixel jitter and tiny reversals', () => {
+  it('takes positions exactly as given, with no lag behind the pen', () => {
     const s = new StrokeSampler()
-    // Samples a second apart let the smoothing settle, so positions are taken as given.
     s.add(0, 0, 0)
-    s.add(10, 0, 1000)
-    s.add(20, 0, 2000)
-    expect(s.add(20.2, 0, 3000)).toBe(false) // under a pixel
-    expect(s.add(18, 0, 4000)).toBe(false) // 2 px backwards
-    expect(s.add(30, 0, 5000)).toBe(true)
+    s.add(3, 1, 4)
+    s.add(7, 4, 8)
+    expect(s.points.map((p) => [p.x, p.y])).toEqual([
+      [0, 0],
+      [3, 1],
+      [7, 4],
+    ])
+  })
+
+  it('ignores sub-pixel steps but keeps small turns of tiny letters', () => {
+    const s = new StrokeSampler()
+    s.add(10, 10, 0)
+    expect(s.add(10.2, 10, 4)).toBe(false)
+    expect(s.add(12, 10, 8)).toBe(true)
+    expect(s.add(11, 10.6, 12)).toBe(true) // a 1 px turn back is real handwriting
   })
 
   it('ends the stroke at the pen tip', () => {
     const s = new StrokeSampler()
-    for (let i = 0; i <= 10; i++) s.add(i * 20, 0, i * 4)
-    const end = s.finalPoints().at(-1)!
-    expect(end.x).toBe(200)
-  })
-
-  it('predicts ahead in the direction of travel', () => {
-    const s = new StrokeSampler()
-    for (let i = 0; i <= 10; i++) s.add(i * 4, 0, i * 4) // 1 px per ms to the right
-    const p = s.predict(10)!
-    expect(p.x).toBeGreaterThan(40)
-    expect(p.y).toBeCloseTo(0)
+    s.add(0, 0, 0)
+    s.add(10, 0, 4)
+    s.add(10.3, 0, 8) // too close to keep as a point, but it is where the pen lifted
+    expect(s.finalPoints().at(-1)!.x).toBe(10.3)
   })
 })

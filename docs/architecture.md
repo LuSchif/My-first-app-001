@@ -176,6 +176,9 @@ The ink pipeline, from pen to storage, each part in its own module:
 | Erasing      | `geometry/erase.ts`                        | Whole strokes, or precise cuts that keep each remaining piece as its own stroke with its widths and recorded input.                                                                                               |
 | Undo         | `commands/`                                | Every change (draw, erase, move, recolor, …) is a command; a broom sweep is one step.                                                                                                                             |
 
+- Earlier versions smoothed ink three times (a 1€ filter, a seven-sample kernel, a long
+  prediction): the line lagged behind the pencil and kept changing near the tip. Strokes saved
+  then keep their smoothed points and look as they did.
 - Pens: the ballpoint draws one width; the fountain pen's width follows pressure (adjustable
   sensitivity, off to strong), direction (an angled nib) and, where Safari reports it, tilt.
   Without pressure (finger, mouse) it keeps the base width.

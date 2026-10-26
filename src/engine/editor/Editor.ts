@@ -52,14 +52,7 @@ import { enterPage, renderScene, setDeskColor, type View } from '../render/Scene
 import { PAPER_STYLE } from '../render/paper.ts'
 import { inkAlpha, paintStroke, setInkStyle, strokeBounds } from '../render/strokes.ts'
 import { perfectShape, recognizeShape, regionAt, type Shape } from '../geometry/shapes.ts'
-import {
-  SMOOTH_RADIUS,
-  smoothedAt,
-  smoothedValueAt,
-  smoothPoints,
-  traceSegments,
-  traceStroke,
-} from '../geometry/strokePath.ts'
+import { traceSegments, traceStroke } from '../geometry/strokePath.ts'
 import { boundsOfPoints } from '../geometry/rect.ts'
 import { drawBroom } from '../render/broomGlyph.ts'
 import { objectBounds, paintObject } from '../render/objects.ts'
@@ -178,6 +171,10 @@ export interface EditorState {
 const HIGHLIGHTER_OPACITY = 0.45
 /** How long the screen must be still before sharp page pictures are made. */
 const CACHE_DELAY_MS = 160
+/** How far ahead of the pen (px) a predicted point may be drawn. */
+const PREDICT_MAX_PX = 6
+/** How quickly the fountain pen's width follows pressure and direction (0 to 1, per point). */
+const WIDTH_EASE = 0.35
 /** After writing, pictures wait this long, so a pause between words is never spent on them. */
 const CACHE_AFTER_INK_MS = 1500
 /** Space kept free above the first page for the floating toolbar. */
@@ -228,9 +225,8 @@ interface InkSession {
   /** The pen's altitude in degrees at each point of `local`, where the device reports it. */
   altitudes: (number | undefined)[]
   rawWidths: number[]
-  smoothWidths: number[]
-  /** Smoothed points that can no longer change (see smoothedAt). */
-  smooth: number[]
+  /** The width drawn at each point: `rawWidths` eased, never changing once set. */
+  widths: number[]
   /** Curve segments already drawn on the wet layer. */
   drawnSegments: number
   wetDirty: DeviceRect | null
@@ -405,8 +401,6 @@ export class Editor {
   private momentum: { vx: number; vy: number; last: number } | null = null
   private velocity: { vx: number; vy: number; t: number } = { vx: 0, vy: 0, t: 0 }
   private mousePan: { id: number; x: number; y: number } | null = null
-  private frameIntervals: number[] = []
-  private lastFrameAt = 0
 
   private _state: EditorState
   private readonly listeners = new Set<() => void>()
@@ -2337,8 +2331,7 @@ export class Editor {
       pressures: [],
       altitudes: [],
       rawWidths: [],
-      smoothWidths: [],
-      smooth: [],
+      widths: [],
       drawnSegments: 0,
       wetDirty: null,
       predicted: null,
@@ -2355,8 +2348,6 @@ export class Editor {
     this.addInkSample(session, e)
     this.armHold(session)
     this.drawInk(session)
-    this.lastFrameAt = 0
-    requestAnimationFrame((t) => this.trackFrames(t))
   }
 
   private addInkSample(s: InkSession, e: PointerEvent): void {
@@ -2372,8 +2363,10 @@ export class Editor {
     const n = s.local.length / 2
     const from = n <= 3 ? 0 : s.rawWidths.length
     s.rawWidths.length = from
+    s.widths.length = from
     for (let i = from; i < n; i++) {
       s.rawWidths.push(nibWidthAt(s.local, s.pressures, s.stroke.width, i, this.nibOptions(s)))
+      s.widths.push(easeWidth(s.widths[i - 1], s.rawWidths[i]!))
     }
   }
 
@@ -2420,97 +2413,95 @@ export class Editor {
     }
     const coalesced = e.getCoalescedEvents?.() ?? []
     for (const ev of coalesced.length ? coalesced : [e]) this.addInkSample(s, ev)
-    const predicted = e.getPredictedEvents?.()[0]
-    s.predicted = predicted ? this.toPageLocal(this.screenPos(predicted), s.pageIndex) : null
+    s.predicted = this.predictedPoint(s, e)
     this.drawInk(s)
   }
 
-  /** Draws the stroke in progress inside the input event, so new samples reach the next frame. */
+  /**
+   * Draws the stroke in progress inside the input event, so new samples reach the next frame.
+   * The line goes straight through the pen's samples (a Catmull-Rom curve between them, no
+   * filter that trails behind): what is drawn stays exactly where it is. Segment i, from point i
+   * to point i + 1, is final once point i + 2 exists; final segments go once onto the wet layer,
+   * and only the last bit, out to the pen tip, is redrawn per event.
+   */
   private drawInk(s: InkSession): void {
     if (s.nib) {
       this.drawNibInk(s)
       return
     }
-    const raw = s.local
-    const n = raw.length / 2
+    const pts = s.local
+    const n = pts.length / 2
     const { dpr } = this.view
-
-    // A smoothed point is final once the raw points it averages over all exist.
-    while (s.smooth.length / 2 <= n - 1 - SMOOTH_RADIUS) {
-      s.smooth.push(...smoothedAt(raw, s.smooth.length / 2))
-    }
-    // A curve segment is final once the two smoothed points after its start are final.
-    const settled = s.smooth.length / 2 - 2
+    const settled = Math.max(0, n - 2)
     // A dash pattern restarts with every path, so dashed ink is drawn whole on the tip layer.
     const dashed = Boolean(s.stroke.dash)
     if (dashed && settled > s.drawnSegments) s.drawnSegments = settled
     if (!dashed && settled > s.drawnSegments) {
       const from = s.drawnSegments
       const path = new Path2D()
-      path.moveTo(s.smooth[from * 2]!, s.smooth[from * 2 + 1]!)
-      traceSegments(path, s.smooth, from, settled)
+      path.moveTo(pts[from * 2]!, pts[from * 2 + 1]!)
+      traceSegments(path, pts, from, settled)
       this.wet.save()
       enterPage(this.wet, this.camera, dpr, s.pageIndex, this.layout)
       setInkStyle(this.wet, s.stroke)
       this.wet.stroke(path)
       this.wet.restore()
-      const covered = s.smooth.slice(Math.max(0, from - 1) * 2, (settled + 2) * 2)
+      const covered = pts.slice(Math.max(0, from - 1) * 2, (settled + 2) * 2)
       s.wetDirty = unionDevice(s.wetDirty, this.deviceRect(covered, s.pageIndex, s.stroke.width))
       s.drawnSegments = settled
     }
 
-    // Unsettled end: on to the latest point, the pen tip, and a little beyond it. Only the tail is
-    // copied, starting far enough back for the smoothing kernel, so work per event stays small.
+    // The open end: from the last final point through the newest ones to the pen tip.
     const start = Math.max(0, s.drawnSegments - 1)
-    const offset = Math.max(0, start - SMOOTH_RADIUS)
-    const tail = raw.slice(offset * 2)
-    if (s.sampler.tip) {
-      const t = this.toPageLocal(s.sampler.tip, s.pageIndex)
-      tail.push(t.x, t.y)
-    }
-    const ahead = s.predicted ?? this.predictLocal(s)
-    if (ahead) tail.push(ahead.x, ahead.y)
-    const end: number[] = []
-    for (let i = start - offset; i < tail.length / 2; i++) end.push(...smoothedAt(tail, i))
-
+    const tail = this.inkTail(s, pts.slice(start * 2))
+    const first = s.drawnSegments - start
     this.clearTip()
     this.tip.save()
     enterPage(this.tip, this.camera, dpr, s.pageIndex, this.layout)
     setInkStyle(this.tip, s.stroke)
     const path = new Path2D()
-    const first = s.drawnSegments - start
     if (dashed && s.drawnSegments > 0) {
-      path.moveTo(s.smooth[0]!, s.smooth[1]!)
-      traceSegments(path, s.smooth, 0, s.drawnSegments)
+      path.moveTo(pts[0]!, pts[1]!)
+      traceSegments(path, pts, 0, s.drawnSegments)
     } else {
-      path.moveTo(end[first * 2]!, end[first * 2 + 1]!)
+      path.moveTo(tail[first * 2]!, tail[first * 2 + 1]!)
     }
-    if (end.length / 2 - 1 > first) traceSegments(path, end, first, end.length / 2 - 1)
-    else path.lineTo(end[first * 2]! + 0.001, end[first * 2 + 1]!)
+    if (tail.length / 2 - 1 > first) traceSegments(path, tail, first, tail.length / 2 - 1)
+    else path.lineTo(tail[first * 2]! + 0.001, tail[first * 2 + 1]!)
     this.tip.stroke(path)
     this.tip.restore()
     this.tipDirty = dashed
       ? { x: 0, y: 0, w: this.view.width * dpr, h: this.view.height * dpr }
-      : this.deviceRect(end, s.pageIndex, s.stroke.width)
+      : this.deviceRect(tail, s.pageIndex, s.stroke.width)
   }
 
   /**
-   * `drawInk` for the fountain pen: the same settled and unsettled parts, filled as a line whose
-   * width changes along the way.
+   * `points` (page coordinates) followed by the pen tip when it is not a point yet, and the
+   * browser's predicted next position: drawn for this frame only, never kept.
+   */
+  private inkTail(s: InkSession, points: number[]): number[] {
+    const tip = s.sampler.tip
+    const last = s.sampler.points[s.sampler.points.length - 1]
+    if (tip && tip !== last) {
+      const t = this.toPageLocal(tip, s.pageIndex)
+      points.push(t.x, t.y)
+    }
+    if (s.predicted) points.push(s.predicted.x, s.predicted.y)
+    return points
+  }
+
+  /**
+   * `drawInk` for the fountain pen: the same final and open parts, filled as a line whose width
+   * changes along the way.
    */
   private drawNibInk(s: InkSession): void {
-    const raw = s.local
-    const n = raw.length / 2
+    const pts = s.local
+    const n = pts.length / 2
     const { dpr } = this.view
-    while (s.smooth.length / 2 <= n - 1 - SMOOTH_RADIUS) {
-      const i = s.smooth.length / 2
-      s.smooth.push(...smoothedAt(raw, i))
-      s.smoothWidths.push(smoothedValueAt(s.rawWidths, i))
-    }
-    const settled = s.smooth.length / 2 - 2
+    const settled = Math.max(0, n - 2)
     if (settled > s.drawnSegments) {
       const from = s.drawnSegments
-      const flat = flattenStroke(s.smooth, s.smoothWidths, from, settled)
+      const flat = flattenStroke(pts, s.widths, from, settled)
       const path = new Path2D()
       traceNib(path, flat)
       this.wet.save()
@@ -2524,40 +2515,14 @@ export class Editor {
       )
       s.drawnSegments = settled
     }
-
-    // The unsettled end, through the pen tip and a little beyond, with widths for both.
     const start = Math.max(0, s.drawnSegments - 1)
-    const offset = Math.max(0, start - SMOOTH_RADIUS)
-    const pts = raw.slice()
-    const prs = s.pressures.slice()
-    const tip = s.sampler.tip
-    if (tip) {
-      const t = this.toPageLocal(tip, s.pageIndex)
-      pts.push(t.x, t.y)
-      prs.push(tip.p)
-    }
-    const ahead = s.predicted ?? this.predictLocal(s)
-    if (ahead) {
-      pts.push(ahead.x, ahead.y)
-      prs.push(prs[prs.length - 1] ?? 0.5)
-    }
-    const widths = s.rawWidths.slice(offset)
-    // Points past the last sample (tip, prediction) lean like the last one did.
-    const tilts = this.nibOptions(s)
-    const lastAltitude = s.altitudes[s.altitudes.length - 1]
-    const options = { ...tilts, altitudes: [...s.altitudes, lastAltitude, lastAltitude] }
-    for (let i = n; i < pts.length / 2; i++) {
-      widths.push(nibWidthAt(pts, prs, s.stroke.width, i, options))
-    }
-    const tail = pts.slice(offset * 2)
-    const end: number[] = []
-    const endWidths: number[] = []
-    for (let i = start - offset; i < tail.length / 2; i++) {
-      end.push(...smoothedAt(tail, i))
-      endWidths.push(smoothedValueAt(widths, i))
-    }
+    const tail = this.inkTail(s, pts.slice(start * 2))
+    // The tip and the prediction keep the newest width.
+    const widths = s.widths.slice(start)
+    const lastWidth = widths[widths.length - 1] ?? s.stroke.width
+    while (widths.length < tail.length / 2) widths.push(lastWidth)
     const first = s.drawnSegments - start
-    const flat = flattenStroke(end, endWidths, first, Math.max(first, end.length / 2 - 1))
+    const flat = flattenStroke(tail, widths, first, Math.max(first, tail.length / 2 - 1))
     this.clearTip()
     this.tip.save()
     enterPage(this.tip, this.camera, dpr, s.pageIndex, this.layout)
@@ -2569,24 +2534,23 @@ export class Editor {
     this.tipDirty = this.deviceRect(flat3to2(flat), s.pageIndex, widest(flat))
   }
 
-  private predictLocal(s: InkSession): Point | null {
-    const p = s.sampler.predict(this.frameInterval())
-    return p ? this.toPageLocal(p, s.pageIndex) : null
-  }
-
-  private trackFrames(now: number): void {
-    if (!this.session) return
-    if (this.lastFrameAt && now - this.lastFrameAt < 50) {
-      this.frameIntervals.push(now - this.lastFrameAt)
-      if (this.frameIntervals.length > 60) this.frameIntervals.shift()
-    }
-    this.lastFrameAt = now
-    requestAnimationFrame((t) => this.trackFrames(t))
-  }
-
-  private frameInterval(): number {
-    const iv = this.frameIntervals
-    return iv.length < 5 ? 1000 / 60 : iv.reduce((a, b) => a + b, 0) / iv.length
+  /**
+   * Where the browser expects the pen next (Chrome reports it; Safari does not), only a short way
+   * ahead: a long guess overshoots turns and has to be taken back, which looks like the line
+   * correcting itself. Never part of the stroke.
+   */
+  private predictedPoint(s: InkSession, e: PointerEvent): Point | null {
+    const predicted = e.getPredictedEvents?.()[0]
+    const tip = s.sampler.tip
+    if (!predicted || !tip) return null
+    const p = this.screenPos(predicted)
+    const d = Math.hypot(p.x - tip.x, p.y - tip.y)
+    if (d < 0.5) return null
+    const k = Math.min(1, PREDICT_MAX_PX / d)
+    return this.toPageLocal(
+      { x: tip.x + (p.x - tip.x) * k, y: tip.y + (p.y - tip.y) * k },
+      s.pageIndex,
+    )
   }
 
   /** Restarts the wait for the pen to rest; resting long enough draws the perfect shape. */
@@ -2603,8 +2567,9 @@ export class Editor {
     return (b.maxX - b.minX) * zoom < TAP_SLOP_PX && (b.maxY - b.minY) * zoom < TAP_SLOP_PX
   }
 
+  /** The finished stroke's points: exactly the ones drawn live, ending at the pen tip. */
   private drawnPoints(s: InkSession): number[] {
-    return smoothPoints(this.rawPoints(s))
+    return this.rawPoints(s)
   }
 
   private rawPoints(s: InkSession): number[] {
@@ -2625,8 +2590,11 @@ export class Editor {
       sensitivity: this._state.pen.sensitivity,
       altitudes: samples.map((p) => (p.tilt ? (p.tilt.altitude * 180) / Math.PI : undefined)),
     }
-    const widths = pressures.map((_, i) => nibWidthAt(raw, pressures, s.stroke.width, i, options))
-    return widths.map((_, i) => smoothedValueAt(widths, i))
+    const widths: number[] = []
+    for (let i = 0; i < pressures.length; i++) {
+      widths.push(easeWidth(widths[i - 1], nibWidthAt(raw, pressures, s.stroke.width, i, options)))
+    }
+    return widths
   }
 
   /**
@@ -3344,4 +3312,9 @@ function tiltOf(e: PointerEvent): Tilt | undefined {
   const tx = Math.tan((e.tiltX * Math.PI) / 180)
   const ty = Math.tan((e.tiltY * Math.PI) / 180)
   return { altitude: Math.atan2(1, Math.hypot(tx, ty)), azimuth: Math.atan2(ty, tx) }
+}
+
+/** The fountain pen's next width, eased from the previous one so it swells and thins smoothly. */
+function easeWidth(previous: number | undefined, target: number): number {
+  return previous === undefined ? target : previous + (target - previous) * WIDTH_EASE
 }
