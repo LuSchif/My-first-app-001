@@ -161,11 +161,15 @@ export function FloatingPanel({
     const middleY = Math.max(CORNER_ROW, (CORNER_ROW + bottom - height) / 2)
     switch (placement.dock) {
       case 'top': {
-        // Below the corner groups when it would not fit between them.
-        const left = (vw - width) / 2
+        // In the top row, between the corner groups: centered when there is room, else moved
+        // along to where it fits; below them only when the row is too narrow.
         const corners = topCorners()
-        const fits =
-          left >= corners.left + EDGE + GAP && left + width <= vw - corners.right - EDGE - GAP
+        const from = corners.left + EDGE + GAP
+        const to = vw - corners.right - EDGE - GAP
+        const fits = to - from >= width
+        const left = fits
+          ? Math.min(to - width, Math.max(from, (vw - width) / 2))
+          : (vw - width) / 2
         return { left, top: (fits ? 10 : CORNER_ROW) + offset }
       }
       case 'bottom':

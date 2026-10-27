@@ -1,4 +1,4 @@
-import { Camera, ChartColumn, ImagePlus, Table2 } from 'lucide-react'
+import { Camera, ChartColumn, ImagePlus, Plus, Table2 } from 'lucide-react'
 import { useRef, useState } from 'react'
 import type { Editor } from '../../engine/editor/Editor.ts'
 import { CHART_KINDS, createChart } from '../../engine/model/chart.ts'
@@ -9,6 +9,7 @@ import {
   Button,
   IconButton,
   Popover,
+  PopoverClose,
   PopoverContent,
   PopoverTrigger,
   Switch,
@@ -55,16 +56,32 @@ export function InsertTools({ editor, notebookId }: { editor: Editor; notebookId
           <ChartChoice editor={editor} />
         </PopoverContent>
       </Popover>
-      <IconButton
-        label="Picture from photos"
-        icon={<ImagePlus {...ICON} />}
-        onClick={() => library.current?.click()}
-      />
-      <IconButton
-        label="Take a photo"
-        icon={<Camera {...ICON} />}
-        onClick={() => camera.current?.click()}
-      />
+      {/* Pictures: one + that opens the choice of a photo or the camera. */}
+      <Popover>
+        <PopoverTrigger asChild>
+          <IconButton label="Add a picture" icon={<Plus {...ICON} />} />
+        </PopoverTrigger>
+        <PopoverContent movable="insert-picture" className="grid w-60 gap-0.5 p-1.5">
+          <PopoverClose asChild>
+            <button
+              type="button"
+              className="flex h-11 items-center gap-2.5 rounded-control px-3 text-left text-sm font-semibold hover:bg-hover"
+              onClick={() => library.current?.click()}
+            >
+              <ImagePlus size={18} /> Photo from library
+            </button>
+          </PopoverClose>
+          <PopoverClose asChild>
+            <button
+              type="button"
+              className="flex h-11 items-center gap-2.5 rounded-control px-3 text-left text-sm font-semibold hover:bg-hover"
+              onClick={() => camera.current?.click()}
+            >
+              <Camera size={18} /> Take a photo
+            </button>
+          </PopoverClose>
+        </PopoverContent>
+      </Popover>
       {error ? (
         <span role="alert" className="px-2 text-xs font-semibold text-danger">
           {error}

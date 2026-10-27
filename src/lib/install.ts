@@ -25,12 +25,8 @@ export function isUpdateReady(): boolean {
   return updateReady
 }
 
-/** How long after starting a new version is loaded without asking. */
-const STARTUP_MS = 10_000
-
 /** Whether reloading now would interrupt nothing the user is doing. */
 function calmMoment(): boolean {
-  if (performance.now() < STARTUP_MS) return true
   const home = window.location.hash === '' || window.location.hash === '#/'
   return home && !document.querySelector('[role="dialog"]')
 }
@@ -42,7 +38,7 @@ function calmMoment(): boolean {
  * An installed app on iPad is rarely started fresh: it comes back from the background with the
  * version it had. So it looks for a new version whenever it comes back (and every half hour),
  * and once one is installed, takes it at once when that interrupts nothing (in the background,
- * while starting, on the home screen); otherwise it says so and waits for a tap.
+ * on the home screen); otherwise it says so and waits for a tap.
  */
 export function registerServiceWorker(): void {
   // The App Store app carries its files itself and updates through the App Store.
@@ -51,8 +47,8 @@ export function registerServiceWorker(): void {
   navigator.serviceWorker.addEventListener('controllerchange', () => {
     // The first install takes control of a page that is already current.
     if (!hadController) return
-    // Nothing is lost by reloading in the background, right after starting (the opening still
-    // plays) or on the home screen with no dialog open: notebooks save as they are written.
+    // Nothing is lost by reloading in the background, or on the home screen with no dialog
+    // open: notebooks save as they are written.
     if (document.visibilityState === 'hidden' || calmMoment()) {
       window.location.reload()
       return

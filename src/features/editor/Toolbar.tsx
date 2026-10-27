@@ -8,7 +8,6 @@ import {
   Highlighter,
   Lasso,
   Layers,
-  LoaderCircle,
   LayoutGrid,
   Lock,
   Bandage,
@@ -31,6 +30,7 @@ import { dashPattern } from '../../engine/render/strokes.ts'
 import { cn } from '../../lib/cn.ts'
 import {
   BroomIcon,
+  FountainPenIcon,
   LaserBroomIcon,
   ColorPicker,
   ColorSwatch,
@@ -48,7 +48,6 @@ import type { NotebookDocument } from '../../engine/document/NotebookDocument.ts
 import { FloatingPanel, PanelDivider } from './FloatingPanel.tsx'
 import { setTopCorners } from './panelLayout.ts'
 import { InsertTools } from './InsertMenu.tsx'
-import { useExpanded } from './useExpanded.ts'
 import { PagesOverview } from './PagesOverview.tsx'
 import { LayersPanel } from './LayersPanel.tsx'
 import { RecentColors } from './RecentColors.tsx'
@@ -107,7 +106,8 @@ export function Toolbar({
       ? `${Math.floor(state.pageIndex / 2) + 1}${state.pageIndex % 2 ? 'B' : 'F'}`
       : `${state.pageIndex + 1}/${state.pageCount}`
   const activeLayer = state.layers.find((l) => l.id === state.activeLayerId)
-  const [expanded, setExpanded] = useExpanded('broomit.toolbarExpanded')
+  // Always starts with the main tools only; "More tools" opens the rest.
+  const [expanded, setExpanded] = useState(false)
   const leftCorner = useRef<HTMLDivElement>(null)
   const rightCorner = useRef<HTMLDivElement>(null)
 
@@ -186,8 +186,9 @@ export function Toolbar({
           )}
           {toolButton(
             'pen',
-            'Pen',
-            <PenLine {...ICON} />,
+            state.pen.nib === 'fountain' ? 'Fountain pen' : 'Pen',
+            // The button shows the pen in use: a ballpoint or a fountain pen.
+            state.pen.nib === 'fountain' ? <FountainPenIcon size={22} /> : <PenLine {...ICON} />,
             <PenSettings editor={editor} state={state} />,
           )}
           {toolButton(
@@ -264,22 +265,7 @@ export function Toolbar({
           ref={rightCorner}
           className="pointer-events-auto flex items-center gap-1 rounded-panel bg-surface-raised/95 p-1.5 shadow-raised backdrop-blur"
         >
-          <SaveStatus autosave={autosave} compact={expanded} />
-          <Popover
-            open={panel === 'control'}
-            onOpenChange={(open) => setPanel(open ? 'control' : null)}
-          >
-            <PopoverTrigger asChild>
-              <IconButton label="Control center" icon={<Settings size={20} />} />
-            </PopoverTrigger>
-            <PopoverContent
-              movable="control"
-              align="end"
-              className="max-h-[min(40rem,calc(100dvh-7rem))] w-80 overflow-y-auto"
-            >
-              <ControlCenter editor={editor} state={state} />
-            </PopoverContent>
-          </Popover>
+          <SaveProblem autosave={autosave} />
           {onPresent ? (
             <button
               type="button"
@@ -343,6 +329,21 @@ export function Toolbar({
               />
             ) : null}
           </Dialog>
+          <Popover
+            open={panel === 'control'}
+            onOpenChange={(open) => setPanel(open ? 'control' : null)}
+          >
+            <PopoverTrigger asChild>
+              <IconButton label="Control center" icon={<Settings size={20} />} />
+            </PopoverTrigger>
+            <PopoverContent
+              movable="control"
+              align="end"
+              className="max-h-[min(40rem,calc(100dvh-7rem))] w-80 overflow-y-auto"
+            >
+              <ControlCenter editor={editor} state={state} />
+            </PopoverContent>
+          </Popover>
         </div>
       </div>
       {state.editingText ? <FormatBar editor={editor} state={state} /> : null}
@@ -711,26 +712,22 @@ function BroomSettings({ editor, state }: { editor: Editor; state: EditorState }
   )
 }
 
-function SaveStatus({ autosave, compact }: { autosave: Autosave; compact: boolean }) {
+/**
+ * Saving happens by itself and is not shown; only a failed save is, so nothing is lost
+ * unnoticed.
+ */
+function SaveProblem({ autosave }: { autosave: Autosave }) {
   const status = useSyncExternalStore(
     (fn) => autosave.subscribe(fn),
     () => autosave.status,
   )
-  if (status === 'error') {
-    return (
-      <span
-        className="flex items-center gap-1.5 px-2 text-xs font-semibold text-danger"
-        role="status"
-      >
-        <CloudAlert size={16} /> Not saved, retrying
-      </span>
-    )
-  }
-  const saving = status === 'saving' || status === 'pending'
+  if (status !== 'error') return null
   return (
-    <span className="flex items-center gap-1.5 px-2 text-xs text-ink-muted" role="status">
-      {saving ? <LoaderCircle size={14} className="animate-spin" /> : <Check size={14} />}
-      <span className={cn(compact && 'sr-only')}>{saving ? 'Saving' : 'Saved'}</span>
+    <span
+      className="flex items-center gap-1.5 px-2 text-xs font-semibold text-danger"
+      role="status"
+    >
+      <CloudAlert size={16} /> Not saved, retrying
     </span>
   )
 }

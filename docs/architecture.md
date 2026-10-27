@@ -128,6 +128,11 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
   anywhere, or dropped near an edge to snap to its middle (top, bottom, left, right). At the
   left and right a bar stands upright; bars at the same edge stack; menus open away from the
   edge. Positions are remembered per device (`FloatingPanel.tsx`, `panelLayout.ts`).
+- The editor's top row: back and title on the left, the tool bar between (moved along to fit,
+  below only when the row is too narrow), layers, pages and the control center on the right.
+  The tool bar always opens with the main tools only; saving is silent unless it fails.
+- Pinch zoom keeps the point under the fingers still, also at the zoom limits, and lifting the
+  fingers after a pinch never flings the page.
 - The text color menu and the tool settings menus have a grip as well: dragged elsewhere, they
   open there again (kept on screen and above the keyboard).
 
@@ -248,10 +253,6 @@ The ink pipeline, from pen to storage, each part in its own module:
 - The app keeps its own storage, apart from the browser: notebooks move over with a backup.
 
 ## Appearance
-
-- Each start of the app opens with a broom flying across a white screen and uncovering the
-  logo behind it (`app/Opening.tsx`, keyframes in `tokens.css`); a tap skips it. The iOS launch
-  screen is plain white, so the app starts straight into it.
 
 - Themes are built from one accent color (presets or any color), light or dark, by overriding
   the color tokens of `tokens.css` on the root element (`design/theme.ts`). Pages stay paper

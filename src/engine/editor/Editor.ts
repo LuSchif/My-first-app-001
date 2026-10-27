@@ -379,6 +379,8 @@ export class Editor {
   private cacheTimer: ReturnType<typeof setTimeout> | null = null
   /** When ink was last finished, so pictures are made in a real pause (performance.now()). */
   private lastInkAt = -Infinity
+  /** Set when a touch gesture zoomed, until every finger has lifted. */
+  private pinched = false
   /** The frame the stroke in progress is drawn in next, if one is booked. */
   private inkFrame = 0
   private session: Session | null = null
@@ -1610,8 +1612,7 @@ export class Editor {
 
   /** A presentation keeps its slide in view: centered when it fits, never lost when zoomed in. */
   private clampSlideCamera(c: Camera): Camera {
-    const fit = this.fitZoom()
-    const zoom = Math.min(fit * 8, Math.max(fit, c.zoom))
+    const zoom = this.limitZoom(c.zoom)
     const area = this.slideArea()
     const o = this.layout.origin(this.layout.focus ?? 0)
     const w = this.layout.size.width * zoom
@@ -1633,8 +1634,7 @@ export class Editor {
   /** Keeps the pages in reach: centered when narrower than the screen, never lost off-screen. */
   private clampCamera(c: Camera): Camera {
     if (this.slides) return this.clampSlideCamera(c)
-    const fit = this.fitZoom()
-    const zoom = Math.min(fit * 8, Math.max(fit * 0.5, c.zoom))
+    const zoom = this.limitZoom(c.zoom)
     const { width, height } = this.view
     const pagesWidth = this.layout.size.width * zoom
     const offsetX =
@@ -1676,9 +1676,16 @@ export class Editor {
     this.text.position()
   }
 
+  /** The zoom within its limits: from half the fitted size (a whole slide) up to eight times. */
+  private limitZoom(zoom: number): number {
+    const fit = this.fitZoom()
+    return Math.min(fit * 8, Math.max(this.slides ? fit : fit * 0.5, zoom))
+  }
+
   private zoomAt(anchor: Point, factor: number): void {
     const c = this.camera
-    const zoom = c.zoom * factor
+    // Limited first, so the point under the fingers stays put even at the limits.
+    const zoom = this.limitZoom(c.zoom * factor)
     const wx = (anchor.x - c.offsetX) / c.zoom
     const wy = (anchor.y - c.offsetY) / c.zoom
     this.setCamera({ zoom, offsetX: anchor.x - wx * zoom, offsetY: anchor.y - wy * zoom })
@@ -2035,7 +2042,9 @@ export class Editor {
       if (this.touches.size === 0) {
         if (this.panning && this.tap) this.finishTap(e.timeStamp)
         if (this.pullRaw > 0) this.endPull()
-        else if (this.panning) this.startMomentum(e.timeStamp)
+        // After a pinch the fingers lift one by one; the last one's movement is no fling.
+        else if (this.panning && !this.pinched) this.startMomentum(e.timeStamp)
+        this.pinched = false
         this.panning = false
         this.tap = null
       } else if (this.panning) {
@@ -2221,7 +2230,10 @@ export class Editor {
         const factor = next.dist / prev.dist
         const wx = (cx - camera.offsetX) / camera.zoom
         const wy = (cy - camera.offsetY) / camera.zoom
-        const zoom = camera.zoom * factor
+        // Limited before placing the page: past a limit, an unlimited zoom here would move the
+        // page sideways once the limit applies.
+        const zoom = this.limitZoom(camera.zoom * factor)
+        this.pinched = true
         camera = { zoom, offsetX: cx - wx * zoom, offsetY: cy - wy * zoom }
       }
       const atBottom = this.atBottom()
