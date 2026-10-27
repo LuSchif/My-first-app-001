@@ -225,6 +225,10 @@ The ink pipeline, from pen to storage, each part in its own module:
   the origin (a vector graph) gets its head at its lower end, one that ends at the origin none
   (`geometry/graphs.ts`). This happens as soon as the head is drawn, also with the plain pen:
   axes with a head at their end are never handwriting.
+- Pictures can be cropped after they were added and get an optional title above and caption
+  below, inside their frame ("Crop & caption" in the selection menu, `model/image.ts`). The crop
+  is kept as shares of the stored picture, so showing all of it again is always possible; the
+  picture keeps its scale and middle while its frame follows the part shown and the text.
 - Recognized graph axes become a graph object (`model/graph.ts`, drawn by `render/graph.ts`): a
   box like a chart, with the axes measured from the origin, the drawn color and line width,
   ticks with their own spacing per axis (always as wide as the drawn line and all the same

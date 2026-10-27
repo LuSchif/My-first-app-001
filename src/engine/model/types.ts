@@ -133,6 +133,14 @@ export interface ImageObject extends BoxFrame, Animatable {
   flipX?: boolean
   flipY?: boolean
   outline?: Outline
+  /** The part of the picture shown, as shares (0 to 1) of its width and height; all of it when absent. */
+  crop?: { x: number; y: number; width: number; height: number }
+  /** A title above the picture and a caption below it, inside the frame; none when empty. */
+  title?: string
+  caption?: string
+  /** Of the title and caption, in points. */
+  fontSize?: number
+  textColor?: string
 }
 
 /**

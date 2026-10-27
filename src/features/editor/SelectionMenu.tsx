@@ -9,6 +9,7 @@ import {
   Grid3x3,
   ChartColumn,
   ChartSpline,
+  Crop,
   ChevronsLeft,
   ChevronsRight,
   Scissors,
@@ -47,6 +48,7 @@ import {
   type ChartObject,
   type GradientPaint,
   type GraphObject,
+  type ImageObject,
   type Outline,
   type TableObject,
 } from '../../engine/model/types.ts'
@@ -55,6 +57,7 @@ import { cn } from '../../lib/cn.ts'
 import { FillEditor } from '../folders/FillEditor.tsx'
 import { ChartEditor } from './ChartEditor.tsx'
 import { GraphEditor } from './GraphEditor.tsx'
+import { PictureEditor } from './PictureEditor.tsx'
 import { TableEditor } from './TableEditor.tsx'
 import { Fragment, useLayoutEffect, useRef, useState } from 'react'
 import { useExpanded } from './useExpanded.ts'
@@ -214,6 +217,7 @@ function menuItems(
   const table = sel.boxKind === 'table' ? editor.selectedObject() : null
   const chart = sel.boxKind === 'chart' ? editor.selectedObject() : null
   const graph = sel.boxKind === 'graph' ? editor.selectedObject() : null
+  const picture = sel.boxKind === 'image' ? editor.selectedObject() : null
 
   if (sel.textId) {
     items.push({
@@ -230,6 +234,9 @@ function menuItems(
   }
   if (chart?.type === 'chart') {
     items.push({ key: 'edit', node: <EditChartButton editor={editor} chart={chart} /> })
+  }
+  if (picture?.type === 'image') {
+    items.push({ key: 'edit', node: <EditPictureButton editor={editor} image={picture} /> })
   }
   if (graph?.type === 'graph') {
     items.push({ key: 'edit', node: <EditGraphButton editor={editor} graph={graph} /> })
@@ -414,6 +421,18 @@ function menuItems(
     }
   }
   return items
+}
+
+function EditPictureButton({ editor, image }: { editor: Editor; image: ImageObject }) {
+  const [editing, setEditing] = useState(false)
+  return (
+    <>
+      <MenuButton label="Crop & caption" onClick={() => setEditing(true)}>
+        <Crop size={18} />
+      </MenuButton>
+      <PictureEditor editor={editor} image={image} open={editing} onOpenChange={setEditing} />
+    </>
+  )
 }
 
 function EditGraphButton({ editor, graph }: { editor: Editor; graph: GraphObject }) {

@@ -1,4 +1,5 @@
 import { scaleGraph } from '../model/graph.ts'
+import { DEFAULT_CAPTION_SIZE } from '../model/image.ts'
 import { formatAll, scaleText } from '../model/richText.ts'
 import { boxCenter, boxContains, boxCorners, isBox } from '../geometry/box.ts'
 import { strokeTouchesCircle } from '../geometry/erase.ts'
@@ -200,7 +201,13 @@ function transformShape(object: CanvasObject, t: Transform): CanvasObject {
       height,
       rotation: normalizeAngle(object.rotation + t.angle),
     }
-    if (t.scale === 1 || object.type === 'image') return { ...object, ...frame }
+    if (t.scale === 1) return { ...object, ...frame }
+    if (object.type === 'image') {
+      // Its title and caption grow with it.
+      return object.title || object.caption
+        ? { ...object, ...frame, fontSize: (object.fontSize ?? DEFAULT_CAPTION_SIZE) * t.scale }
+        : { ...object, ...frame }
+    }
     if (object.type === 'chart') return { ...object, ...frame, fontSize: object.fontSize * t.scale }
     if (object.type === 'graph') return { ...scaleGraph(object, t.scale), ...frame }
     // A table grows as a whole: its spacing, lines and text.
