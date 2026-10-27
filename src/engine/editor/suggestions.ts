@@ -12,7 +12,7 @@ import {
 } from '../geometry/shapes.ts'
 import { detectTable } from '../geometry/tableDetect.ts'
 import { withPoints } from '../model/factory.ts'
-import { graphFromAxes } from '../model/graph.ts'
+import { graphFromAxes, snapAxesToGrid, type PaperGrid } from '../model/graph.ts'
 import { newId } from '../model/ids.ts'
 import { DEFAULT_TABLE_STYLE, tableFromGrid } from '../model/table.ts'
 import type { CanvasObject, FillObject, Id, PaperKind, StrokeObject } from '../model/types.ts'
@@ -263,9 +263,10 @@ export interface CleanDrawing {
 export function cleanDrawingFor(
   objects: readonly CanvasObject[],
   stroke: StrokeObject,
+  grid?: PaperGrid | null,
 ): CleanDrawing | null {
   if (stroke.tool !== 'pen' || stroke.closed) return null
-  const graph = graphFor(objects, stroke)
+  const graph = graphFor(objects, stroke, grid)
   if (graph) return graph
   const recent = recentNear(objects, stroke, 3, { x: 4, y: 4 })
   for (let k = recent.length; k >= 1; k--) {
@@ -284,6 +285,8 @@ export function cleanDrawingFor(
 export function graphFor(
   objects: readonly CanvasObject[],
   stroke: StrokeObject,
+  /** On grid or dot paper, the axes snap onto its lines and the ticks start a square apart. */
+  grid?: PaperGrid | null,
 ): CleanDrawing | null {
   if (stroke.tool !== 'pen' || stroke.closed) return null
   // Up to three axes and the head. The head may be far from the axis drawn just before it (a
@@ -295,10 +298,13 @@ export function graphFor(
       return {
         label: 'Graph',
         objects: [
-          graphFromAxes(newId(), stroke.layerId, graph.axes, {
-            color: stroke.color,
-            width: stroke.width,
-          }),
+          graphFromAxes(
+            newId(),
+            stroke.layerId,
+            grid ? snapAxesToGrid(graph.axes, grid) : graph.axes,
+            { color: stroke.color, width: stroke.width },
+            grid?.size,
+          ),
         ],
         replaces: graph.ids,
       }
@@ -376,8 +382,9 @@ export function magicFor(
   objects: readonly CanvasObject[],
   stroke: StrokeObject,
   paper?: PaperKind,
+  grid?: PaperGrid | null,
 ): { label: string; objects: CanvasObject[] } {
-  const drawing = cleanDrawingFor(objects, stroke)
+  const drawing = cleanDrawingFor(objects, stroke, grid)
   if (drawing) {
     return {
       label: drawing.label,

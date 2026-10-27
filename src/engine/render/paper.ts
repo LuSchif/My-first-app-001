@@ -12,6 +12,16 @@ export const PAPER_STYLE = {
   music: { top: 72, gap: 7, pitch: 58, bottom: 48, side: 40 },
 } as const
 
+/** The squares of grid and dot paper on a page of this size; null for other papers. */
+export function paperGrid(
+  kind: PaperKind,
+  size: PageSize = PAGE_SIZE,
+): { size: number; offX: number; offY: number } | null {
+  if (kind !== 'grid' && kind !== 'dotted') return null
+  const g = PAPER_STYLE.grid.size
+  return { size: g, offX: (size.width % g) / 2, offY: (size.height % g) / 2 }
+}
+
 /**
  * Draws the paper pattern in page coordinates. Line widths are divided by the zoom level, so the
  * pattern stays one crisp hairline at every zoom.

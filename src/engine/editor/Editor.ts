@@ -50,7 +50,7 @@ import {
 } from '../model/types.ts'
 import { pageSizeOf, PageLayout } from '../render/layout.ts'
 import { enterPage, renderScene, setDeskColor, type View } from '../render/SceneRenderer.ts'
-import { PAPER_STYLE } from '../render/paper.ts'
+import { PAPER_STYLE, paperGrid } from '../render/paper.ts'
 import { inkAlpha, paintStroke, setInkStyle, strokeBounds } from '../render/strokes.ts'
 import { perfectShape, recognizeShape, regionAt, type Shape } from '../geometry/shapes.ts'
 import { finishPoints, traceSegments, traceStroke } from '../geometry/strokePath.ts'
@@ -2774,7 +2774,9 @@ export class Editor {
     const page = this.doc.page(s.pageId)
     const drawn: StrokeObject = { ...s.stroke, points }
     const arrow =
-      page && s.stroke.tool === 'pen' ? cleanDrawingFor([...page.objects, drawn], drawn) : null
+      page && s.stroke.tool === 'pen'
+        ? cleanDrawingFor([...page.objects, drawn], drawn, paperGrid(page.paper, this.layout.size))
+        : null
     if (arrow) {
       s.arrow = arrow
       this.showHeldArrow(s)
@@ -2883,7 +2885,12 @@ export class Editor {
         }
       }
       if (s.magic) {
-        const magic = magicFor([...page.objects, stroke], stroke, page.paper)
+        const magic = magicFor(
+          [...page.objects, stroke],
+          stroke,
+          page.paper,
+          paperGrid(page.paper, this.layout.size),
+        )
         this.history.execute(setPageObjects(magic.label, page.id, page.objects, magic.objects))
         if (magic.label === 'Graph') {
           const before = new Set(page.objects.map((o) => o.id))
@@ -2899,7 +2906,10 @@ export class Editor {
         return
       }
       // An arrow head at the end of graph axes makes them clean right away, no hold needed.
-      const graph = stroke.tool === 'pen' ? graphFor([...page.objects, stroke], stroke) : null
+      const graph =
+        stroke.tool === 'pen'
+          ? graphFor([...page.objects, stroke], stroke, paperGrid(page.paper, this.layout.size))
+          : null
       if (graph) {
         const after = replaceStrokes([...page.objects, stroke], graph.replaces, graph.objects)
         this.history.execute(setPageObjects(graph.label, page.id, page.objects, after))

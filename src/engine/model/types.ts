@@ -194,6 +194,11 @@ export interface GraphObject extends BoxFrame, Animatable {
   depth?: { fromX: number; fromY: number; toX: number; toY: number; head: boolean }
   /** Ticks along the axes, this many points apart (each axis its own spacing). */
   ticks: { show: boolean; x: number; y: number; z: number }
+  /**
+   * Each axis's ticks: how long they are across the axis and how thick, in points. When absent,
+   * as thick as the axes and a little longer than that.
+   */
+  tickSizes?: Record<'x' | 'y' | 'z', { length: number; width: number }>
   /** The axes' names, shown at their ends; empty for none. */
   labels: { x: string; y: string; z: string }
   title: string

@@ -1,7 +1,7 @@
 import { ChartSpline, X } from 'lucide-react'
 import { useState } from 'react'
 import type { Editor, EditorState } from '../../engine/editor/Editor.ts'
-import { fitGraphFrame } from '../../engine/model/graph.ts'
+import { fitGraphFrame, tickSize, type GraphAxis } from '../../engine/model/graph.ts'
 import type { GraphObject } from '../../engine/model/types.ts'
 import { Button, Dialog, DialogContent, Slider, Switch, TextField } from '../../design/index.ts'
 import { ObjectPreview } from './ObjectPreview.tsx'
@@ -10,7 +10,8 @@ const CHIP_HEIGHT = 48
 const GAP = 12
 
 /**
- * Edits a graph: ticks along each axis with their own spacing, the axes' names and a title.
+ * Edits a graph: ticks along each axis with their own spacing, length and width, the axes'
+ * names and a title.
  * Changes are kept as a draft and saved together, as one undo step.
  */
 export function GraphEditor({
@@ -57,29 +58,20 @@ function GraphEditorContent({
   const [draft, setDraft] = useState(() => startingDraft(graph))
   const shown = fitGraphFrame(draft)
   const depthLength = draft.depth ? Math.hypot(draft.depth.toX, draft.depth.toY) : 0
-  // Spacing from a few points up to half the axis.
-  const most = (length: number) => Math.max(8, Math.round(length / 2))
-  const spacing = (axis: 'x' | 'y' | 'z', label: string, length: number) => (
-    <Slider
-      label={label}
-      value={Math.round(draft.ticks[axis])}
-      min={4}
-      max={most(length)}
-      onChange={(v) => setDraft((g) => ({ ...g, ticks: { ...g.ticks, [axis]: v } }))}
-      format={(v) => `${v} pt`}
-    />
-  )
-  const name = (axis: 'x' | 'y' | 'z', label: string) => (
-    <TextField
-      label={label}
-      value={draft.labels[axis]}
-      placeholder="No name"
-      onChange={(e) => {
-        const value = e.target.value
-        setDraft((g) => ({ ...g, labels: { ...g.labels, [axis]: value } }))
-      }}
-    />
-  )
+  const axes: { axis: GraphAxis; name: string; length: number }[] = [
+    { axis: 'x', name: 'X axis', length: Math.max(draft.right, -draft.left) },
+    { axis: 'y', name: 'Y axis', length: Math.max(-draft.top, draft.bottom) },
+    ...(draft.depth ? [{ axis: 'z' as const, name: 'Z axis', length: depthLength }] : []),
+  ]
+  const setSize = (axis: GraphAxis, patch: Partial<{ length: number; width: number }>) =>
+    setDraft((g) => {
+      const sizes = {
+        x: tickSize(g, 'x'),
+        y: tickSize(g, 'y'),
+        z: tickSize(g, 'z'),
+      }
+      return { ...g, tickSizes: { ...sizes, [axis]: { ...sizes[axis], ...patch } } }
+    })
 
   return (
     <DialogContent title="Edit graph" className="w-[min(46rem,calc(100%-2rem))]">
@@ -94,26 +86,67 @@ function GraphEditorContent({
             setDraft((g) => ({ ...g, title }))
           }}
         />
-        <section className="grid gap-4">
-          <Switch
-            label="Ticks"
-            hint="Evenly spaced marks along the axes"
-            checked={draft.ticks.show}
-            onChange={(show) => setDraft((g) => ({ ...g, ticks: { ...g.ticks, show } }))}
-          />
-          {draft.ticks.show ? (
-            <div className="grid gap-4 sm:grid-cols-2">
-              {spacing('x', 'X spacing', Math.max(draft.right, -draft.left))}
-              {spacing('y', 'Y spacing', Math.max(-draft.top, draft.bottom))}
-              {draft.depth ? spacing('z', 'Z spacing', depthLength) : null}
-            </div>
-          ) : null}
-        </section>
-        <section className="grid gap-3 sm:grid-cols-3">
-          {name('x', 'X axis name')}
-          {name('y', 'Y axis name')}
-          {draft.depth ? name('z', 'Z axis name') : null}
-        </section>
+        <Switch
+          label="Ticks"
+          hint="Evenly spaced marks along the axes"
+          checked={draft.ticks.show}
+          onChange={(show) => setDraft((g) => ({ ...g, ticks: { ...g.ticks, show } }))}
+        />
+        <div className="grid gap-3 sm:grid-cols-2">
+          {axes.map(({ axis, name, length }) => {
+            const size = tickSize(draft, axis)
+            return (
+              <section
+                key={axis}
+                aria-label={name}
+                className="grid content-start gap-3 rounded-card bg-surface p-4 ring-1 ring-line"
+              >
+                <h3 className="text-sm font-semibold">{name}</h3>
+                <TextField
+                  label="Name"
+                  value={draft.labels[axis]}
+                  placeholder="No name"
+                  onChange={(e) => {
+                    const value = e.target.value
+                    setDraft((g) => ({ ...g, labels: { ...g.labels, [axis]: value } }))
+                  }}
+                />
+                {draft.ticks.show ? (
+                  <>
+                    <Slider
+                      label="Tick spacing"
+                      value={Math.round(draft.ticks[axis])}
+                      min={4}
+                      max={Math.max(8, Math.round(length / 2))}
+                      onChange={(v) =>
+                        setDraft((g) => ({ ...g, ticks: { ...g.ticks, [axis]: v } }))
+                      }
+                      format={(v) => `${v} pt`}
+                    />
+                    <Slider
+                      label="Tick length"
+                      value={Math.round(size.length * 2) / 2}
+                      min={2}
+                      max={40}
+                      step={0.5}
+                      onChange={(v) => setSize(axis, { length: v })}
+                      format={(v) => `${v} pt`}
+                    />
+                    <Slider
+                      label="Tick width"
+                      value={Math.round(size.width * 2) / 2}
+                      min={0.5}
+                      max={10}
+                      step={0.5}
+                      onChange={(v) => setSize(axis, { width: v })}
+                      format={(v) => `${v} pt`}
+                    />
+                  </>
+                ) : null}
+              </section>
+            )
+          })}
+        </div>
         <Slider
           label="Text size"
           value={Math.round(draft.fontSize)}

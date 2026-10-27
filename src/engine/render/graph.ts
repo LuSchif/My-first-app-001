@@ -1,6 +1,6 @@
 import { headAt } from '../geometry/arrows.ts'
 import { enterBox } from '../geometry/box.ts'
-import { graphTextPlaces, tickHalf } from '../model/graph.ts'
+import { graphTextPlaces, tickSize, type GraphAxis } from '../model/graph.ts'
 import type { GraphObject } from '../model/types.ts'
 import { strokeBoxOutline } from './outline.ts'
 import { FONT_STACKS } from './text.ts'
@@ -12,6 +12,8 @@ function ticksAlong(
   reach: number,
   step: number,
   half: number,
+  /** Leaves out ticks closer to the origin than this (on a slanted axis, near the others). */
+  from = 0,
 ): void {
   if (!(step > 0.5) || reach <= 0) return
   // Across the axis.
@@ -20,8 +22,13 @@ function ticksAlong(
   for (let d = step; d <= reach + 1e-6; d += step) {
     const x = dir.x * d
     const y = dir.y * d
-    path.moveTo(x - nx * half, y - ny * half)
-    path.lineTo(x + nx * half, y + ny * half)
+    const ax = x - nx * half
+    const ay = y - ny * half
+    const bx = x + nx * half
+    const by = y + ny * half
+    if (d < from) continue
+    path.moveTo(ax, ay)
+    path.lineTo(bx, by)
   }
 }
 
@@ -60,22 +67,40 @@ export function paintGraph(ctx: CanvasRenderingContext2D, g: GraphObject): void 
     if (depth.head) head({ x: depth.toX, y: depth.toY }, depthDir)
   }
 
+  ctx.stroke(path)
+
   if (g.ticks.show) {
-    const half = tickHalf(g)
-    // Ticks stop short of the heads, so they never run into them.
+    // Ticks stop short of the heads, so they never run into them. Each axis has its own size.
     const clear = g.headSize * 1.1
-    ticksAlong(path, { x: 1, y: 0 }, g.right - clear, g.ticks.x, half)
-    ticksAlong(path, { x: -1, y: 0 }, -g.left - half, g.ticks.x, half)
-    ticksAlong(path, { x: 0, y: -1 }, -g.top - clear, g.ticks.y, half)
-    ticksAlong(path, { x: 0, y: 1 }, g.bottom - half, g.ticks.y, half)
+    const draw = (axis: GraphAxis, add: (ticks: Path2D, half: number) => void) => {
+      const size = tickSize(g, axis)
+      if (!(size.length > 0) || !(size.width > 0)) return
+      const ticks = new Path2D()
+      add(ticks, size.length / 2)
+      ctx.lineWidth = size.width
+      ctx.stroke(ticks)
+    }
+    draw('x', (ticks, half) => {
+      ticksAlong(ticks, { x: 1, y: 0 }, g.right - clear, g.ticks.x, half)
+      ticksAlong(ticks, { x: -1, y: 0 }, -g.left - half, g.ticks.x, half)
+    })
+    draw('y', (ticks, half) => {
+      ticksAlong(ticks, { x: 0, y: -1 }, -g.top - clear, g.ticks.y, half)
+      ticksAlong(ticks, { x: 0, y: 1 }, g.bottom - half, g.ticks.y, half)
+    })
     if (depth && depthDir) {
-      const toward = Math.hypot(depth.toX, depth.toY) - (depth.head ? clear : half)
-      const away = Math.hypot(depth.fromX, depth.fromY) - half
-      ticksAlong(path, depthDir, toward, g.ticks.z, half)
-      ticksAlong(path, { x: -depthDir.x, y: -depthDir.y }, away, g.ticks.z, half)
+      const dir = depthDir
+      // Near the origin the slanted axis's ticks would run into the others' ticks.
+      const others = Math.max(tickSize(g, 'x').length, tickSize(g, 'y').length) / 2
+      draw('z', (ticks, half) => {
+        const from = (others + half) * 1.2 + g.lineWidth
+        const toward = Math.hypot(depth.toX, depth.toY) - (depth.head ? clear : half)
+        const away = Math.hypot(depth.fromX, depth.fromY) - half
+        ticksAlong(ticks, dir, toward, g.ticks.z, half, from)
+        ticksAlong(ticks, { x: -dir.x, y: -dir.y }, away, g.ticks.z, half, from)
+      })
     }
   }
-  ctx.stroke(path)
 
   const places = graphTextPlaces(g)
   ctx.textAlign = 'center'

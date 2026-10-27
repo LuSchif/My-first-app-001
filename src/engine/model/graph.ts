@@ -10,6 +10,18 @@ export function tickHalf(graph: Pick<GraphObject, 'lineWidth'>): number {
   return graph.lineWidth * TICK_REACH + TICK_EXTRA
 }
 
+export type GraphAxis = 'x' | 'y' | 'z'
+
+/** How long and thick one axis's ticks are. */
+export function tickSize(g: GraphObject, axis: GraphAxis): { length: number; width: number } {
+  return g.tickSizes?.[axis] ?? { length: tickHalf(g) * 2, width: g.lineWidth }
+}
+
+/** The longest tick's half, for room around the axes. */
+function longestTickHalf(g: GraphObject): number {
+  return Math.max(...(['x', 'y', 'z'] as const).map((a) => tickSize(g, a).length / 2))
+}
+
 /** A tick spacing that gives about six ticks along the shorter axis, in whole points. */
 export function defaultTickSpacing(length: number): number {
   return Math.max(6, Math.round(length / 6))
@@ -58,7 +70,7 @@ function textWidth(text: string, size: number): number {
  * page, also when the graph is turned.
  */
 export function fitGraphFrame(g: GraphObject): GraphObject {
-  const pad = g.headSize + g.lineWidth + tickHalf(g)
+  const pad = g.headSize + g.lineWidth + longestTickHalf(g)
   let minX = Math.min(g.left, 0) - pad
   let maxX = Math.max(g.right, 0) + pad
   let minY = Math.min(g.top, 0) - pad
@@ -121,10 +133,12 @@ export function graphFromAxes(
   layerId: Id,
   axes: CleanGraph['axes'],
   ink: { color: string; width: number },
+  /** On grid paper: one square, so the ticks sit on the paper's lines. */
+  tickSpacing?: number,
 ): GraphObject {
   const { origin } = axes
   const shorter = Math.min(axes.right - origin.x, origin.y - axes.top)
-  const spacing = defaultTickSpacing(Math.max(12, shorter))
+  const spacing = tickSpacing ?? defaultTickSpacing(Math.max(12, shorter))
   const graph: GraphObject = {
     id,
     type: 'graph',
@@ -187,6 +201,60 @@ export function scaleGraph(g: GraphObject, k: number): GraphObject {
         }
       : {}),
     ticks: { ...g.ticks, x: g.ticks.x * k, y: g.ticks.y * k, z: g.ticks.z * k },
+    ...(g.tickSizes
+      ? {
+          tickSizes: {
+            x: { length: g.tickSizes.x.length * k, width: g.tickSizes.x.width * k },
+            y: { length: g.tickSizes.y.length * k, width: g.tickSizes.y.width * k },
+            z: { length: g.tickSizes.z.length * k, width: g.tickSizes.z.width * k },
+          },
+        }
+      : {}),
     fontSize: g.fontSize * k,
+  }
+}
+
+/** The squares of grid or dot paper: their size and where the first line is. */
+export interface PaperGrid {
+  size: number
+  offX: number
+  offY: number
+}
+
+/**
+ * Axes drawn on grid paper, moved onto its lines: the origin on a crossing, each end on the
+ * nearest line (at least one square from the origin). A depth axis moves with the origin.
+ */
+export function snapAxesToGrid<
+  A extends {
+    origin: Pt
+    left: number
+    right: number
+    top: number
+    bottom: number
+    depth: { from: Pt; to: Pt; head: boolean } | null
+  },
+>(axes: A, grid: PaperGrid): A {
+  const g = grid.size
+  const sx = (v: number) => grid.offX + Math.round((v - grid.offX) / g) * g
+  const sy = (v: number) => grid.offY + Math.round((v - grid.offY) / g) * g
+  const ox = sx(axes.origin.x)
+  const oy = sy(axes.origin.y)
+  const dx = ox - axes.origin.x
+  const dy = oy - axes.origin.y
+  return {
+    ...axes,
+    origin: { x: ox, y: oy },
+    left: Math.min(sx(axes.left + dx), ox),
+    right: Math.max(sx(axes.right + dx), ox + g),
+    top: Math.min(sy(axes.top + dy), oy - g),
+    bottom: Math.max(sy(axes.bottom + dy), oy),
+    depth: axes.depth
+      ? {
+          ...axes.depth,
+          from: { x: axes.depth.from.x + dx, y: axes.depth.from.y + dy },
+          to: { x: axes.depth.to.x + dx, y: axes.depth.to.y + dy },
+        }
+      : null,
   }
 }

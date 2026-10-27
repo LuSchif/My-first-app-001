@@ -231,6 +231,8 @@ The ink pipeline, from pen to storage, each part in its own module:
   length; across the slanted axis too), axis names and a title in the hand font. A chip offers
   its editor right after it was recognized; later "Edit graph" in the selection menu opens it.
   A slanted depth axis is moved, at its angle, to run exactly through the origin.
+  Each axis's ticks have their own spacing, length and width. On grid or dot paper the origin
+  snaps onto a grid crossing, the axis ends onto grid lines, and ticks start one square apart.
 - Areas closed off by several strokes however they meet (a shape drawn onto another one) are
   found by filling a grid of the nearby strokes from the colored spot (`enclosedArea` in
   `geometry/shapes.ts`), when no single outline or chain of strokes closes them.
