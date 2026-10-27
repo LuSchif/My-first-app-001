@@ -1,13 +1,19 @@
 /**
- * Turns raw pointer samples (screen pixels) into the points of a stroke, as directly as possible:
- * the line goes through where the pen actually was, with no filter that lags behind it. Raw
- * stylus input still needs a little care: on iPadOS a sample can arrive late or twice, share a
- * time stamp with others, or sit a fraction of a pixel from the previous one; those are dropped
- * or spaced out here.
+ * Turns raw pointer samples (screen pixels) into the points of a stroke. Raw stylus input needs
+ * a little care: on iPadOS a sample can arrive late or twice, share a time stamp with others, or
+ * sit a fraction of a pixel from the previous one; those are dropped or spaced out here.
+ *
+ * Each point is then pulled halfway from the previous point towards the new sample
+ * ("streamline", as in most note apps): tiny wobbles of the hand and sensor even out, while the
+ * points stay about one sample behind the pen, a fraction of a millimetre. The line is always
+ * drawn on to the actual pen tip, and the finished stroke ends exactly where the pen lifted, so
+ * nothing ever trails visibly.
  */
 
 /** Closer samples than this (px) add nothing but noise to the curve. */
 const MIN_STEP = 0.5
+/** How far each point moves towards the new sample: 1 takes samples as they are. */
+const STREAMLINE = 0.5
 const FALLBACK_SAMPLE_MS = 1000 / 240 // Apple Pencil reports at 240 Hz
 
 export interface ScreenSample {
@@ -56,11 +62,20 @@ export class StrokeSampler {
     const sample: ScreenSample = tilt ? { x, y, t, p: pressure, tilt } : { x, y, t, p: pressure }
     this.tip = sample
     const last = this.points[this.points.length - 1]
-    if (last && Math.hypot(x - last.x, y - last.y) < MIN_STEP) {
+    if (!last) {
+      this.points.push(sample)
+      return true
+    }
+    const point = {
+      ...sample,
+      x: last.x + (x - last.x) * STREAMLINE,
+      y: last.y + (y - last.y) * STREAMLINE,
+    }
+    if (Math.hypot(point.x - last.x, point.y - last.y) < MIN_STEP) {
       this.filtered++
       return false
     }
-    this.points.push(sample)
+    this.points.push(point)
     return true
   }
 

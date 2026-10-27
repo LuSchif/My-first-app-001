@@ -52,7 +52,7 @@ import { enterPage, renderScene, setDeskColor, type View } from '../render/Scene
 import { PAPER_STYLE } from '../render/paper.ts'
 import { inkAlpha, paintStroke, setInkStyle, strokeBounds } from '../render/strokes.ts'
 import { perfectShape, recognizeShape, regionAt, type Shape } from '../geometry/shapes.ts'
-import { traceSegments, traceStroke } from '../geometry/strokePath.ts'
+import { finishPoints, traceSegments, traceStroke } from '../geometry/strokePath.ts'
 import { boundsOfPoints } from '../geometry/rect.ts'
 import { drawBroom } from '../render/broomGlyph.ts'
 import { objectBounds, paintObject } from '../render/objects.ts'
@@ -379,6 +379,8 @@ export class Editor {
   private cacheTimer: ReturnType<typeof setTimeout> | null = null
   /** When ink was last finished, so pictures are made in a real pause (performance.now()). */
   private lastInkAt = -Infinity
+  /** The frame the stroke in progress is drawn in next, if one is booked. */
+  private inkFrame = 0
   private session: Session | null = null
   private tipDirty: DeviceRect | null = null
 
@@ -2414,7 +2416,13 @@ export class Editor {
     const coalesced = e.getCoalescedEvents?.() ?? []
     for (const ev of coalesced.length ? coalesced : [e]) this.addInkSample(s, ev)
     s.predicted = this.predictedPoint(s, e)
-    this.drawInk(s)
+    // Drawn once per screen frame, however many events arrive in it.
+    if (!this.inkFrame) {
+      this.inkFrame = requestAnimationFrame(() => {
+        this.inkFrame = 0
+        if (this.session === s && !s.snapped) this.drawInk(s)
+      })
+    }
   }
 
   /**
@@ -2567,9 +2575,9 @@ export class Editor {
     return (b.maxX - b.minX) * zoom < TAP_SLOP_PX && (b.maxY - b.minY) * zoom < TAP_SLOP_PX
   }
 
-  /** The finished stroke's points: exactly the ones drawn live, ending at the pen tip. */
+  /** The finished stroke's points: the ones drawn live, lightly finished, ending at the pen tip. */
   private drawnPoints(s: InkSession): number[] {
-    return this.rawPoints(s)
+    return finishPoints(this.rawPoints(s))
   }
 
   private rawPoints(s: InkSession): number[] {
@@ -2626,6 +2634,8 @@ export class Editor {
 
   private finishInk(s: InkSession): void {
     if (s.holdTimer) clearTimeout(s.holdTimer)
+    cancelAnimationFrame(this.inkFrame)
+    this.inkFrame = 0
     const snapped = s.snapped
     const points = snapped ? snapped.points : this.drawnPoints(s)
     const page = this.doc.page(s.pageId)

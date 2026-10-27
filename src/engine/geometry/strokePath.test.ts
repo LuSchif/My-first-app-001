@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   SMOOTH_RADIUS,
   smoothedAt,
+  finishPoints,
   smoothPoints,
   traceSegments,
   traceStroke,
@@ -71,5 +72,17 @@ describe('traceSegments', () => {
         whole.calls[i]!.map((v) => Math.round(v * 1e6)),
       )
     }
+  })
+})
+
+describe('finishPoints', () => {
+  it('keeps the ends and moves inner points only a little', () => {
+    const raw = [0, 0, 10, 1, 20, -1, 30, 1, 40, 0]
+    const out = finishPoints(raw)
+    expect(out.slice(0, 2)).toEqual([0, 0])
+    expect(out.slice(-2)).toEqual([40, 0])
+    for (let i = 0; i < raw.length; i++) expect(Math.abs(out[i]! - raw[i]!)).toBeLessThanOrEqual(1)
+    // The zigzag gets flatter.
+    expect(Math.abs(out[3]!)).toBeLessThan(1)
   })
 })

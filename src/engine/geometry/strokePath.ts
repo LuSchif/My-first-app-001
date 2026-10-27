@@ -50,6 +50,24 @@ export function smoothPoints(raw: readonly number[]): number[] {
   return out
 }
 
+/**
+ * A light finish for a stroke just written: every inner point moves a quarter of the way
+ * towards the middle of its neighbours. That evens out the last bit of sensor wobble but moves
+ * a point by a fraction of a pixel at most, so the finished stroke looks the same as the one
+ * drawn live; the ends stay where the pen touched down and lifted.
+ */
+export function finishPoints(points: readonly number[]): number[] {
+  const n = points.length / 2
+  const out = points.slice()
+  for (let i = 1; i < n - 1; i++) {
+    for (const k of [0, 1]) {
+      out[i * 2 + k] =
+        (points[i * 2 - 2 + k]! + 2 * points[i * 2 + k]! + points[i * 2 + 2 + k]!) / 4
+    }
+  }
+  return out
+}
+
 export interface TraceOptions {
   /** Connects the last point back to the first. */
   closed?: boolean
