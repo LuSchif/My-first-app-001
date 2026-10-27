@@ -1,3 +1,4 @@
+import { scaleGraph } from '../model/graph.ts'
 import { formatAll, scaleText } from '../model/richText.ts'
 import { boxCenter, boxContains, boxCorners, isBox } from '../geometry/box.ts'
 import { strokeTouchesCircle } from '../geometry/erase.ts'
@@ -117,6 +118,7 @@ export function recolor(object: CanvasObject, color: string): CanvasObject {
   if (object.type === 'text') return withoutGradient(formatAll(object, { color }))
   // A table takes the color for its lines; pictures keep their own colors.
   if (object.type === 'table') return { ...object, style: { ...object.style, lineColor: color } }
+  if (object.type === 'graph') return { ...object, color }
   if (isBox(object)) return object
   return withoutGradient({ ...object, color })
 }
@@ -200,6 +202,7 @@ function transformShape(object: CanvasObject, t: Transform): CanvasObject {
     }
     if (t.scale === 1 || object.type === 'image') return { ...object, ...frame }
     if (object.type === 'chart') return { ...object, ...frame, fontSize: object.fontSize * t.scale }
+    if (object.type === 'graph') return { ...scaleGraph(object, t.scale), ...frame }
     // A table grows as a whole: its spacing, lines and text.
     return {
       ...object,
@@ -269,6 +272,8 @@ export function flipObject(
       }
       return { ...moved, rows: [...moved.rows].reverse(), cells: [...moved.cells].reverse() }
     }
+    // A graph's axes always point right and up; it only moves.
+    if (moved.type === 'graph') return moved
     if (moved.type === 'chart') {
       if (axis === 'vertical') return moved
       return {

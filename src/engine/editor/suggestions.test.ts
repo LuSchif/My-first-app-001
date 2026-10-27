@@ -96,6 +96,27 @@ describe('suggestions', () => {
     const clean = cleanDrawingFor([axes, head], head)
     expect(clean?.label).toBe('Graph')
     expect(clean?.replaces).toEqual(['l', 'h'])
-    expect(clean?.strokes).toHaveLength(4)
+    expect(clean?.objects).toHaveLength(1)
+    expect(clean?.objects[0]?.type).toBe('graph')
+  })
+
+  it('fills a shape drawn onto another one, closed off by its outline', () => {
+    const blob = stroke('blob', circle(200, 200, 60))
+    // An arc from one spot on the circle's edge to another, bulging out to the right.
+    const arc = stroke(
+      'arc',
+      Array.from({ length: 41 }, (_, i) => {
+        const t = -Math.PI / 2 + Math.PI * (i / 40)
+        return [242 + 42 * Math.cos(t), 200 + 42 * Math.sin(t)]
+      }).flat(),
+    )
+    const red = stroke('red', scribble(268, 200, 8), '#c4473a')
+    const suggestion = suggestFor([blob, arc, red], red)
+    expect(suggestion?.kind).toBe('fill')
+    if (suggestion?.kind !== 'fill') return
+    // The area is the part outside the circle, inside the arc.
+    expect(suggestion.region.area).toBeGreaterThan(500)
+    expect(suggestion.region.area).toBeLessThan(Math.PI * 60 * 60)
+    expect(suggestion.region.sourceIds).toEqual(expect.arrayContaining(['blob', 'arc']))
   })
 })

@@ -108,7 +108,7 @@ interface Animatable {
 }
 
 /** Objects that sit in a rectangle on the page: pictures, tables and charts. */
-export type BoxObject = ImageObject | TableObject | ChartObject
+export type BoxObject = ImageObject | TableObject | ChartObject | GraphObject
 
 /**
  * A rectangle on the page: (x, y) is its top-left corner before rotation, and rotation (in
@@ -167,6 +167,41 @@ export interface TableStyle {
 export type ChartKind = 'bar' | 'line' | 'pie' | 'donut'
 
 /** A chart drawn from its own small data table. */
+/**
+ * Graph axes made clean from a drawing: a horizontal and a vertical axis with heads at the right
+ * and the top, maybe a slanted depth axis, with evenly spaced ticks, axis names and a title.
+ * The axes are measured in points from the origin (y grows downwards), and the origin sits at
+ * (originX, originY) in the frame, which has room for the heads, names and title.
+ */
+export interface GraphObject extends BoxFrame, Animatable {
+  id: Id
+  type: 'graph'
+  layerId: Id
+  color: string
+  /** Of the axes, heads and ticks, in points: the width the graph was drawn with. */
+  lineWidth: number
+  /** Length of each arrow head's sides. */
+  headSize: number
+  originX: number
+  originY: number
+  /** How far the horizontal axis reaches to the left (negative) and right of the origin. */
+  left: number
+  right: number
+  /** How far the vertical axis reaches up (negative) and down. */
+  top: number
+  bottom: number
+  /** A slanted depth axis through the origin, from its upper end to its lower end. */
+  depth?: { fromX: number; fromY: number; toX: number; toY: number; head: boolean }
+  /** Ticks along the axes, this many points apart (each axis its own spacing). */
+  ticks: { show: boolean; x: number; y: number; z: number }
+  /** The axes' names, shown at their ends; empty for none. */
+  labels: { x: string; y: string; z: string }
+  title: string
+  /** Of the names and the title, in points. */
+  fontSize: number
+  outline?: Outline
+}
+
 export interface ChartObject extends BoxFrame, Animatable {
   id: Id
   type: 'chart'

@@ -21,6 +21,16 @@ export interface CleanGraph {
    * runs on through the origin, its head at its lower end.
    */
   lines: number[][]
+  /** The same axes as numbers on the page, for a graph object. */
+  axes: {
+    origin: Pt
+    left: number
+    right: number
+    top: number
+    bottom: number
+    depth: { from: Pt; to: Pt; head: boolean } | null
+    headSize: number
+  }
 }
 
 /** Lines this close to level or upright (in degrees) count as axes. */
@@ -154,10 +164,16 @@ export function detectGraph(strokes: readonly DrawnStroke[]): CleanGraph | null 
   // graph's depth axis), its head goes on its lower end; ending at the origin, it gets none.
   let slant: { from: Pt; to: Pt; dir: Pt; through: boolean } | null = null
   if (d) {
-    const [a, c] = d
-    const l = len(a, c)
-    const cross = (v.at - a.x) * (c.y - a.y) - (h.at - a.y) * (c.x - a.x)
+    const [a0, c0] = d
+    const l = len(a0, c0)
+    const cross = (v.at - a0.x) * (c0.y - a0.y) - (h.at - a0.y) * (c0.x - a0.x)
     if (l < longest * 0.3 || Math.abs(cross) / l > reach) return null
+    // Moved sideways, at the same angle, so it runs exactly through the origin.
+    const shift = cross / l
+    const nx = (c0.y - a0.y) / l
+    const ny = -(c0.x - a0.x) / l
+    const a = { x: a0.x + nx * shift, y: a0.y + ny * shift }
+    const c = { x: c0.x + nx * shift, y: c0.y + ny * shift }
     const down = a.y > c.y || (a.y === c.y && a.x < c.x) ? a : c
     const up = down === a ? c : a
     const t = ((v.at - up.x) * (down.x - up.x) + (h.at - up.y) * (down.y - up.y)) / (l * l)
@@ -209,5 +225,14 @@ export function detectGraph(strokes: readonly DrawnStroke[]): CleanGraph | null 
           ]
         : []),
     ],
+    axes: {
+      origin: { x: v.at, y: h.at },
+      left,
+      right,
+      top,
+      bottom,
+      depth: slant ? { from: slant.from, to: slant.to, head: slant.through } : null,
+      headSize: size,
+    },
   }
 }

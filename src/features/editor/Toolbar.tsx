@@ -59,6 +59,7 @@ import { PathMenu } from './PathMenu.tsx'
 import { PenPreview } from './PenPreview.tsx'
 import { PasteButton, PasteMenu, SelectionMenu } from './SelectionMenu.tsx'
 import { SuggestionChip } from './SuggestionChip.tsx'
+import { GraphOfferChip } from './GraphEditor.tsx'
 import { TextFormatControls } from './TextFormatControls.tsx'
 
 const HIGHLIGHTER_COLORS = [
@@ -360,6 +361,7 @@ export function Toolbar({
       <PathMenu editor={editor} state={state} />
       {features.recentColors ? <RecentColors editor={editor} state={state} /> : null}
       <SuggestionChip editor={editor} state={state} />
+      <GraphOfferChip editor={editor} state={state} />
       <InspectCard editor={editor} state={state} />
       <PullForPage state={state} />
       <NewPageMenu editor={editor} state={state} />

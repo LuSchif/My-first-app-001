@@ -8,6 +8,7 @@ import {
   Scaling,
   Grid3x3,
   ChartColumn,
+  ChartSpline,
   ChevronsLeft,
   ChevronsRight,
   Scissors,
@@ -45,6 +46,7 @@ import {
   type ChartKind,
   type ChartObject,
   type GradientPaint,
+  type GraphObject,
   type Outline,
   type TableObject,
 } from '../../engine/model/types.ts'
@@ -52,6 +54,7 @@ import { fillToCss } from '../../engine/model/fill.ts'
 import { cn } from '../../lib/cn.ts'
 import { FillEditor } from '../folders/FillEditor.tsx'
 import { ChartEditor } from './ChartEditor.tsx'
+import { GraphEditor } from './GraphEditor.tsx'
 import { TableEditor } from './TableEditor.tsx'
 import { Fragment, useLayoutEffect, useRef, useState } from 'react'
 import { useExpanded } from './useExpanded.ts'
@@ -210,6 +213,7 @@ function menuItems(
   const items: MenuItem[] = []
   const table = sel.boxKind === 'table' ? editor.selectedObject() : null
   const chart = sel.boxKind === 'chart' ? editor.selectedObject() : null
+  const graph = sel.boxKind === 'graph' ? editor.selectedObject() : null
 
   if (sel.textId) {
     items.push({
@@ -226,6 +230,9 @@ function menuItems(
   }
   if (chart?.type === 'chart') {
     items.push({ key: 'edit', node: <EditChartButton editor={editor} chart={chart} /> })
+  }
+  if (graph?.type === 'graph') {
+    items.push({ key: 'edit', node: <EditGraphButton editor={editor} graph={graph} /> })
   }
   items.push({
     key: 'copy',
@@ -377,7 +384,8 @@ function menuItems(
   })
   // A table is not mirrored: flipping would only scramble it. A chart has no top-to-bottom
   // mirror image that still reads as a chart. Lucide names these icons by their axis line.
-  if (sel.boxKind !== 'table') {
+  // A graph's axes always point right and up, so it is not mirrored.
+  if (sel.boxKind !== 'table' && sel.boxKind !== 'graph') {
     items.push({
       key: 'flip-h',
       node: (
@@ -406,6 +414,18 @@ function menuItems(
     }
   }
   return items
+}
+
+function EditGraphButton({ editor, graph }: { editor: Editor; graph: GraphObject }) {
+  const [editing, setEditing] = useState(false)
+  return (
+    <>
+      <MenuButton label="Edit graph" onClick={() => setEditing(true)}>
+        <ChartSpline size={18} />
+      </MenuButton>
+      <GraphEditor editor={editor} graph={graph} open={editing} onOpenChange={setEditing} />
+    </>
+  )
 }
 
 function EditTableButton({ editor, table }: { editor: Editor; table: TableObject }) {

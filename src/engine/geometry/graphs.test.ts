@@ -56,6 +56,11 @@ describe('graph axes', () => {
     expect(d![3]).toBeGreaterThan(d![1]!)
     expect(dHead![2]).toBeCloseTo(d![2]!, 5)
     expect(dHead![3]).toBeCloseTo(d![3]!, 5)
+    // Drawn a little beside the origin, it is moved to run exactly through it.
+    const ox = v![0]!
+    const oy = h![1]!
+    const cross = (ox - d![0]!) * (d![3]! - d![1]!) - (oy - d![1]!) * (d![2]! - d![0]!)
+    expect(Math.abs(cross) / Math.hypot(d![2]! - d![0]!, d![3]! - d![1]!)).toBeLessThan(1e-6)
   })
 
   it('gives a slanted axis that ends at the origin no head', () => {

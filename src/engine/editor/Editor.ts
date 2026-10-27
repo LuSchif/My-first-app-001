@@ -150,6 +150,8 @@ export interface EditorState {
     label: string
     rect: ScreenRect
   } | null
+  /** A graph was just recognized: the offer to open its editor, placed next to it. */
+  graphOffer: { id: Id; rect: ScreenRect } | null
   selection: SelectionInfo | null
   /** The stroke being edited with the path tool. */
   pathEdit: PathEditInfo | null
@@ -195,6 +197,8 @@ const SLIDE_MARGIN = 32
 const RIGHT_INSET = 76
 /** Resting the pen this long after drawing a shape turns it into the perfect shape. */
 const HOLD_MS = 550
+/** How long the offer to edit a recognized graph stays. */
+const GRAPH_OFFER_MS = 12000
 const HOLD_SLOP_PX = 4
 const MIN_HOLD_SHAPE = 30
 /** An arrow head drawn after its shaft may be much smaller than a shape. */
@@ -394,6 +398,8 @@ export class Editor {
   private paintedByEditor = false
   /** Pictures of finished pages, for fast panning and zooming (see pageCache.ts). */
   private readonly pageCache = new PageCache()
+  private graphOfferAt: { pageId: Id; id: Id } | null = null
+  private graphOfferTimer: ReturnType<typeof setTimeout> | null = null
   private cacheTimer: ReturnType<typeof setTimeout> | null = null
   /** When ink was last finished, so pictures are made in a real pause (performance.now()). */
   private lastInkAt = -Infinity
@@ -457,6 +463,7 @@ export class Editor {
       recentColors: [],
       features: DEFAULT_FEATURES,
       suggestion: null,
+      graphOffer: null,
       selection: null,
       pathEdit: null,
       hasClipboard: false,
@@ -907,6 +914,62 @@ export class Editor {
       magic: !features.magicPen,
     }
     if (hidden[this._state.tool]) this.setTool('pen')
+  }
+
+  /** The object with this id and the page it is on. */
+  findObject(id: Id): { pageId: Id; object: CanvasObject } | null {
+    for (const page of this.doc.pageList) {
+      const object = page.objects.find((o) => o.id === id)
+      if (object) return { pageId: page.id, object }
+    }
+    return null
+  }
+
+  /** Replaces an object (by its id) with a changed version, as one step to undo. */
+  updateObject(next: CanvasObject, label: string): void {
+    const found = this.findObject(next.id)
+    const page = found && this.doc.page(found.pageId)
+    if (!page) return
+    const after = page.objects.map((o) => (o.id === next.id ? next : o))
+    this.history.execute(setPageObjects(label, page.id, page.objects, after))
+  }
+
+  /** Offers to open the editor of a graph that was just recognized. */
+  private offerGraph(pageId: Id, objects: readonly CanvasObject[]): void {
+    const graph = objects.find((o) => o.type === 'graph')
+    if (!graph) return
+    if (this.graphOfferTimer) clearTimeout(this.graphOfferTimer)
+    this.graphOfferAt = { pageId, id: graph.id }
+    this.placeGraphOffer()
+    this.graphOfferTimer = setTimeout(() => this.dismissGraphOffer(), GRAPH_OFFER_MS)
+  }
+
+  dismissGraphOffer(): void {
+    if (this.graphOfferTimer) clearTimeout(this.graphOfferTimer)
+    this.graphOfferTimer = null
+    this.graphOfferAt = null
+    if (this._state.graphOffer) this.update({ graphOffer: null })
+  }
+
+  /** Keeps the graph offer next to its graph as the page moves. */
+  private placeGraphOffer(): void {
+    const at = this.graphOfferAt
+    const index = at ? this.doc.notebook.pageIds.indexOf(at.pageId) : -1
+    const object = at && this.doc.page(at.pageId)?.objects.find((o) => o.id === at.id)
+    if (!at || index < 0 || !object) {
+      this.dismissGraphOffer()
+      return
+    }
+    const b = objectBounds(object)
+    const o = this.layout.origin(index)
+    const { zoom, offsetX, offsetY } = this.camera
+    const rect = {
+      x: (b.minX + o.x) * zoom + offsetX,
+      y: (b.minY + o.y) * zoom + offsetY,
+      width: (b.maxX - b.minX) * zoom,
+      height: (b.maxY - b.minY) * zoom,
+    }
+    this.update({ graphOffer: { id: at.id, rect } })
   }
 
   /** Turns the drawn stroke into the recognized shape, or fills the colored-in area. */
@@ -1733,6 +1796,7 @@ export class Editor {
     this.requestRender()
     // Frames, handles, offers and the text field follow the page.
     if (this.pending) this.placeSuggestion()
+    if (this.graphOfferAt) this.placeGraphOffer()
     if (this.selection.active) {
       this.selection.draw()
       this.syncControllers()
@@ -1864,6 +1928,8 @@ export class Editor {
     this.hostRect = this.host.getBoundingClientRect()
     this.momentum = null
     if (e.pointerType === 'pen') this.penSeen = true
+    // Drawing on goes past the offer to edit a recognized graph; panning keeps it.
+    if (e.pointerType !== 'touch' || !this.penSeen) this.dismissGraphOffer()
     this.closePasteMenu()
     // A second finger is a gesture, not a long press.
     if (e.pointerType !== 'touch' || this.touches.size === 0) this.armLongPress(e)
@@ -2741,7 +2807,7 @@ export class Editor {
     this.clearTip()
     this.tip.save()
     enterPage(this.tip, this.camera, this.view.dpr, s.pageIndex, this.layout)
-    for (const stroke of held.strokes) paintStroke(this.tip, stroke)
+    for (const object of held.objects) paintObject(this.tip, object)
     this.tip.restore()
     const { width, height, dpr } = this.view
     this.tipDirty = { x: 0, y: 0, w: width * dpr, h: height * dpr }
@@ -2758,8 +2824,9 @@ export class Editor {
       const page = this.doc.page(s.pageId)
       this.hidden = new Set()
       if (page) {
-        const kept = replaceStrokes(page.objects, s.arrow.replaces, s.arrow.strokes)
+        const kept = replaceStrokes(page.objects, s.arrow.replaces, s.arrow.objects)
         this.history.execute(setPageObjects(s.arrow.label, page.id, page.objects, kept))
+        this.offerGraph(page.id, s.arrow.objects)
         this.rememberColor(s.stroke.color)
       }
       this.clearArea(this.wet, s.wetDirty)
@@ -2818,6 +2885,13 @@ export class Editor {
       if (s.magic) {
         const magic = magicFor([...page.objects, stroke], stroke, page.paper)
         this.history.execute(setPageObjects(magic.label, page.id, page.objects, magic.objects))
+        if (magic.label === 'Graph') {
+          const before = new Set(page.objects.map((o) => o.id))
+          this.offerGraph(
+            page.id,
+            magic.objects.filter((o) => !before.has(o.id)),
+          )
+        }
         this.rememberColor(stroke.color)
         this.lastInkAt = performance.now()
         this.clearArea(this.wet, s.wetDirty)
@@ -2827,8 +2901,9 @@ export class Editor {
       // An arrow head at the end of graph axes makes them clean right away, no hold needed.
       const graph = stroke.tool === 'pen' ? graphFor([...page.objects, stroke], stroke) : null
       if (graph) {
-        const after = replaceStrokes([...page.objects, stroke], graph.replaces, graph.strokes)
+        const after = replaceStrokes([...page.objects, stroke], graph.replaces, graph.objects)
         this.history.execute(setPageObjects(graph.label, page.id, page.objects, after))
+        this.offerGraph(page.id, graph.objects)
         this.rememberColor(stroke.color)
         this.lastInkAt = performance.now()
         this.clearArea(this.wet, s.wetDirty)

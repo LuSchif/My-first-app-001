@@ -12,6 +12,7 @@ import {
 } from '../geometry/shapes.ts'
 import { detectTable } from '../geometry/tableDetect.ts'
 import { withPoints } from '../model/factory.ts'
+import { graphFromAxes } from '../model/graph.ts'
 import { newId } from '../model/ids.ts'
 import { DEFAULT_TABLE_STYLE, tableFromGrid } from '../model/table.ts'
 import type { CanvasObject, FillObject, Id, PaperKind, StrokeObject } from '../model/types.ts'
@@ -199,6 +200,20 @@ export function suggestFor(
   return shape ? { kind: 'shape', strokeIds: [stroke.id], shape } : null
 }
 
+/** The newest pen strokes on `stroke`'s layer, itself first, at most `max`. */
+function latestStrokes(
+  objects: readonly CanvasObject[],
+  stroke: StrokeObject,
+  max: number,
+): StrokeObject[] {
+  const out: StrokeObject[] = []
+  for (let i = objects.length - 1; i >= 0 && out.length < max; i--) {
+    const o = objects[i]!
+    if (o.type === 'stroke' && o.layerId === stroke.layerId && o.tool === 'pen') out.push(o)
+  }
+  return out[0]?.id === stroke.id ? out : []
+}
+
 /**
  * The newest strokes near `stroke` (itself first), at most `max`, drawn one after another with
  * the pen on its layer: parts of one drawing, like an arrow's shaft and head.
@@ -236,7 +251,7 @@ function recentNear(
 /** A drawing made clean: what replaces which strokes, and the name of the step for undo. */
 export interface CleanDrawing {
   label: string
-  strokes: StrokeObject[]
+  objects: CanvasObject[]
   replaces: Id[]
 }
 
@@ -257,7 +272,7 @@ export function cleanDrawingFor(
     const group = recent.slice(0, k).reverse()
     // A triangle head first: its sides would also pass for the two barbs of an open head.
     const arrow = detectTriangleArrow(group) ?? detectArrow(group)
-    if (arrow) return { label: 'Arrow', strokes: arrowStrokes(stroke, arrow), replaces: arrow.ids }
+    if (arrow) return { label: 'Arrow', objects: arrowStrokes(stroke, arrow), replaces: arrow.ids }
   }
   return null
 }
@@ -271,15 +286,20 @@ export function graphFor(
   stroke: StrokeObject,
 ): CleanDrawing | null {
   if (stroke.tool !== 'pen' || stroke.closed) return null
-  // Up to three axes and the head.
-  const recent = recentNear(objects, stroke, 4, { x: 4, y: 4 })
+  // Up to three axes and the head. The head may be far from the axis drawn just before it (a
+  // depth axis), so these are simply the latest strokes; the axes' shape decides.
+  const recent = latestStrokes(objects, stroke, 4)
   for (let k = recent.length; k >= 2; k--) {
     const graph = detectGraph(recent.slice(0, k).reverse())
     if (graph) {
-      const ink = cleanInk(stroke)
       return {
         label: 'Graph',
-        strokes: graph.lines.map((points) => ({ ...ink, id: newId(), points, straight: true })),
+        objects: [
+          graphFromAxes(newId(), stroke.layerId, graph.axes, {
+            color: stroke.color,
+            width: stroke.width,
+          }),
+        ],
         replaces: graph.ids,
       }
     }
@@ -361,7 +381,7 @@ export function magicFor(
   if (drawing) {
     return {
       label: drawing.label,
-      objects: replaceStrokes(objects, drawing.replaces, drawing.strokes),
+      objects: replaceStrokes(objects, drawing.replaces, drawing.objects),
     }
   }
   const suggestion = suggestFor(objects, stroke, false, paper)

@@ -215,7 +215,148 @@ export function regionAt(sources: readonly OutlineSource[], x: number, y: number
   }
 
   for (const chain of chains(open)) consider(chain.pts, false, chain.ids)
-  return best
+  return best ?? enclosedArea(sources, x, y)
+}
+
+/** The grid an enclosed area is looked for in has at most this many cells along a side. */
+const AREA_GRID = 240
+
+/**
+ * The area around (x, y) that the strokes close off together, however they meet: a shape drawn
+ * onto another one, a line across a circle. The strokes are drawn into a grid, the grid is
+ * filled from (x, y), and the outline of what was filled is the area. Null when the filling
+ * runs out of the strokes' reach (the spot is not closed in).
+ */
+export function enclosedArea(
+  sources: readonly OutlineSource[],
+  x: number,
+  y: number,
+): Region | null {
+  if (!sources.length) return null
+  let minX = Infinity
+  let minY = Infinity
+  let maxX = -Infinity
+  let maxY = -Infinity
+  for (const s of sources) {
+    for (let i = 0; i + 1 < s.points.length; i += 2) {
+      minX = Math.min(minX, s.points[i]!)
+      maxX = Math.max(maxX, s.points[i]!)
+      minY = Math.min(minY, s.points[i + 1]!)
+      maxY = Math.max(maxY, s.points[i + 1]!)
+    }
+  }
+  if (x <= minX || x >= maxX || y <= minY || y >= maxY) return null
+  const cell = Math.max(0.75, Math.max(maxX - minX, maxY - minY) / AREA_GRID)
+  // One empty cell all around, so the filling can tell when it got out.
+  const ox = minX - cell * 2
+  const oy = minY - cell * 2
+  const w = Math.ceil((maxX - minX) / cell) + 4
+  const h = Math.ceil((maxY - minY) / cell) + 4
+  const wall = new Uint8Array(w * h)
+  const mark = (px: number, py: number) => {
+    const cx = Math.floor((px - ox) / cell)
+    const cy = Math.floor((py - oy) / cell)
+    // Each line is drawn two cells wide, so the filling cannot slip between its cells.
+    for (let dy = -1; dy <= 0; dy++) {
+      for (let dx = -1; dx <= 0; dx++) {
+        const gx = cx + dx
+        const gy = cy + dy
+        if (gx >= 0 && gy >= 0 && gx < w && gy < h) wall[gy * w + gx] = 1
+      }
+    }
+  }
+  for (const s of sources) {
+    const pts = toPts(s.points)
+    if (s.closed && pts.length > 2) pts.push(pts[0]!)
+    for (let i = 1; i < pts.length; i++) {
+      const a = pts[i - 1]!
+      const b = pts[i]!
+      const steps = Math.max(1, Math.ceil(dist(a, b) / (cell * 0.5)))
+      for (let k = 0; k <= steps; k++)
+        mark(a.x + ((b.x - a.x) * k) / steps, a.y + ((b.y - a.y) * k) / steps)
+    }
+  }
+  const start = Math.floor((y - oy) / cell) * w + Math.floor((x - ox) / cell)
+  if (wall[start]) return null
+  const filled = new Uint8Array(w * h)
+  const queue = [start]
+  filled[start] = 1
+  let count = 0
+  while (queue.length) {
+    const i = queue.pop()!
+    count++
+    const gx = i % w
+    const gy = (i - gx) / w
+    // Reaching the empty border means the spot is open to the outside.
+    if (gx === 0 || gy === 0 || gx === w - 1 || gy === h - 1) return null
+    for (const j of [i - 1, i + 1, i - w, i + w]) {
+      if (!filled[j] && !wall[j]) {
+        filled[j] = 1
+        queue.push(j)
+      }
+    }
+  }
+  // Grown by one cell, so the area reaches under the middle of its outlines.
+  const grown = new Uint8Array(filled)
+  for (let i = 0; i < filled.length; i++) {
+    if (!filled[i]) continue
+    for (const j of [i - 1, i + 1, i - w, i + w]) grown[j] = 1
+  }
+  const outline = traceOutline(grown, w, h)
+  if (outline.length < 3) return null
+  const pts = simplify(
+    outline.map((p) => ({ x: ox + p.x * cell, y: oy + p.y * cell })),
+    cell * 0.6,
+  )
+  // The strokes that close it off: the ones running along its edge.
+  const edge = new Set<number>()
+  for (let i = 0; i < grown.length; i++) {
+    if (grown[i] && !filled[i]) edge.add(i)
+  }
+  const sourceIds = sources
+    .filter((s) => {
+      for (let i = 0; i + 1 < s.points.length; i += 2) {
+        const cx = Math.floor((s.points[i]! - ox) / cell)
+        const cy = Math.floor((s.points[i + 1]! - oy) / cell)
+        for (let dy = -1; dy <= 1; dy++) {
+          for (let dx = -1; dx <= 1; dx++) if (edge.has((cy + dy) * w + cx + dx)) return true
+        }
+      }
+      return false
+    })
+    .map((s) => s.id)
+  return { points: toFlat(pts), smooth: false, area: count * cell * cell, sourceIds }
+}
+
+/**
+ * The outline of the set cells of a grid (one connected group), as the corners of the cells
+ * along it, going around once.
+ */
+function traceOutline(cells: Uint8Array, w: number, h: number): Pt[] {
+  const at = (x: number, y: number) => x >= 0 && y >= 0 && x < w && y < h && cells[y * w + x] === 1
+  // Edges between a set cell and an unset one, each going around the set cells clockwise.
+  const next = new Map<string, Pt>()
+  let first: Pt | null = null
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      if (!at(x, y)) continue
+      if (!at(x, y - 1)) next.set(`${x},${y}`, { x: x + 1, y })
+      if (!at(x + 1, y)) next.set(`${x + 1},${y}`, { x: x + 1, y: y + 1 })
+      if (!at(x, y + 1)) next.set(`${x + 1},${y + 1}`, { x, y: y + 1 })
+      if (!at(x - 1, y)) next.set(`${x},${y + 1}`, { x, y })
+      first ??= { x, y }
+    }
+  }
+  if (!first) return []
+  const out: Pt[] = []
+  let p: Pt = first
+  for (let guard = 0; guard < next.size + 1; guard++) {
+    out.push(p)
+    const q = next.get(`${p.x},${p.y}`)
+    if (!q || (q.x === first.x && q.y === first.y)) break
+    p = q
+  }
+  return out
 }
 
 const JOIN_PT = 10

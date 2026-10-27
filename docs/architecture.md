@@ -225,6 +225,15 @@ The ink pipeline, from pen to storage, each part in its own module:
   the origin (a vector graph) gets its head at its lower end, one that ends at the origin none
   (`geometry/graphs.ts`). This happens as soon as the head is drawn, also with the plain pen:
   axes with a head at their end are never handwriting.
+- Recognized graph axes become a graph object (`model/graph.ts`, drawn by `render/graph.ts`): a
+  box like a chart, with the axes measured from the origin, the drawn color and line width,
+  ticks with their own spacing per axis (always as wide as the drawn line and all the same
+  length; across the slanted axis too), axis names and a title in the hand font. A chip offers
+  its editor right after it was recognized; later "Edit graph" in the selection menu opens it.
+  A slanted depth axis is moved, at its angle, to run exactly through the origin.
+- Areas closed off by several strokes however they meet (a shape drawn onto another one) are
+  found by filling a grid of the nearby strokes from the colored spot (`enclosedArea` in
+  `geometry/shapes.ts`), when no single outline or chain of strokes closes them.
 - In a one-stroke arrow only the head may follow the tip: a wave or a word that goes on past a
   turn is never an arrow.
 - Arrow heads are judged at their own scale: a small head on a long shaft counts, a piece of
