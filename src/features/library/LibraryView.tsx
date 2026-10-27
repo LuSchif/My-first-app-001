@@ -1,3 +1,4 @@
+import { releaseLabel } from '../../release.ts'
 import {
   ChevronRight,
   FolderPlus,
@@ -100,6 +101,7 @@ export function LibraryView() {
           <a href="./ink-test.html" className="underline-offset-4 hover:underline">
             Ink test
           </a>
+          <span className="ml-auto font-semibold">{releaseLabel()}</span>
         </footer>
       </div>
       {library ? <PeekLayer library={library} reload={reload} /> : null}

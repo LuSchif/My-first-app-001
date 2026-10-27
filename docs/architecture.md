@@ -131,6 +131,9 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
 - The editor's top row: back and title on the left, the tool bar between (moved along to fit,
   below only when the row is too narrow), layers, pages and the control center on the right.
   The tool bar always opens with the main tools only; saving is silent unless it fails.
+- Every published version has a number and a name (`src/release.ts`), shown on the home
+  screen, in the control center and in the update banner; after an update has loaded, a notice
+  says which version is now running. The build writes it to `release.json` for the banner.
 - Pinch zoom keeps the point under the fingers still, also at the zoom limits, and lifting the
   fingers after a pinch never flings the page.
 - The text color menu and the tool settings menus have a grip as well: dragged elsewhere, they

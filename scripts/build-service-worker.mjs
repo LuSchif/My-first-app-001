@@ -7,7 +7,7 @@ import { join, relative } from 'node:path'
 
 const DIST = 'dist'
 // Spikes and deploy metadata are not part of the app.
-const SKIP = new Set(['sw.js', 'version.json', 'ink-test.html'])
+const SKIP = new Set(['sw.js', 'version.json', 'release.json', 'ink-test.html'])
 
 function walk(dir) {
   return readdirSync(dir).flatMap((name) => {
@@ -15,6 +15,16 @@ function walk(dir) {
     return statSync(path).isDirectory() ? walk(path) : [path]
   })
 }
+
+// The running app reads release.json to name the version an update brings (src/release.ts).
+const release = readFileSync('src/release.ts', 'utf8').match(
+  /RELEASE = \{ number: (\d+), name: '([^']+)' \}/,
+)
+if (!release) throw new Error('src/release.ts: RELEASE not found')
+writeFileSync(
+  join(DIST, 'release.json'),
+  JSON.stringify({ number: Number(release[1]), name: release[2] }),
+)
 
 const files = walk(DIST)
   .map((path) => relative(DIST, path).split('\\').join('/'))

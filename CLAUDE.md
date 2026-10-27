@@ -6,3 +6,4 @@
 - UI text is English. Conversation with the project owner is in German.
 - Run `npm run check` before every commit; it must pass.
 - Every visible tool must actually work. No placeholder UI.
+- Every published version (each push to `claude/broomit-foundation`) bumps `src/release.ts`: the next number and a new short English name. Tell the owner the name, so they can check the update has loaded.

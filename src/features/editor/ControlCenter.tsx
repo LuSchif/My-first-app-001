@@ -1,3 +1,4 @@
+import { releaseLabel } from '../../release.ts'
 import type { Editor, EditorState } from '../../engine/editor/Editor.ts'
 import type { Features } from '../../engine/editor/features.ts'
 import { Switch } from '../../design/index.ts'
@@ -58,6 +59,9 @@ export function ControlCenter({ editor, state }: { editor: Editor; state: Editor
           ))}
         </section>
       ))}
+      <p className="border-t border-line pt-3 text-xs font-semibold text-ink-muted">
+        {releaseLabel()}
+      </p>
     </div>
   )
 }
