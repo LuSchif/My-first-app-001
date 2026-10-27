@@ -213,7 +213,7 @@ The ink pipeline, from pen to storage, each part in its own module:
 
 - Hand-drawn arrows (one stroke, or a shaft and a head, at any size) become clean arrows only
   when the pen rests at the end, like perfect shapes: the shaft keeps its course (straight when
-  it nearly is, otherwise smoothed with its corners kept, `geometry/perfect.ts`) and gets an even
+  it nearly is, otherwise smoothed along its course, `geometry/perfect.ts`) and gets an even
   head (`engine/geometry/arrows.ts`). An automatic suggestion found arrows in ordinary writing,
   so there is none.
 - Graph axes: a horizontal and a vertical line (an "L" or a cross), maybe a third, slanted line
@@ -227,8 +227,8 @@ The ink pipeline, from pen to storage, each part in its own module:
   the shaft itself never counts as a barb, and the shaft runs right up to the tip.
 - The magic pen (a tool beside the pen, with the pen's color and size) makes every stroke clean
   as the pen lifts (`magicFor` in `editor/suggestions.ts`): axes and arrows as above, coloring
-  in a shape fills it, shapes and tables become clean ones, and any other line is smoothed with
-  its size and proportions kept. One undo step brings back what was drawn.
+  in a shape fills it, shapes and tables become clean ones, and any other line keeps exactly its
+  course: only wobbles and jitter (a few points long) are averaged out and turns come out round. One undo step brings back what was drawn.
 - The laser's glow is drawn opaque on a canvas of its own and laid over at its strength:
   translucent strokes straight on the page left dots where pieces overlapped.
 - A notebook's pages follow downwards or to the side (`pageFlow`, `PageLayout.flow`); pulling

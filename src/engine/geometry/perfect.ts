@@ -1,15 +1,17 @@
 /**
- * Hand-drawn lines made clean without changing what they look like: wobbles are smoothed away,
- * nearly straight stretches become straight, and sharp corners stay corners. The line keeps its
- * size and proportions: only wobbles much shorter than the line are averaged out.
+ * Hand-drawn lines made clean without changing what they look like: the line keeps its course,
+ * size and proportions, wobbles and jitter are averaged out, turns and tips come out rounded,
+ * and a nearly straight line becomes straight.
  */
 
 type Pt = { x: number; y: number }
 
-/** Turns sharper than this (in degrees) are corners, not part of a curve. */
-const CORNER_ANGLE = 55
-/** Wobbles shorter than about this share of the line are smoothed away. */
-const SMOOTH_REACH = 0.035
+/** How far the smoothing reaches along the line, in points: a share of its length, within limits. */
+const SMOOTH_SHARE = 0.025
+const SMOOTH_MIN = 1.5
+const SMOOTH_MAX = 8
+/** A line straying less than this share of its length from straight becomes straight. */
+const STRAIGHT_SHARE = 0.025
 
 function pathLength(pts: readonly Pt[]): number {
   let l = 0
@@ -38,35 +40,6 @@ function resample(pts: readonly Pt[], step: number): Pt[] {
   const end = out[out.length - 1]!
   if (Math.hypot(last.x - end.x, last.y - end.y) > step * 0.3) out.push(last)
   else out[out.length - 1] = last
-  return out
-}
-
-/** Indices of sharp corners, judged over a stretch of `k` points on each side. */
-function corners(pts: readonly Pt[], k: number): number[] {
-  const turn: number[] = pts.map(() => 0)
-  for (let i = k; i < pts.length - k; i++) {
-    const a = pts[i - k]!
-    const p = pts[i]!
-    const b = pts[i + k]!
-    const ax = p.x - a.x
-    const ay = p.y - a.y
-    const bx = b.x - p.x
-    const by = b.y - p.y
-    const la = Math.hypot(ax, ay)
-    const lb = Math.hypot(bx, by)
-    if (la < 1e-6 || lb < 1e-6) continue
-    const cos = Math.max(-1, Math.min(1, (ax * bx + ay * by) / (la * lb)))
-    turn[i] = (Math.acos(cos) * 180) / Math.PI
-  }
-  const out: number[] = []
-  for (let i = k; i < pts.length - k; i++) {
-    if (turn[i]! < CORNER_ANGLE) continue
-    let peak = true
-    for (let j = Math.max(0, i - k); j <= Math.min(pts.length - 1, i + k); j++) {
-      if (turn[j]! > turn[i]! || (turn[j] === turn[i] && j < i)) peak = false
-    }
-    if (peak) out.push(i)
-  }
   return out
 }
 
@@ -106,27 +79,22 @@ function smoothPiece(piece: readonly Pt[], half: number): Pt[] {
 }
 
 /**
- * The clean version of an open line, as points to join with straight segments (dense along
- * curves, only the ends along straight stretches).
+ * The clean version of an open line, as points to join with straight segments. It follows the
+ * drawn line exactly and only smooths what is unsteady: wobbles and jitter disappear, turns and
+ * tips are rounded, and a line that is nearly straight becomes straight.
  */
 export function perfectLine(flat: readonly number[]): number[] {
   const raw: Pt[] = []
   for (let i = 0; i + 1 < flat.length; i += 2) raw.push({ x: flat[i]!, y: flat[i + 1]! })
   const total = pathLength(raw)
   if (raw.length < 3 || total < 2) return [...flat]
-  const step = Math.min(3, Math.max(0.5, total / 120))
+  if (deviation(raw) < Math.max(1.2, total * STRAIGHT_SHARE)) {
+    return [raw[0]!.x, raw[0]!.y, raw[raw.length - 1]!.x, raw[raw.length - 1]!.y]
+  }
+  const step = Math.min(1, Math.max(0.25, total / 600))
   const pts = resample(raw, step)
   if (pts.length < 3) return [...flat]
-  const k = Math.max(2, Math.round(pts.length * 0.05))
-  const cuts = [0, ...corners(pts, k), pts.length - 1]
-  const out: Pt[] = []
-  for (let c = 0; c < cuts.length - 1; c++) {
-    const piece = pts.slice(cuts[c], cuts[c + 1]! + 1)
-    const length = pathLength(piece)
-    const straight = deviation(piece) < Math.max(1.2, length * 0.045)
-    const half = Math.max(1, Math.round((total * SMOOTH_REACH) / step))
-    const clean = straight ? [piece[0]!, piece[piece.length - 1]!] : smoothPiece(piece, half)
-    out.push(...(c === 0 ? clean : clean.slice(1)))
-  }
-  return out.flatMap((p) => [p.x, p.y])
+  // Wobbles up to a few points long go; the drawn course, however curvy, stays.
+  const reach = Math.min(SMOOTH_MAX, Math.max(SMOOTH_MIN, total * SMOOTH_SHARE))
+  return smoothPiece(pts, Math.max(1, Math.round(reach / step))).flatMap((p) => [p.x, p.y])
 }
