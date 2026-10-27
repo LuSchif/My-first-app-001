@@ -268,7 +268,8 @@ export function graphFor(
   stroke: StrokeObject,
 ): CleanDrawing | null {
   if (stroke.tool !== 'pen' || stroke.closed) return null
-  const recent = recentNear(objects, stroke, 3, { x: 4, y: 4 })
+  // Up to three axes and the head.
+  const recent = recentNear(objects, stroke, 4, { x: 4, y: 4 })
   for (let k = recent.length; k >= 2; k--) {
     const graph = detectGraph(recent.slice(0, k).reverse())
     if (graph) {

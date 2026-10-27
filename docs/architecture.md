@@ -216,10 +216,13 @@ The ink pipeline, from pen to storage, each part in its own module:
   it nearly is, otherwise smoothed with its corners kept, `geometry/perfect.ts`) and gets an even
   head (`engine/geometry/arrows.ts`). An automatic suggestion found arrows in ordinary writing,
   so there is none.
-- Graph axes: a horizontal and a vertical line (an "L" or a cross) with an arrow head drawn at
-  one end become straight axes with heads at the right and the top, never left or bottom
+- Graph axes: a horizontal and a vertical line (an "L" or a cross), maybe a third, slanted line
+  through their crossing (depth), with an arrow head drawn at one end become straight axes with
+  heads at the right, the top and the slanted axis's upper end, never left or bottom
   (`geometry/graphs.ts`). This happens as soon as the head is drawn, also with the plain pen:
   axes with a head at their end are never handwriting.
+- In a one-stroke arrow only the head may follow the tip: a wave or a word that goes on past a
+  turn is never an arrow.
 - Arrow heads are judged at their own scale: a small head on a long shaft counts, a piece of
   the shaft itself never counts as a barb, and the shaft runs right up to the tip.
 - The magic pen (a tool beside the pen, with the pen's color and size) makes every stroke clean

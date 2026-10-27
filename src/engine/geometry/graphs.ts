@@ -5,7 +5,8 @@ import { simplify, toPts } from './shapes.ts'
 
 /**
  * Hand-drawn graph axes: a horizontal and a vertical line (an "L", drawn in one stroke or two,
- * or a cross of two strokes) and an arrow head drawn at the end of one of them. The clean
+ * or a cross of two strokes), maybe a third, slanted one through their crossing, and an arrow
+ * head drawn at the end of one of them. The clean
  * version has straight axes that meet where they were drawn to meet, and arrow heads at the
  * right end of the horizontal axis and the top end of the vertical one, never left or bottom.
  */
@@ -15,7 +16,7 @@ type Pt = { x: number; y: number }
 export interface CleanGraph {
   /** The strokes the axes were drawn with, the head last. */
   ids: string[]
-  /** Horizontal axis, vertical axis, then their heads (right, top). */
+  /** Horizontal axis, vertical axis, their heads (right, top), then a slanted axis and its head. */
   lines: number[][]
 }
 
@@ -72,10 +73,14 @@ interface Axis {
   length: number
 }
 
-/** The level and upright stretches of the axis strokes, or null when anything else is there. */
-function axesOf(strokes: readonly DrawnStroke[]): { h: Axis; v: Axis } | null {
+/**
+ * The level and upright stretches of the axis strokes, and a third, slanted axis when one
+ * straight stroke runs diagonally; null when anything else is there.
+ */
+function axesOf(strokes: readonly DrawnStroke[]): { h: Axis; v: Axis; d: [Pt, Pt] | null } | null {
   const hs: [Pt, Pt, number][] = []
   const vs: [Pt, Pt, number][] = []
+  let d: [Pt, Pt] | null = null
   let total = 0
   let used = 0
   for (const s of strokes) {
@@ -83,6 +88,16 @@ function axesOf(strokes: readonly DrawnStroke[]): { h: Axis; v: Axis } | null {
     const b = boundsOfPoints(s.points)
     const size = Math.hypot(b.maxX - b.minX, b.maxY - b.minY)
     const line = simplify(pts, Math.max(2, size * 0.06))
+    const first = pts[0]!
+    const last = pts[pts.length - 1]!
+    const tilt =
+      (Math.atan2(Math.abs(last.y - first.y), Math.abs(last.x - first.x)) * 180) / Math.PI
+    // One straight, slanted stroke is a third axis (depth, as in 3D drawings).
+    if (line.length === 2 && tilt >= AXIS_TILT && tilt <= 90 - AXIS_TILT) {
+      if (d) return null
+      d = [first, last]
+      continue
+    }
     for (let i = 1; i < line.length; i++) {
       const p = line[i - 1]!
       const q = line[i]!
@@ -112,7 +127,7 @@ function axesOf(strokes: readonly DrawnStroke[]): { h: Axis; v: Axis } | null {
     }
     return { at: at / length, from, to, length: to - from }
   }
-  return { h: axis(hs, true), v: axis(vs, false) }
+  return { h: axis(hs, true), v: axis(vs, false), d }
 }
 
 /**
@@ -120,24 +135,41 @@ function axesOf(strokes: readonly DrawnStroke[]): { h: Axis; v: Axis } | null {
  * of one axis. Returns null when they do not form one.
  */
 export function detectGraph(strokes: readonly DrawnStroke[]): CleanGraph | null {
-  if (strokes.length < 2 || strokes.length > 3) return null
+  if (strokes.length < 2 || strokes.length > 4) return null
   const head = headOf(strokes[strokes.length - 1]!.points)
   if (!head) return null
   const axes = axesOf(strokes.slice(0, -1))
   if (!axes) return null
-  const { h, v } = axes
+  const { h, v, d } = axes
   const longest = Math.max(h.length, v.length)
   if (Math.min(h.length, v.length) < Math.max(head.size * 1.5, longest * 0.15)) return null
   const reach = Math.max(6, longest * 0.12)
   // The axes cross or meet.
   if (v.at < h.from - reach || v.at > h.to + reach) return null
   if (h.at < v.from - reach || h.at > v.to + reach) return null
+  // A slanted axis runs through where the others cross; its head goes on its upper end.
+  let slant: { from: Pt; to: Pt; dir: Pt } | null = null
+  if (d) {
+    const [a, c] = d
+    const l = len(a, c)
+    const cross = (v.at - a.x) * (c.y - a.y) - (h.at - a.y) * (c.x - a.x)
+    if (l < longest * 0.3 || Math.abs(cross) / l > reach) return null
+    const up = a.y < c.y || (a.y === c.y && a.x > c.x) ? a : c
+    const down = up === a ? c : a
+    slant = { from: down, to: up, dir: { x: (up.x - down.x) / l, y: (up.y - down.y) / l } }
+  }
   // The head sits at an axis end and points outwards along it.
   const ends = [
     { p: { x: h.from, y: h.at }, d: { x: -1, y: 0 } },
     { p: { x: h.to, y: h.at }, d: { x: 1, y: 0 } },
     { p: { x: v.at, y: v.from }, d: { x: 0, y: -1 } },
     { p: { x: v.at, y: v.to }, d: { x: 0, y: 1 } },
+    ...(slant
+      ? [
+          { p: slant.to, d: slant.dir },
+          { p: slant.from, d: { x: -slant.dir.x, y: -slant.dir.y } },
+        ]
+      : []),
   ]
   const near = Math.max(reach, head.size * 1.2)
   const atEnd = ends.some(
@@ -160,6 +192,9 @@ export function detectGraph(strokes: readonly DrawnStroke[]): CleanGraph | null 
       [v.at, bottom, v.at, top],
       headAt({ x: right, y: h.at }, { x: 1, y: 0 }, size),
       headAt({ x: v.at, y: top }, { x: 0, y: -1 }, size),
+      ...(slant
+        ? [[slant.from.x, slant.from.y, slant.to.x, slant.to.y], headAt(slant.to, slant.dir, size)]
+        : []),
     ],
   }
 }

@@ -107,6 +107,37 @@ describe('arrow recognition', () => {
     ).toBeLessThan(20)
   })
 
+  it('finds no arrow in a long wave that ends in a little hook', () => {
+    // Traced from a drawing on the iPad (screen pixels, about 2.5 per point on the page).
+    const anchors = [
+      [310, 815],
+      [330, 650],
+      [420, 520],
+      [500, 465],
+      [580, 540],
+      [650, 720],
+      [770, 845],
+      [900, 760],
+      [1040, 520],
+      [1155, 440],
+      [1240, 540],
+      [1280, 760],
+      [1350, 870],
+      [1460, 730],
+      [1580, 530],
+      [1635, 500],
+      [1700, 560],
+      [1745, 760],
+      [1755, 940],
+      [1785, 930],
+      [1790, 918],
+    ].map(([x, y]) => [x! / 2.5, y! / 2.5])
+    const points = anchors
+      .slice(1)
+      .flatMap(([x, y], i) => line(anchors[i]![0]!, anchors[i]![1]!, x!, y!, 12))
+    expect(detectArrow([{ id: 'w', points }])).toBeNull()
+  })
+
   it('ignores lines, angles and letters', () => {
     expect(detectArrow([{ id: 'a', points: line(100, 100, 300, 100) }])).toBeNull()
     const v = [...line(100, 100, 150, 200), ...line(150, 200, 200, 100)]

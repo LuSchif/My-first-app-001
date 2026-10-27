@@ -86,8 +86,9 @@ export function detectArrow(strokes: readonly DrawnStroke[]): CleanArrow | null 
   let best: { arrow: CleanArrow; score: number } | null = null
   for (const tip of tips) {
     // The shaft runs to the tip from its far end: drawn towards the tip or away from it.
-    const toTip = shaftTo(shaftStroke.points, tip.p, reach * 0.7, size * 0.45)
-    if (!toTip) continue
+    const found = shaftTo(shaftStroke.points, tip.p, reach * 0.7, size * 0.45)
+    if (!found) continue
+    const { piece: toTip, rest } = found
     const shaftLength = length(toTip)
     if (shaftLength < size * 0.45) continue
     const end = { x: toTip[toTip.length - 2]!, y: toTip[toTip.length - 1]! }
@@ -114,6 +115,8 @@ export function detectArrow(strokes: readonly DrawnStroke[]): CleanArrow | null 
           if (l < Math.max(1.5, shaftLength * 0.015) || l > shaftLength * 0.7) continue
           // A piece that runs along the shaft is the shaft itself, not a barb.
           if (distanceToLine(to, toTip) < Math.max(1, l * 0.12)) continue
+          // In the shaft's own stroke, barbs can only come after the tip.
+          if (si === shaftIndex && distanceToLine(to, rest) > 1) continue
           arms.push({
             stroke: si,
             from,
@@ -138,6 +141,9 @@ export function detectArrow(strokes: readonly DrawnStroke[]): CleanArrow | null 
     if (angle(l.dx, l.dy, r.dx, r.dy) < MIN_HEAD_OPEN) continue
     // Barbs of very different sizes are more likely writing than a head.
     if (Math.min(l.length, r.length) < Math.max(l.length, r.length) * 0.3) continue
+    // What the shaft's stroke draws after the tip is the head and nothing more: a wave or
+    // a word going on past a turn is no arrow.
+    if (length(rest) > 2.6 * Math.max(l.length, r.length) + reach) continue
     const used = new Set([shaftIndex, l.stroke, r.stroke])
     // Every stroke in the group must be part of the arrow.
     if (used.size !== strokes.length) continue
@@ -172,10 +178,15 @@ export function detectArrow(strokes: readonly DrawnStroke[]): CleanArrow | null 
 
 /**
  * The part of a stroke from one end up to where it first comes near `tip` after at least
- * `minLength` of line, from whichever end gives the longer shaft.
+ * `minLength` of line, from whichever end gives the longer shaft, and what follows it.
  */
-function shaftTo(points: readonly number[], tip: Pt, near: number, minLength: number) {
-  let best: number[] | null = null
+function shaftTo(
+  points: readonly number[],
+  tip: Pt,
+  near: number,
+  minLength: number,
+): { piece: number[]; rest: number[] } | null {
+  let best: { piece: number[]; rest: number[] } | null = null
   for (const line of [points, reverse(points)]) {
     let travelled = 0
     for (let i = 1; i < line.length / 2; i++) {
@@ -194,7 +205,7 @@ function shaftTo(points: readonly number[], tip: Pt, near: number, minLength: nu
         }
       }
       const piece = line.slice(0, end * 2 + 2)
-      if (!best || travelled > length(best)) best = piece
+      if (!best || travelled > length(best.piece)) best = { piece, rest: line.slice(end * 2) }
       break
     }
   }
