@@ -35,6 +35,8 @@ import { samplePath } from '../geometry/fitCurve.ts'
 const MIN_SHAPE_SIZE = 36
 /** Share of a stroke's points that must lie inside an outline for it to count as coloring in. */
 const INSIDE_SHARE = 0.85
+/** Coloring in may run this far over an outline (in points, plus the line's width). */
+const OVER_EDGE = 6
 
 export type Suggestion =
   /** The first stroke becomes the shape; the others (sides drawn separately) are removed. */
@@ -104,13 +106,37 @@ export function around(x: number, y: number, reach: number): Rect {
   return { minX: x - reach, minY: y - reach, maxX: x + reach, maxY: y + reach }
 }
 
-function shareInside(points: readonly number[], region: Region): number {
+/**
+ * The share of a stroke's points inside an area. Coloring in often runs a little over the
+ * edge; points just outside (up to `slack` points) count as inside.
+ */
+function shareInside(points: readonly number[], region: Region, slack = 0): number {
   const outline = toPts(region.points)
   let inside = 0
   for (let i = 0; i < points.length; i += 2) {
-    if (insidePolygon(points[i]!, points[i + 1]!, outline)) inside++
+    const x = points[i]!
+    const y = points[i + 1]!
+    if (insidePolygon(x, y, outline) || (slack > 0 && nearOutline(x, y, outline, slack))) inside++
   }
   return inside / (points.length / 2)
+}
+
+function nearOutline(
+  x: number,
+  y: number,
+  outline: readonly { x: number; y: number }[],
+  d: number,
+) {
+  for (let i = 0; i < outline.length; i++) {
+    const a = outline[i]!
+    const b = outline[(i + 1) % outline.length]!
+    const dx = b.x - a.x
+    const dy = b.y - a.y
+    const l2 = dx * dx + dy * dy
+    const t = l2 > 0 ? Math.max(0, Math.min(1, ((x - a.x) * dx + (y - a.y) * dy) / l2)) : 0
+    if (Math.hypot(x - a.x - dx * t, y - a.y - dy * t) <= d) return true
+  }
+  return false
 }
 
 /**
@@ -168,14 +194,15 @@ export function suggestFor(
   if (region) {
     const b = boundsOfPoints(pts)
     const covers = ((b.maxX - b.minX) * (b.maxY - b.minY)) / region.area
-    if (shareInside(pts, region) >= INSIDE_SHARE && covers >= 0.1) {
+    const slack = OVER_EDGE + stroke.width
+    if (shareInside(pts, region, slack) >= INSIDE_SHARE && covers >= 0.1) {
       // Earlier scribbles in the same color inside the same shape are replaced too.
       const removeIds = objects.flatMap((o) =>
         o.type === 'stroke' &&
         o.layerId === stroke.layerId &&
         o.color === stroke.color &&
         !region.sourceIds.includes(o.id) &&
-        (o.id === stroke.id || shareInside(o.points, region) >= INSIDE_SHARE)
+        (o.id === stroke.id || shareInside(o.points, region, slack) >= INSIDE_SHARE)
           ? [o.id]
           : [],
       )
@@ -384,14 +411,18 @@ export function magicFor(
   paper?: PaperKind,
   grid?: PaperGrid | null,
 ): { label: string; objects: CanvasObject[] } {
-  const drawing = cleanDrawingFor(objects, stroke, grid)
-  if (drawing) {
-    return {
-      label: drawing.label,
-      objects: replaceStrokes(objects, drawing.replaces, drawing.objects),
-    }
-  }
+  const drawn = (drawing: CleanDrawing) => ({
+    label: drawing.label,
+    objects: replaceStrokes(objects, drawing.replaces, drawing.objects),
+  })
+  const graph = graphFor(objects, stroke, grid)
+  if (graph) return drawn(graph)
+  // Coloring in a closed area wins over an arrow: a scribble at the end of a line is no head.
   const suggestion = suggestFor(objects, stroke, false, paper)
+  if (suggestion?.kind !== 'fill') {
+    const drawing = cleanDrawingFor(objects, stroke, grid)
+    if (drawing) return drawn(drawing)
+  }
   if (suggestion) {
     return {
       label: suggestionLabel(suggestion).split(' · ')[0]!.replace('Auto ', 'Magic '),

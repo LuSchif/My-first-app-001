@@ -219,7 +219,9 @@ export function regionAt(sources: readonly OutlineSource[], x: number, y: number
 }
 
 /** The grid an enclosed area is looked for in has at most this many cells along a side. */
-const AREA_GRID = 240
+const AREA_GRID = 400
+/** Outlines this close (in points) count as meeting. */
+const GAP_PT = 6
 
 /**
  * The area around (x, y) that the strokes close off together, however they meet: a shape drawn
@@ -253,12 +255,15 @@ export function enclosedArea(
   const w = Math.ceil((maxX - minX) / cell) + 4
   const h = Math.ceil((maxY - minY) / cell) + 4
   const wall = new Uint8Array(w * h)
+  const thick = Math.max(1, Math.ceil(GAP_PT / 2 / cell))
   const mark = (px: number, py: number) => {
     const cx = Math.floor((px - ox) / cell)
     const cy = Math.floor((py - oy) / cell)
-    // Each line is drawn two cells wide, so the filling cannot slip between its cells.
-    for (let dy = -1; dy <= 0; dy++) {
-      for (let dx = -1; dx <= 0; dx++) {
+    // Each line is drawn thick, so the filling cannot slip between its cells, nor through a
+    // small gap where a shape drawn onto another one does not quite meet it.
+    for (let dy = -thick; dy <= thick; dy++) {
+      for (let dx = -thick; dx <= thick; dx++) {
+        if (dx * dx + dy * dy > thick * thick + 1) continue
         const gx = cx + dx
         const gy = cy + dy
         if (gx >= 0 && gy >= 0 && gx < w && gy < h) wall[gy * w + gx] = 1
@@ -296,18 +301,51 @@ export function enclosedArea(
       }
     }
   }
-  // Grown by one cell, so the area reaches under the middle of its outlines.
-  const grown = new Uint8Array(filled)
-  for (let i = 0; i < filled.length; i++) {
-    if (!filled[i]) continue
-    for (const j of [i - 1, i + 1, i - w, i + w]) grown[j] = 1
+  // Grown back by the lines' thickness, so the area reaches under the middle of its outlines.
+  let grown = filled
+  for (let round = 0; round <= thick; round++) {
+    const next = new Uint8Array(grown)
+    for (let i = 0; i < grown.length; i++) {
+      if (!grown[i]) continue
+      for (const j of [i - 1, i + 1, i - w, i + w]) next[j] = 1
+    }
+    grown = next
   }
   const outline = traceOutline(grown, w, h)
   if (outline.length < 3) return null
-  const pts = simplify(
+  // The grid's edge is a staircase; each of its points moves onto the middle of the stroke it
+  // runs along, so the area follows its outlines exactly (and its edge hides under them).
+  const segments: [Pt, Pt][] = []
+  for (const s of sources) {
+    const sp = toPts(s.points)
+    if (s.closed && sp.length > 2) sp.push(sp[0]!)
+    for (let i = 1; i < sp.length; i++) segments.push([sp[i - 1]!, sp[i]!])
+  }
+  const reach = cell * 3
+  const onStrokes = simplify(
     outline.map((p) => ({ x: ox + p.x * cell, y: oy + p.y * cell })),
-    cell * 0.6,
-  )
+    cell * 0.3,
+  ).map((p) => {
+    let best = p
+    let bestD = reach
+    for (const [a, b] of segments) {
+      if (
+        p.x < Math.min(a.x, b.x) - reach ||
+        p.x > Math.max(a.x, b.x) + reach ||
+        p.y < Math.min(a.y, b.y) - reach ||
+        p.y > Math.max(a.y, b.y) + reach
+      )
+        continue
+      const q = closestOnSegment(p, a, b)
+      const d = dist(p, q)
+      if (d < bestD) {
+        bestD = d
+        best = q
+      }
+    }
+    return best
+  })
+  const pts = simplify(onStrokes, cell * 0.15)
   // The strokes that close it off: the ones running along its edge.
   const edge = new Set<number>()
   for (let i = 0; i < grown.length; i++) {
@@ -326,6 +364,14 @@ export function enclosedArea(
     })
     .map((s) => s.id)
   return { points: toFlat(pts), smooth: false, area: count * cell * cell, sourceIds }
+}
+
+function closestOnSegment(p: Pt, a: Pt, b: Pt): Pt {
+  const dx = b.x - a.x
+  const dy = b.y - a.y
+  const l2 = dx * dx + dy * dy
+  const t = l2 > 0 ? Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / l2)) : 0
+  return { x: a.x + dx * t, y: a.y + dy * t }
 }
 
 /**

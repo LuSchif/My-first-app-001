@@ -231,11 +231,15 @@ The ink pipeline, from pen to storage, each part in its own module:
   length; across the slanted axis too), axis names and a title in the hand font. A chip offers
   its editor right after it was recognized; later "Edit graph" in the selection menu opens it.
   A slanted depth axis is moved, at its angle, to run exactly through the origin.
-  Each axis's ticks have their own spacing, length and width. On grid or dot paper the origin
+  Each axis's ticks have their own spacing, length and width; a depth-axis tick is left out only
+  where it would cross the other axes. On grid or dot paper the origin
   snaps onto a grid crossing, the axis ends onto grid lines, and ticks start one square apart.
 - Areas closed off by several strokes however they meet (a shape drawn onto another one) are
   found by filling a grid of the nearby strokes from the colored spot (`enclosedArea` in
-  `geometry/shapes.ts`), when no single outline or chain of strokes closes them.
+  `geometry/shapes.ts`), when no single outline or chain of strokes closes them. Outlines up to
+  6 pt apart count as meeting; the grid's staircase edge is moved onto the strokes' middles.
+  Coloring in may run a little over the edge. With the magic pen, coloring in wins over taking
+  a scribble at a line's end for an arrow head.
 - In a one-stroke arrow only the head may follow the tip: a wave or a word that goes on past a
   turn is never an arrow.
 - Arrow heads are judged at their own scale: a small head on a long shaft counts, a piece of

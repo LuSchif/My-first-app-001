@@ -5,6 +5,32 @@ import type { GraphObject } from '../model/types.ts'
 import { strokeBoxOutline } from './outline.ts'
 import { FONT_STACKS } from './text.ts'
 
+type Pt = { x: number; y: number }
+
+function pointToSegment(p: Pt, a: Pt, b: Pt): number {
+  const dx = b.x - a.x
+  const dy = b.y - a.y
+  const l2 = dx * dx + dy * dy
+  const t = l2 > 0 ? Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / l2)) : 0
+  return Math.hypot(p.x - a.x - dx * t, p.y - a.y - dy * t)
+}
+
+/** How close two line segments come; 0 when they cross. */
+function segmentDistance(a: Pt, b: Pt, c: Pt, d: Pt): number {
+  const cross = (p: Pt, q: Pt, r: Pt) => (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x)
+  const d1 = cross(c, d, a)
+  const d2 = cross(c, d, b)
+  const d3 = cross(a, b, c)
+  const d4 = cross(a, b, d)
+  if (d1 * d2 < 0 && d3 * d4 < 0) return 0
+  return Math.min(
+    pointToSegment(a, c, d),
+    pointToSegment(b, c, d),
+    pointToSegment(c, a, b),
+    pointToSegment(d, a, b),
+  )
+}
+
 /** The ticks of one axis: every `step` from the origin in direction `dir`, up to `reach`. */
 function ticksAlong(
   path: Path2D,
@@ -12,8 +38,8 @@ function ticksAlong(
   reach: number,
   step: number,
   half: number,
-  /** Leaves out ticks closer to the origin than this (on a slanted axis, near the others). */
-  from = 0,
+  /** Leaves out ticks that would touch something (on a slanted axis: the other axes and ticks). */
+  blocked?: (a: Pt, b: Pt) => boolean,
 ): void {
   if (!(step > 0.5) || reach <= 0) return
   // Across the axis.
@@ -26,7 +52,7 @@ function ticksAlong(
     const ay = y - ny * half
     const bx = x + nx * half
     const by = y + ny * half
-    if (d < from) continue
+    if (blocked?.({ x: ax, y: ay }, { x: bx, y: by })) continue
     path.moveTo(ax, ay)
     path.lineTo(bx, by)
   }
@@ -90,14 +116,19 @@ export function paintGraph(ctx: CanvasRenderingContext2D, g: GraphObject): void 
     })
     if (depth && depthDir) {
       const dir = depthDir
-      // Near the origin the slanted axis's ticks would run into the others' ticks.
-      const others = Math.max(tickSize(g, 'x').length, tickSize(g, 'y').length) / 2
+      // A tick of the slanted axis that would cross the other axes is left out.
+      const others: [Pt, Pt, number][] = [
+        [{ x: g.left, y: 0 }, { x: g.right, y: 0 }, g.lineWidth],
+        [{ x: 0, y: g.top }, { x: 0, y: g.bottom }, g.lineWidth],
+      ]
+      const wz = tickSize(g, 'z').width
+      const blocked = (a: Pt, b: Pt) =>
+        others.some(([c, d, w]) => segmentDistance(a, b, c, d) < (w + wz) / 2)
       draw('z', (ticks, half) => {
-        const from = (others + half) * 1.2 + g.lineWidth
         const toward = Math.hypot(depth.toX, depth.toY) - (depth.head ? clear : half)
         const away = Math.hypot(depth.fromX, depth.fromY) - half
-        ticksAlong(ticks, dir, toward, g.ticks.z, half, from)
-        ticksAlong(ticks, { x: -dir.x, y: -dir.y }, away, g.ticks.z, half, from)
+        ticksAlong(ticks, dir, toward, g.ticks.z, half, blocked)
+        ticksAlong(ticks, { x: -dir.x, y: -dir.y }, away, g.ticks.z, half, blocked)
       })
     }
   }
