@@ -99,7 +99,10 @@ export class NotebookDocument {
 
   updateNotebook(
     patch: Partial<
-      Pick<Notebook, 'title' | 'layers' | 'cover' | 'folderId' | 'background' | 'paper' | 'study'>
+      Pick<
+        Notebook,
+        'title' | 'layers' | 'cover' | 'folderId' | 'background' | 'paper' | 'study' | 'pageFlow'
+      >
     >,
   ): void {
     this._notebook = { ...this._notebook, ...patch }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { StrokeObject } from '../model/types.ts'
-import { applySuggestion, suggestFor } from './suggestions.ts'
+import { applySuggestion, cleanDrawingFor, magicFor, suggestFor } from './suggestions.ts'
 
 const stroke = (id: string, points: number[], color = '#3e2d25'): StrokeObject => ({
   id,
@@ -61,5 +61,37 @@ describe('suggestions', () => {
     const big = stroke('big', circle(200, 200, 60))
     const after = applySuggestion([big], suggestFor([big], big)!, 'l', () => 'x')
     expect(after[0]).toMatchObject({ id: 'big', closed: true })
+  })
+
+  it('magic pen: fills a shape that is colored in, at once', () => {
+    const outline = stroke('outline', circle(200, 200, 60))
+    const red = stroke('red', scribble(200, 200, 30), '#c4473a')
+    const after = magicFor([outline, red], red)
+    expect(after.objects.map((o) => o.type)).toEqual(['fill', 'stroke'])
+  })
+
+  it('magic pen: smooths a wavy line and keeps its size', () => {
+    let seed = 3
+    const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647 - 0.5) * 3
+    const wave = Array.from({ length: 80 }, (_, i) => [
+      100 + i * 4 + rnd(),
+      200 + Math.sin(i / 8) * 40 + rnd(),
+    ]).flat()
+    const drawn = stroke('w', wave)
+    const after = magicFor([drawn], drawn).objects[0] as StrokeObject
+    expect(after.id).toBe('w')
+    expect(after.straight).toBe(true)
+    const ys = after.points.filter((_, i) => i % 2 === 1)
+    expect(Math.max(...ys)).toBeGreaterThan(234)
+    expect(Math.min(...ys)).toBeLessThan(166)
+  })
+
+  it('makes graph axes clean, with heads right and top', () => {
+    const axes = stroke('l', [100, 50, 100, 150, 100, 250, 210, 250, 320, 250])
+    const head = stroke('h', [305, 238, 321, 250, 305, 262])
+    const clean = cleanDrawingFor([axes, head], head)
+    expect(clean?.label).toBe('Graph')
+    expect(clean?.replaces).toEqual(['l', 'h'])
+    expect(clean?.strokes).toHaveLength(4)
   })
 })

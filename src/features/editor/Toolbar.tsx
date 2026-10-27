@@ -22,6 +22,7 @@ import {
   SquareDashed,
   Type,
   Undo2,
+  WandSparkles,
 } from 'lucide-react'
 import { useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
 import type { Editor, EditorState, ToolId } from '../../engine/editor/Editor.ts'
@@ -191,6 +192,14 @@ export function Toolbar({
             state.pen.nib === 'fountain' ? <FountainPenIcon size={22} /> : <PenLine {...ICON} />,
             <PenSettings editor={editor} state={state} />,
           )}
+          {features.magicPen
+            ? toolButton(
+                'magic',
+                'Magic pen',
+                <WandSparkles {...ICON} />,
+                <MagicPenSettings editor={editor} state={state} />,
+              )
+            : null}
           {toolButton(
             'highlighter',
             'Highlighter',
@@ -619,6 +628,44 @@ function PenSettings({ editor, state }: { editor: Editor; state: EditorState }) 
           format={(v) => (v === 0 ? 'Off' : `${v}%`)}
         />
       ) : null}
+      <Slider
+        label="Opacity"
+        value={Math.round(pen.opacity * 100)}
+        min={10}
+        max={100}
+        onChange={(v) => editor.setPen({ opacity: v / 100 })}
+        format={(v) => `${v}%`}
+      />
+      <ColorPicker value={pen.color} onChange={(color) => editor.setPen({ color })} />
+    </>
+  )
+}
+
+/** The magic pen shares the pen's color, size and opacity. */
+function MagicPenSettings({ editor, state }: { editor: Editor; state: EditorState }) {
+  const { pen } = state
+  return (
+    <>
+      <p className="text-sm text-ink-muted">
+        Lines and curves come out smooth, arrows and graph axes clean, shapes neat, and coloring in
+        a shape fills it.
+      </p>
+      <PenPreview
+        color={pen.color}
+        width={pen.width}
+        opacity={pen.opacity}
+        dash={null}
+        fountain={false}
+      />
+      <Slider
+        label="Size"
+        value={pen.width}
+        min={0.5}
+        max={10}
+        step={0.5}
+        onChange={(width) => editor.setPen({ width })}
+        format={(v) => `${v} pt`}
+      />
       <Slider
         label="Opacity"
         value={Math.round(pen.opacity * 100)}

@@ -76,6 +76,8 @@ export function themeColors(setting: ThemeSetting): Record<string, string> | nul
       line: mix(accent, black, 0.68),
       'line-strong': mix(accent, black, 0.5),
       accent,
+      // Bright enough to see around a chosen option on the dark surfaces.
+      selected: mix(accent, white, 0.5),
       hover: alpha(white, 0.08),
       pressed: alpha(white, 0.14),
       scrim: alpha(black, 0.5),
@@ -101,6 +103,7 @@ export function themeColors(setting: ThemeSetting): Record<string, string> | nul
     line: mix(accent, white, 0.76),
     'line-strong': mix(accent, white, 0.56),
     accent,
+    selected: accent,
     hover: alpha(ink, 0.06),
     pressed: alpha(ink, 0.1),
     scrim: alpha(mix(ink, black, 0.3), 0.32),

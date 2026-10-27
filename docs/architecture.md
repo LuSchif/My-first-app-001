@@ -9,7 +9,7 @@ This document records the decisions agreed before implementation. Change it when
 | Platform       | Web app (PWA) first; Capacitor (iOS/Android) and Tauri (desktop) later                              |
 | Primary device | iPad Pro with Apple Pencil, Chrome and Safari (both use WebKit on iPadOS)                           |
 | UI language    | English, with strings kept ready for translation                                                    |
-| Pages          | Fixed A4 pages (595 × 842 pt), scrolled vertically                                                  |
+| Pages          | Fixed A4 pages (595 × 842 pt), following downwards or (per notebook) to the side                    |
 | Layers         | Defined per notebook (name, order, visibility, lock); content stored per page                       |
 | UI kit         | Plus Jakarta Sans, Lucide icons plus own broom icon, Radix primitives; reference page `design.html` |
 | Stack          | React, TypeScript (strict), Vite, Tailwind CSS v4, Zustand, Dexie (IndexedDB)                       |
@@ -211,10 +211,27 @@ The ink pipeline, from pen to storage, each part in its own module:
 - The control center (gear in the editor) switches features and toolbar tools on and off; the
   choice is kept per device (`editor/features.ts`).
 
-- Hand-drawn arrows (one stroke, or a shaft and a head) become clean arrows only when the pen
-  rests at the end, like perfect shapes: the shaft is kept (made straight when it nearly is) and
-  gets an even head (`engine/geometry/arrows.ts`). An automatic suggestion found arrows in
-  ordinary writing, so there is none.
+- Hand-drawn arrows (one stroke, or a shaft and a head, at any size) become clean arrows only
+  when the pen rests at the end, like perfect shapes: the shaft keeps its course (straight when
+  it nearly is, otherwise smoothed with its corners kept, `geometry/perfect.ts`) and gets an even
+  head (`engine/geometry/arrows.ts`). An automatic suggestion found arrows in ordinary writing,
+  so there is none.
+- Graph axes: a horizontal and a vertical line (an "L" or a cross) with an arrow head drawn at
+  one end become straight axes with heads at the right and the top, never left or bottom
+  (`geometry/graphs.ts`); also on resting the pen.
+- The magic pen (a tool beside the pen, with the pen's color and size) makes every stroke clean
+  as the pen lifts (`magicFor` in `editor/suggestions.ts`): axes and arrows as above, coloring
+  in a shape fills it, shapes and tables become clean ones, and any other line is smoothed with
+  its size and proportions kept. One undo step brings back what was drawn.
+- The laser's glow is drawn opaque on a canvas of its own and laid over at its strength:
+  translucent strokes straight on the page left dots where pieces overlapped.
+- A notebook's pages follow downwards or to the side (`pageFlow`, `PageLayout.flow`); pulling
+  past the last page adds a page in that direction.
+- The pages overview: tapping a page opens a card to open it, change its paper, export,
+  duplicate or delete it; above the pages, the page direction, the paper of new pages and the
+  notebook export.
+- Whatever is chosen (a paper, a tool, an option) is outlined in `--color-selected`, set once
+  in `index.css` for every pressed, checked, selected or current control.
 - Every edit bar is ordered the same way, with a thin line between the groups: first what is
   done with the selection as a whole (delete, cut, duplicate, copy), then what changes its
   content or arrangement, then how it looks (color, outline).

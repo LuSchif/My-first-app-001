@@ -1,10 +1,12 @@
+import { perfectLine } from './perfect.ts'
 import { boundsOfPoints } from './rect.ts'
 import { simplify, toPts } from './shapes.ts'
 
 /**
  * Hand-drawn arrows: a shaft (straight or bent) with two barbs at its tip, drawn in one stroke
- * or several (a line, then a "V" or ">" for the head). A clean arrow keeps the shaft (made
- * straight when it nearly is) and gets an even head pointing along the shaft's end.
+ * or several (a line, then a "V" or ">" for the head), at any size. A clean arrow keeps the
+ * shaft (straight when it nearly is, otherwise smoothed with its corners) and gets an even head
+ * pointing along the shaft's end.
  */
 
 export interface DrawnStroke {
@@ -16,7 +18,7 @@ export interface CleanArrow {
   /** The strokes the arrow was drawn with. */
   ids: string[]
   shaft: number[]
-  /** The shaft is a straight line. */
+  /** The shaft's points are joined by straight segments (always, once it is clean). */
   straight: boolean
   head: number[]
 }
@@ -26,6 +28,8 @@ type Pt = { x: number; y: number }
 /** Barbs this far from the shaft direction (in degrees) count as an arrow head. */
 const MIN_BARB_ANGLE = 12
 const MAX_BARB_ANGLE = 80
+/** Smaller drawings (their diagonal, in points) are dots or writing. */
+const MIN_SIZE = 6
 /** The head opens this far on each side, in degrees. */
 const HEAD_ANGLE = 28
 
@@ -63,9 +67,9 @@ export function detectArrow(strokes: readonly DrawnStroke[]): CleanArrow | null 
   const shaftStroke = strokes[shaftIndex]!
   const b = boundsOfPoints(strokes.flatMap((s) => s.points))
   const size = Math.hypot(b.maxX - b.minX, b.maxY - b.minY)
-  if (size < 30) return null
-  const eps = Math.max(1.5, size * 0.035)
-  const reach = Math.max(5, size * 0.09)
+  if (size < MIN_SIZE) return null
+  const eps = Math.max(0.6, size * 0.035)
+  const reach = Math.max(2.5, size * 0.09)
 
   // Every straight piece of every stroke, as a possible barb or the end of the shaft.
   const polylines = strokes.map((s) => simplify(toPts(s.points), eps))
@@ -82,7 +86,7 @@ export function detectArrow(strokes: readonly DrawnStroke[]): CleanArrow | null 
     const end = { x: toTip[toTip.length - 2]!, y: toTip[toTip.length - 1]! }
     if (Math.hypot(end.x - tip.p.x, end.y - tip.p.y) > reach) continue
     // Direction the shaft points at the tip, from a stretch before it.
-    const back = pointBefore(toTip, Math.min(shaftLength * 0.25, Math.max(10, size * 0.12)))
+    const back = pointBefore(toTip, Math.min(shaftLength * 0.25, Math.max(3, size * 0.12)))
     const sl = Math.hypot(end.x - back.x, end.y - back.y)
     if (sl < 1e-6) continue
     const ux = (end.x - back.x) / sl
@@ -100,7 +104,7 @@ export function detectArrow(strokes: readonly DrawnStroke[]): CleanArrow | null 
         ] as const) {
           if (Math.hypot(from.x - tip.p.x, from.y - tip.p.y) > reach) continue
           const l = Math.hypot(to.x - from.x, to.y - from.y)
-          if (l < Math.max(4, shaftLength * 0.06) || l > shaftLength * 0.7) continue
+          if (l < Math.max(1.5, shaftLength * 0.06) || l > shaftLength * 0.7) continue
           arms.push({
             stroke: si,
             from,
@@ -128,23 +132,28 @@ export function detectArrow(strokes: readonly DrawnStroke[]): CleanArrow | null 
     // Every stroke in the group must be part of the arrow.
     if (used.size !== strokes.length) continue
     const headLength = Math.min(
-      Math.max(8, (l.length + r.length) / 2),
-      Math.max(8, shaftLength * 0.35),
+      Math.max(3, (l.length + r.length) / 2),
+      Math.max(3, shaftLength * 0.35),
     )
     const score = l.length + r.length
     if (best && best.score >= score) continue
     const straightness = maxDeviation(toTip)
-    const straight = straightness < Math.max(3, shaftLength * 0.06)
+    const straight = straightness < Math.max(1.5, shaftLength * 0.06)
     const start = { x: toTip[0]!, y: toTip[1]! }
-    const shaft = straight ? [start.x, start.y, end.x, end.y] : [...toTip]
-    const dir = straight
-      ? {
-          x: (end.x - start.x) / Math.hypot(end.x - start.x, end.y - start.y),
-          y: (end.y - start.y) / Math.hypot(end.x - start.x, end.y - start.y),
-        }
-      : { x: ux, y: uy }
+    const shaft = straight ? [start.x, start.y, end.x, end.y] : perfectLine(toTip)
+    const n = shaft.length
+    const tipAt = { x: shaft[n - 2]!, y: shaft[n - 1]! }
+    const from = straight ? start : pointBefore(shaft, Math.min(headLength, shaftLength * 0.2))
+    const fl = Math.hypot(tipAt.x - from.x, tipAt.y - from.y)
+    const dir =
+      fl > 1e-6 ? { x: (tipAt.x - from.x) / fl, y: (tipAt.y - from.y) / fl } : { x: ux, y: uy }
     best = {
-      arrow: { ids: strokes.map((s) => s.id), shaft, straight, head: headAt(end, dir, headLength) },
+      arrow: {
+        ids: strokes.map((s) => s.id),
+        shaft,
+        straight: true,
+        head: headAt(tipAt, dir, headLength),
+      },
       score,
     }
   }

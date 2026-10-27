@@ -36,6 +36,7 @@ export class LaserPointer implements FxPainter {
   private head: Point | null = null
   /** When the pen last drew. */
   private lastActive = 0
+  private glow: HTMLCanvasElement | null = null
 
   constructor(ctx: EditorContext, request: () => void) {
     this.ctx = ctx
@@ -91,6 +92,13 @@ export class LaserPointer implements FxPainter {
     this.lastActive = performance.now()
   }
 
+  private glowCanvas(width: number, height: number): HTMLCanvasElement {
+    this.glow ??= document.createElement('canvas')
+    if (this.glow.width !== width) this.glow.width = width
+    if (this.glow.height !== height) this.glow.height = height
+    return this.glow
+  }
+
   paint(ctx: CanvasRenderingContext2D, now: number): boolean {
     if (this.pointerId !== null) this.lastActive = now
     const idle = now - this.lastActive - HOLD_MS
@@ -99,24 +107,39 @@ export class LaserPointer implements FxPainter {
     const c = this.ctx.camera()
     const sx = (p: TrailPoint) => p.x * c.zoom + c.offsetX
     const sy = (p: TrailPoint) => p.y * c.zoom + c.offsetY
+    // One smooth path for the whole drawing: curves through the midpoints between samples.
+    const path = new Path2D()
+    let prev: { x: number; y: number } | null = null
+    for (const p of this.trail) {
+      const q = { x: sx(p), y: sy(p) }
+      if (p.start || !prev) path.moveTo(q.x, q.y)
+      else path.quadraticCurveTo(prev.x, prev.y, (prev.x + q.x) / 2, (prev.y + q.y) / 2)
+      prev = q
+    }
+    if (prev) path.lineTo(this.head?.x ?? prev.x, this.head?.y ?? prev.y)
+    // The glow is drawn opaque on a canvas of its own and laid over once at its strength:
+    // translucent strokes straight on the page darken where their pieces overlap (dots).
+    const glow = this.glowCanvas(ctx.canvas.width, ctx.canvas.height)
+    const g = glow.getContext('2d')!
+    g.setTransform(1, 0, 0, 1, 0, 0)
+    g.clearRect(0, 0, glow.width, glow.height)
+    g.setTransform(ctx.getTransform())
+    g.lineCap = 'round'
+    g.lineJoin = 'round'
+    g.strokeStyle = this.color
+    g.lineWidth = GLOW_PX
+    g.stroke(path)
+    ctx.save()
+    ctx.setTransform(1, 0, 0, 1, 0, 0)
+    ctx.globalAlpha = 0.22 * fade
+    ctx.drawImage(glow, 0, 0)
+    ctx.restore()
     ctx.lineCap = 'round'
     ctx.lineJoin = 'round'
     ctx.strokeStyle = this.color
-    // One path for the whole drawing: glow below, bright core on top.
-    const path = new Path2D()
-    for (const p of this.trail) {
-      if (p.start) path.moveTo(sx(p), sy(p))
-      else path.lineTo(sx(p), sy(p))
-    }
-    if (this.head && this.trail.length) path.lineTo(this.head.x, this.head.y)
-    for (const [width, alpha] of [
-      [GLOW_PX, 0.22],
-      [CORE_PX, 1],
-    ] as const) {
-      ctx.globalAlpha = alpha * fade
-      ctx.lineWidth = width
-      ctx.stroke(path)
-    }
+    ctx.globalAlpha = fade
+    ctx.lineWidth = CORE_PX
+    ctx.stroke(path)
     ctx.globalAlpha = 1
     if (this.head) drawBroom(ctx, this.head.x, this.head.y, BROOM_PX, this.color)
     return this.trail.length > 0 || this.head !== null

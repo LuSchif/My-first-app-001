@@ -24,6 +24,7 @@ const GROUPS: { title: string; items: [keyof Features, string, string][] }[] = [
   {
     title: 'Toolbar',
     items: [
+      ['magicPen', 'Magic pen', 'Lines, arrows, graphs and shapes come out clean'],
       ['eyedropper', 'Eyedropper', 'Pick a color from the page'],
       ['magnifier', 'Magnifier', 'See which layer something is on'],
       ['tape', 'Tape', 'Cover writing; double tap to reveal it'],

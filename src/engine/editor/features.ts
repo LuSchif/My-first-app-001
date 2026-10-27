@@ -27,6 +27,7 @@ export interface Features {
   eyedropper: boolean
   magnifier: boolean
   pathTool: boolean
+  magicPen: boolean
 }
 
 export const DEFAULT_FEATURES: Features = {
@@ -44,6 +45,7 @@ export const DEFAULT_FEATURES: Features = {
   eyedropper: true,
   magnifier: true,
   pathTool: true,
+  magicPen: true,
 }
 
 /** Stored features, with defaults for anything missing or malformed. */

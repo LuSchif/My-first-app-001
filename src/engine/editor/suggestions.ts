@@ -26,6 +26,8 @@ import {
 } from '../geometry/clefs.ts'
 import { PAGE_SIZE } from '../model/types.ts'
 import { detectArrow, type CleanArrow } from '../geometry/arrows.ts'
+import { detectGraph } from '../geometry/graphs.ts'
+import { perfectLine } from '../geometry/perfect.ts'
 
 /** Strokes smaller than this (in points) are handwriting, not shapes. */
 const MIN_SHAPE_SIZE = 36
@@ -230,46 +232,119 @@ function recentNear(
   return recent[0]?.id === stroke.id ? recent : []
 }
 
+/** A drawing made clean: what replaces which strokes, and the name of the step for undo. */
+export interface CleanDrawing {
+  label: string
+  strokes: StrokeObject[]
+  replaces: Id[]
+}
+
 /**
- * An arrow drawn with `stroke`, alone or with up to two strokes just before it (a shaft, then
- * the head). Only asked for when the pen is held still at the end of a stroke: guessing after
- * every stroke found arrows in ordinary handwriting.
+ * Graph axes or an arrow drawn with `stroke`, alone or with up to two strokes just before it
+ * (axes, or a shaft, then the head). With the pen this is only asked for when the pen is held
+ * still at the end of a stroke: guessing after every stroke found arrows in ordinary handwriting.
  */
-export function arrowFor(
+export function cleanDrawingFor(
   objects: readonly CanvasObject[],
   stroke: StrokeObject,
-): CleanArrow | null {
+): CleanDrawing | null {
   if (stroke.tool !== 'pen' || stroke.closed) return null
   const recent = recentNear(objects, stroke, 3, { x: 4, y: 4 })
+  for (let k = recent.length; k >= 2; k--) {
+    const graph = detectGraph(recent.slice(0, k).reverse())
+    if (graph) {
+      const ink = cleanInk(stroke)
+      return {
+        label: 'Graph',
+        strokes: graph.lines.map((points) => ({ ...ink, id: newId(), points, straight: true })),
+        replaces: graph.ids,
+      }
+    }
+  }
   for (let k = recent.length; k >= 1; k--) {
     const arrow = detectArrow(recent.slice(0, k).reverse())
-    if (arrow) return arrow
+    if (arrow) return { label: 'Arrow', strokes: arrowStrokes(stroke, arrow), replaces: arrow.ids }
   }
   return null
 }
 
-/** The strokes of a clean arrow in the style of `like`: the shaft, then an even head. */
-export function arrowStrokes(like: StrokeObject, arrow: CleanArrow): StrokeObject[] {
+/** The look of a stroke without its drawn shape (points, widths, input, dashes). */
+function cleanInk(like: StrokeObject): Omit<StrokeObject, 'id' | 'points'> {
   const {
+    id: _id,
+    points: _points,
     path: _path,
     closed: _closed,
     widths: _widths,
     input: _input,
-    dash,
+    dash: _dash,
     straight: _straight,
     ...ink
   } = like
+  return ink
+}
+
+/** The strokes of a clean arrow in the style of `like`: the shaft, then an even head. */
+function arrowStrokes(like: StrokeObject, arrow: CleanArrow): StrokeObject[] {
+  const ink = cleanInk(like)
   // A dashed shaft stays dashed; the head is always solid.
   return [
     {
       ...ink,
-      ...(dash ? { dash } : {}),
+      ...(like.dash ? { dash: like.dash } : {}),
       id: newId(),
       points: arrow.shaft,
       straight: arrow.straight,
     },
     { ...ink, id: newId(), points: arrow.head, straight: true },
   ]
+}
+
+/** Puts `strokes` where the first of `replaces` was, without the replaced ones. */
+export function replaceStrokes(
+  objects: readonly CanvasObject[],
+  replaces: readonly Id[],
+  strokes: readonly CanvasObject[],
+): CanvasObject[] {
+  const gone = new Set(replaces)
+  const at = objects.findIndex((o) => gone.has(o.id))
+  const kept = objects.filter((o) => !gone.has(o.id))
+  kept.splice(at < 0 ? kept.length : Math.min(at, kept.length), 0, ...strokes)
+  return kept
+}
+
+/**
+ * The magic pen: what the page becomes once `stroke` (already on it, last) is made perfect.
+ * Graph axes and arrows become clean ones, coloring in a shape fills it, shapes and tables
+ * become clean ones, and anything else is smoothed, keeping its size and proportions.
+ */
+export function magicFor(
+  objects: readonly CanvasObject[],
+  stroke: StrokeObject,
+  paper?: PaperKind,
+): { label: string; objects: CanvasObject[] } {
+  const drawing = cleanDrawingFor(objects, stroke)
+  if (drawing) {
+    return {
+      label: drawing.label,
+      objects: replaceStrokes(objects, drawing.replaces, drawing.strokes),
+    }
+  }
+  const suggestion = suggestFor(objects, stroke, false, paper)
+  if (suggestion) {
+    return {
+      label: suggestionLabel(suggestion).split(' · ')[0]!.replace('Auto ', 'Magic '),
+      objects: applySuggestion(objects, suggestion, stroke.layerId, newId),
+    }
+  }
+  const smooth: StrokeObject = {
+    ...cleanInk(stroke),
+    ...(stroke.dash ? { dash: stroke.dash } : {}),
+    id: stroke.id,
+    points: stroke.closed ? stroke.points : perfectLine(stroke.points),
+    straight: true,
+  }
+  return { label: 'Magic pen', objects: objects.map((o) => (o.id === stroke.id ? smooth : o)) }
 }
 
 /** The staves on music paper. */

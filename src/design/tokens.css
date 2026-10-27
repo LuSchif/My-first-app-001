@@ -34,6 +34,8 @@
   --color-line: #e2d3bf;
   --color-line-strong: #cdb597;
   --color-accent: #b98b65;
+  /* The outline around whatever is chosen (a paper, a tool, an option). */
+  --color-selected: #b98b65;
   --color-hover: rgb(62 45 37 / 0.06);
   --color-pressed: rgb(62 45 37 / 0.1);
   --color-danger: #a8432f;

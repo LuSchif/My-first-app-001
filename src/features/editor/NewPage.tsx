@@ -1,4 +1,4 @@
-import { ArrowDown, FilePlus2 } from 'lucide-react'
+import { ArrowDown, ArrowRight, FilePlus2 } from 'lucide-react'
 import { useState } from 'react'
 import type { Editor, EditorState } from '../../engine/editor/Editor.ts'
 import type { PaperKind } from '../../engine/model/types.ts'
@@ -9,16 +9,22 @@ import { PAPER_OPTIONS, paperPreviewStyle } from '../paper.ts'
 const RING = 2 * Math.PI * 15
 
 /**
- * Pulling past the last page: a card at the bottom says to keep pulling, then fills a ring
- * while the pull is held. Only a full ring adds a page, so a fling never does.
+ * Pulling past the last page: a card at the bottom (or the right edge, when pages follow to the
+ * side) says to keep pulling, then fills a ring while the pull is held. Only a full ring adds a page, so a fling never does.
  */
 export function PullForPage({ state }: { state: EditorState }) {
   const pull = state.pull
   if (!pull) return null
+  const side = state.pageFlow === 'horizontal'
   return (
     <div
       role="status"
-      className="pointer-events-none absolute inset-x-0 bottom-[calc(28px+env(safe-area-inset-bottom))] z-20 mx-auto flex w-fit animate-pop-in items-center gap-3 rounded-panel bg-ink py-2 pr-5 pl-2 text-sm font-semibold text-ink-inverse shadow-overlay"
+      className={cn(
+        'pointer-events-none absolute z-20 flex w-fit animate-pop-in items-center gap-3 rounded-panel bg-ink py-2 pr-5 pl-2 text-sm font-semibold text-ink-inverse shadow-overlay',
+        side
+          ? 'top-1/2 right-[max(20px,env(safe-area-inset-right))] -translate-y-1/2'
+          : 'inset-x-0 bottom-[calc(28px+env(safe-area-inset-bottom))] mx-auto',
+      )}
     >
       <svg width="40" height="40" viewBox="0 0 40 40" aria-hidden="true">
         <circle
@@ -43,7 +49,13 @@ export function PullForPage({ state }: { state: EditorState }) {
           transform="rotate(-90 20 20)"
         />
         <foreignObject x="10" y="10" width="20" height="20">
-          {pull.armed ? <FilePlus2 size={20} /> : <ArrowDown size={20} />}
+          {pull.armed ? (
+            <FilePlus2 size={20} />
+          ) : side ? (
+            <ArrowRight size={20} />
+          ) : (
+            <ArrowDown size={20} />
+          )}
         </foreignObject>
       </svg>
       {pull.armed ? 'Hold to add a page' : 'Keep pulling for a new page'}
@@ -67,7 +79,7 @@ export function NewPageMenu({ editor, state }: { editor: Editor; state: EditorSt
                   type="button"
                   aria-pressed={paper === option.kind}
                   onClick={() => setPaper(option.kind)}
-                  className="group grid gap-1.5 text-sm"
+                  className="group grid gap-1.5 rounded-lg p-1 text-sm"
                 >
                   <span
                     className={cn(

@@ -37,6 +37,9 @@ export interface LayerDef {
   kind?: 'text'
 }
 
+/** Which way the pages follow one another: down (scrolled vertically) or to the side. */
+export type PageFlow = 'vertical' | 'horizontal'
+
 export interface Notebook {
   id: Id
   schemaVersion: number
@@ -56,6 +59,8 @@ export interface Notebook {
   layers: LayerDef[]
   /** Color of the background layer below all others; the paper color when absent. */
   background?: string
+  /** Notebooks: pages follow downwards (when absent) or to the side. */
+  pageFlow?: PageFlow
   createdAt: number
   updatedAt: number
 }

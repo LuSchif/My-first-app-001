@@ -40,6 +40,7 @@ import {
   type Outline,
   type Page,
   type PageSize,
+  type PageFlow,
   type PaperKind,
   type StrokeDash,
   type StrokeInput,
@@ -47,7 +48,7 @@ import {
   type TextObject,
   type TextStyle,
 } from '../model/types.ts'
-import { layoutOf, pageSizeOf, PageLayout } from '../render/layout.ts'
+import { pageSizeOf, PageLayout } from '../render/layout.ts'
 import { enterPage, renderScene, setDeskColor, type View } from '../render/SceneRenderer.ts'
 import { PAPER_STYLE } from '../render/paper.ts'
 import { inkAlpha, paintStroke, setInkStyle, strokeBounds } from '../render/strokes.ts'
@@ -65,8 +66,10 @@ import {
   applySuggestion,
   around,
   fillFor,
-  arrowFor,
-  arrowStrokes,
+  cleanDrawingFor,
+  magicFor,
+  replaceStrokes,
+  type CleanDrawing,
   insertBelow,
   outlineSources,
   suggestFor,
@@ -98,6 +101,7 @@ import { highlightText } from './textHighlight.ts'
 
 export type ToolId =
   | 'pen'
+  | 'magic'
   | 'highlighter'
   | 'broom'
   | 'lasso'
@@ -164,6 +168,8 @@ export interface EditorState {
    * the pull is far enough for it to count.
    */
   pull: { armed: boolean; progress: number } | null
+  /** Which way the pages follow one another. */
+  pageFlow: PageFlow
   /** The menu for the paper of the page about to be added is open. */
   newPageMenu: boolean
   /** Where a long press offers to paste, in screen pixels. */
@@ -190,8 +196,8 @@ const RIGHT_INSET = 76
 const HOLD_MS = 550
 const HOLD_SLOP_PX = 4
 const MIN_HOLD_SHAPE = 30
-/** An arrow head drawn after its shaft may be smaller than a shape. */
-const MIN_HOLD_HEAD = 10
+/** An arrow head drawn after its shaft may be much smaller than a shape. */
+const MIN_HOLD_HEAD = 3
 
 /** Pause after a stroke before looking for shapes to offer. */
 const SUGGEST_DELAY_MS = 350
@@ -240,8 +246,13 @@ interface InkSession {
   holdTimer: ReturnType<typeof setTimeout> | null
   /** Set once the pen was held still: the stroke becomes this perfect shape. */
   snapped: Shape | null
-  /** Or, held at the end of an arrow: these clean strokes replace it (and its parts drawn before). */
-  arrow: { strokes: StrokeObject[]; replaces: Id[] } | null
+  /**
+   * Or, held at the end of an arrow or of graph axes: these clean strokes replace it (and its
+   * parts drawn before).
+   */
+  arrow: CleanDrawing | null
+  /** Drawn with the magic pen: made clean as soon as the pen lifts. */
+  magic: boolean
 }
 
 interface EraseSession {
@@ -454,6 +465,7 @@ export class Editor {
       notice: null,
       inspect: null,
       pull: null,
+      pageFlow: doc.notebook.pageFlow ?? 'vertical',
       newPageMenu: false,
       pasteMenu: null,
     }
@@ -469,7 +481,10 @@ export class Editor {
     this.kind = doc.notebook.kind ?? 'notebook'
     this.slides = this.kind !== 'notebook'
     // A presentation's (or deck's) layout is its own: it remembers which slide is in view.
-    this.layout = this.slides ? new PageLayout(pageSizeOf(doc.notebook)) : layoutOf(doc.notebook)
+    this.layout = new PageLayout(
+      pageSizeOf(doc.notebook),
+      this.slides ? 'vertical' : (doc.notebook.pageFlow ?? 'vertical'),
+    )
     if (this.slides) this.layout.focus = 0
     this.sceneCanvas = makeCanvas()
     this.inkLayer = document.createElement('div')
@@ -888,6 +903,7 @@ export class Editor {
       eyedropper: !features.eyedropper,
       magnifier: !features.magnifier,
       path: !features.pathTool,
+      magic: !features.magicPen,
     }
     if (hidden[this._state.tool]) this.setTool('pen')
   }
@@ -966,6 +982,12 @@ export class Editor {
       y: (b.minY + o.y) * zoom + offsetY,
       width: (b.maxX - b.minX) * zoom,
       height: (b.maxY - b.minY) * zoom,
+    }
+    // Scrolled away (e.g. to the next page at the side): the offer goes with it.
+    const { width, height } = this.view
+    if (rect.x + rect.width < 0 || rect.x > width || rect.y + rect.height < 0 || rect.y > height) {
+      this.dismissSuggestion()
+      return
     }
     this.update({ suggestion: { kind: s.kind, label: suggestionLabel(s), rect } })
   }
@@ -1187,18 +1209,32 @@ export class Editor {
     this.selection.select(page.id, [object.id])
   }
 
+  /** Pages follow downwards or to the side; the page in view stays in view. */
+  setPageFlow(flow: PageFlow): void {
+    if (this.slides || flow === this.layout.flow) return
+    const index = this._state.pageIndex
+    this.layout.flow = flow
+    this.doc.updateNotebook({ pageFlow: flow })
+    this.pageCache.clear()
+    this.update({ pageFlow: flow })
+    // Start at the top of the page in view, in the new arrangement.
+    const z = this.camera.zoom
+    const o = this.layout.origin(index)
+    this.setCamera({ zoom: z, offsetX: SIDE_MARGIN - o.x * z, offsetY: TOP_INSET - o.y * z })
+  }
+
   /**
-   * Changes the paper: of the page in view, of the pages added from now on, or of every page.
-   * One step to undo.
+   * Changes the paper: of one page (the one in view unless `pageIndex` is given), of the pages
+   * added from now on, or of every page. One step to undo.
    */
-  setPaper(kind: PaperKind, scope: PaperScope): void {
+  setPaper(kind: PaperKind, scope: PaperScope, pageIndex = this._state.pageIndex): void {
     const commands: Command[] = []
     const pages =
       scope === 'all'
         ? this.doc.pageList
         : scope === 'new'
           ? []
-          : [this.doc.pageList[this._state.pageIndex]].filter((p) => p !== undefined)
+          : [this.doc.pageList[pageIndex]].filter((p) => p !== undefined)
     for (const page of pages) {
       if (page.paper !== kind) commands.push(setPagePaper(page.id, page.paper, kind))
     }
@@ -1441,7 +1477,12 @@ export class Editor {
       return
     }
     const z = this.camera.zoom
-    this.setCamera({ ...this.camera, offsetY: TOP_INSET - this.layout.origin(index).y * z })
+    const o = this.layout.origin(index)
+    if (this.layout.horizontal) {
+      this.setCamera({ ...this.camera, offsetX: SIDE_MARGIN - o.x * z })
+    } else {
+      this.setCamera({ ...this.camera, offsetY: TOP_INSET - o.y * z })
+    }
   }
 
   dispose(): void {
@@ -1642,16 +1683,34 @@ export class Editor {
     if (this.slides) return this.clampSlideCamera(c)
     const zoom = this.limitZoom(c.zoom)
     const { width, height } = this.view
+    const count = this.doc.notebook.pageIds.length
+    const stretch = Math.min(PULL_STRETCH_PX, this.pullRaw * 0.35)
+    if (this.layout.horizontal) {
+      // Pages side by side: centered across when they fit, scrolled along to the last page.
+      const pageHeight = this.layout.size.height * zoom
+      const room = height - TOP_INSET - this.bottomInset
+      const offsetY =
+        pageHeight <= room
+          ? TOP_INSET + (room - pageHeight) / 2
+          : Math.min(
+              TOP_INSET,
+              Math.max(height - this.bottomInset - pageHeight - SIDE_MARGIN, c.offsetY),
+            )
+      const pagesWidth = this.layout.contentLength(count) * zoom
+      const minX = Math.min(SIDE_MARGIN, width - pagesWidth - SIDE_MARGIN)
+      const maxX = pagesWidth + SIDE_MARGIN * 2 <= width ? (width - pagesWidth) / 2 : SIDE_MARGIN
+      const offsetX = Math.min(maxX, Math.max(minX - stretch, c.offsetX))
+      return { zoom, offsetX, offsetY }
+    }
     const pagesWidth = this.layout.size.width * zoom
     const offsetX =
       pagesWidth + SIDE_MARGIN * 2 <= width
         ? (width - pagesWidth) / 2
         : Math.min(SIDE_MARGIN, Math.max(width - pagesWidth - SIDE_MARGIN, c.offsetX))
-    const pagesHeight = this.layout.contentHeight(this.doc.notebook.pageIds.length) * zoom
+    const pagesHeight = this.layout.contentLength(count) * zoom
     // While typing, the last page may scroll up above the keyboard. A pull for a new page
     // stretches a little further.
     const minY = Math.min(TOP_INSET, height - pagesHeight - TOP_INSET - this.bottomInset)
-    const stretch = Math.min(PULL_STRETCH_PX, this.pullRaw * 0.35)
     const offsetY = Math.min(TOP_INSET, Math.max(minY - stretch, c.offsetY))
     return { zoom, offsetX, offsetY }
   }
@@ -1660,7 +1719,9 @@ export class Editor {
     // The magnifier's frames belong to the view it was used in.
     if (this._state.inspect) this.closeInspect()
     this.camera = this.clampCamera(c)
-    const center = (this.view.height / 2 - this.camera.offsetY) / this.camera.zoom
+    const center = this.layout.horizontal
+      ? (this.view.width / 2 - this.camera.offsetX) / this.camera.zoom
+      : (this.view.height / 2 - this.camera.offsetY) / this.camera.zoom
     const pageIndex =
       this.layout.focus ??
       Math.max(
@@ -2069,7 +2130,7 @@ export class Editor {
       this.zoomAt(this.screenPos(e), Math.exp(-delta * 0.01))
     } else {
       if (this.atBottom() || this.pullRaw > 0) {
-        this.pullBy(e.deltaY * 0.6)
+        this.pullBy((this.layout.horizontal ? e.deltaX : e.deltaY) * 0.6)
         // A wheel has no release; a short pause ends the pull.
         if (this.wheelPullTimer) clearTimeout(this.wheelPullTimer)
         this.wheelPullTimer = setTimeout(() => this.endPull(), 220)
@@ -2088,10 +2149,12 @@ export class Editor {
   private atBottom(): boolean {
     // Presentations get new slides from the slide list.
     if (this.slides) return false
-    const { height } = this.view
-    const pagesHeight =
-      this.layout.contentHeight(this.doc.notebook.pageIds.length) * this.camera.zoom
-    const minY = Math.min(TOP_INSET, height - pagesHeight - TOP_INSET - this.bottomInset)
+    const { width, height } = this.view
+    const length = this.layout.contentLength(this.doc.notebook.pageIds.length) * this.camera.zoom
+    if (this.layout.horizontal) {
+      return this.camera.offsetX <= Math.min(SIDE_MARGIN, width - length - SIDE_MARGIN) + 1
+    }
+    const minY = Math.min(TOP_INSET, height - length - TOP_INSET - this.bottomInset)
     return this.camera.offsetY <= minY + 1
   }
 
@@ -2243,7 +2306,9 @@ export class Editor {
         camera = { zoom, offsetX: cx - wx * zoom, offsetY: cy - wy * zoom }
       }
       const atBottom = this.atBottom()
-      if (next.count === 1 && (atBottom || this.pullRaw > 0)) this.pullBy(-dy)
+      if (next.count === 1 && (atBottom || this.pullRaw > 0)) {
+        this.pullBy(this.layout.horizontal ? -dx : -dy)
+      }
       this.setCamera(camera)
       if (time !== undefined) {
         const dt = Math.max(1, time - this.velocity.t)
@@ -2325,8 +2390,10 @@ export class Editor {
     if (!page) return
 
     const highlighter = this._state.tool === 'highlighter'
+    // The magic pen draws with the pen's color and size; its lines are made clean anyway.
+    const magic = this._state.tool === 'magic'
     const settings = highlighter ? this._state.highlighter : this._state.pen
-    const fountain = !highlighter && this._state.pen.nib === 'fountain'
+    const fountain = !highlighter && !magic && this._state.pen.nib === 'fountain'
     const session: InkSession = {
       kind: 'ink',
       pointerId: e.pointerId,
@@ -2341,7 +2408,7 @@ export class Editor {
         color: settings.color,
         width: settings.width,
         opacity: highlighter ? this._state.highlighter.opacity : this._state.pen.opacity,
-        ...(!highlighter && !fountain && this._state.pen.dash
+        ...(!highlighter && !magic && !fountain && this._state.pen.dash
           ? { dash: this._state.pen.dash }
           : {}),
       },
@@ -2359,6 +2426,7 @@ export class Editor {
       holdTimer: null,
       snapped: null,
       arrow: null,
+      magic,
     }
     this.session = session
     this.host.setPointerCapture(e.pointerId)
@@ -2635,12 +2703,13 @@ export class Editor {
     const b = boundsOfPoints(points)
     const size = Math.hypot(b.maxX - b.minX, b.maxY - b.minY)
     if (size < MIN_HOLD_HEAD) return
-    // An arrow first: drawn in one stroke, or this is its head after the shaft.
+    // Graph axes or an arrow first: drawn in one stroke, or this is the head after the rest.
     const page = this.doc.page(s.pageId)
     const drawn: StrokeObject = { ...s.stroke, points }
-    const arrow = page && s.stroke.tool === 'pen' ? arrowFor([...page.objects, drawn], drawn) : null
+    const arrow =
+      page && s.stroke.tool === 'pen' ? cleanDrawingFor([...page.objects, drawn], drawn) : null
     if (arrow) {
-      s.arrow = { strokes: arrowStrokes(drawn, arrow), replaces: arrow.ids }
+      s.arrow = arrow
       this.showHeldArrow(s)
       return
     }
@@ -2688,11 +2757,8 @@ export class Editor {
       const page = this.doc.page(s.pageId)
       this.hidden = new Set()
       if (page) {
-        const gone = new Set(s.arrow.replaces)
-        const at = page.objects.findIndex((o) => gone.has(o.id))
-        const kept = page.objects.filter((o) => !gone.has(o.id))
-        kept.splice(at < 0 ? kept.length : at, 0, ...s.arrow.strokes)
-        this.history.execute(setPageObjects('Arrow', page.id, page.objects, kept))
+        const kept = replaceStrokes(page.objects, s.arrow.replaces, s.arrow.strokes)
+        this.history.execute(setPageObjects(s.arrow.label, page.id, page.objects, kept))
         this.rememberColor(s.stroke.color)
       }
       this.clearArea(this.wet, s.wetDirty)
@@ -2747,6 +2813,15 @@ export class Editor {
           this.clearTip()
           return
         }
+      }
+      if (s.magic) {
+        const magic = magicFor([...page.objects, stroke], stroke, page.paper)
+        this.history.execute(setPageObjects(magic.label, page.id, page.objects, magic.objects))
+        this.rememberColor(stroke.color)
+        this.lastInkAt = performance.now()
+        this.clearArea(this.wet, s.wetDirty)
+        this.clearTip()
+        return
       }
       const layers = this.doc.notebook.layers.filter((l) => l.visible)
       const top = layers[layers.length - 1]
@@ -3157,7 +3232,7 @@ export class Editor {
     let swept: string | null = null
     const pageCount = this.doc.notebook.pageIds.length
     // The broom can overlap two pages near a gap; check both neighbours.
-    const near = Math.floor(wy / this.layout.pitch)
+    const near = Math.floor((this.layout.horizontal ? wx : wy) / this.layout.pitch)
     for (const index of [near - 1, near, near + 1]) {
       if (index < 0 || index >= pageCount) continue
       const page = this.doc.pageList[index]
