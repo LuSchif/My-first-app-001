@@ -20,10 +20,6 @@ export function PathMenu({ editor, state }: { editor: Editor; state: EditorState
     <>
       {info.anchor ? (
         <>
-          <button type="button" className={button} onClick={() => editor.togglePathPointSmooth()}>
-            <Spline size={18} />
-            {info.smooth ? 'Make corner' : 'Make smooth'}
-          </button>
           <button
             type="button"
             className={button}
@@ -32,6 +28,11 @@ export function PathMenu({ editor, state }: { editor: Editor; state: EditorState
           >
             <Trash2 size={18} />
             Delete point
+          </button>
+          <span aria-hidden="true" className="mx-1 h-7 w-px bg-white/20" />
+          <button type="button" className={button} onClick={() => editor.togglePathPointSmooth()}>
+            <Spline size={18} />
+            {info.smooth ? 'Make corner' : 'Make smooth'}
           </button>
         </>
       ) : (

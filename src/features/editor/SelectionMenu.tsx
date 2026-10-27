@@ -103,9 +103,23 @@ export function SelectionMenu({ editor, state }: { editor: Editor; state: Editor
   }, [open])
 
   if (!sel) return null
-  const items = menuItems(editor, state, sel)
+  const items = ordered(menuItems(editor, state, sel))
   const primary = items.slice(0, PRIMARY_COUNT)
   const rest = items.slice(PRIMARY_COUNT)
+  // A thin line where one group of actions ends and the next begins.
+  const shown = expanded ? items : primary
+  const withDividers = shown.flatMap((item, i) =>
+    i > 0 && shown[i - 1]!.group !== item.group
+      ? [
+          {
+            key: `divider-${item.key}`,
+            group: item.group,
+            node: <span aria-hidden="true" className="mx-1 h-7 w-px bg-white/20" />,
+          },
+          item,
+        ]
+      : [item],
+  )
 
   // Above the frame (leaving room for the rotate handle), else below it; then kept on screen.
   const screenW = size.screenW || window.innerWidth
@@ -126,10 +140,9 @@ export function SelectionMenu({ editor, state }: { editor: Editor; state: Editor
       className="absolute z-10 flex w-max max-w-[calc(100%-24px)] -translate-x-1/2 flex-wrap items-center justify-center gap-0.5 rounded-panel bg-ink p-1 text-ink-inverse shadow-overlay"
       style={{ top, left }}
     >
-      {primary.map((item) => (
+      {withDividers.map((item) => (
         <Fragment key={item.key}>{item.node}</Fragment>
       ))}
-      {expanded ? rest.map((item) => <Fragment key={item.key}>{item.node}</Fragment>) : null}
       {rest.length > 0 ? (
         <MenuButton
           label={expanded ? 'Fewer actions' : 'More actions'}
@@ -149,7 +162,46 @@ interface MenuItem {
   node: React.ReactNode
 }
 
-/** Every action that fits the selection, most used first. */
+/**
+ * The order of every edit bar: first what is done with the selection as a whole (delete, cut,
+ * duplicate, copy), then what changes its content or arrangement, then how it looks.
+ */
+const GROUPS = {
+  delete: 'act',
+  cut: 'act',
+  duplicate: 'act',
+  copy: 'act',
+  edit: 'adjust',
+  rows: 'adjust',
+  chart: 'adjust',
+  layer: 'adjust',
+  scale: 'adjust',
+  'flip-h': 'adjust',
+  'flip-v': 'adjust',
+  animate: 'adjust',
+  color: 'look',
+  outline: 'look',
+} as const satisfies Record<string, 'act' | 'adjust' | 'look'>
+const GROUP_ORDER = ['act', 'adjust', 'look'] as const
+const ACT_ORDER = ['delete', 'cut', 'duplicate', 'copy']
+
+type GroupedItem = MenuItem & { group: (typeof GROUP_ORDER)[number] }
+
+function ordered(items: MenuItem[]): GroupedItem[] {
+  const grouped = items.map((item) => ({
+    ...item,
+    group: GROUPS[item.key as keyof typeof GROUPS] ?? 'adjust',
+  }))
+  const rank = (item: GroupedItem) =>
+    GROUP_ORDER.indexOf(item.group) * 100 + (item.group === 'act' ? ACT_ORDER.indexOf(item.key) : 0)
+  // Within a group the order of `menuItems` stays (a stable sort).
+  return grouped
+    .map((item, i) => ({ item, i }))
+    .sort((a, b) => rank(a.item) - rank(b.item) || a.i - b.i)
+    .map(({ item }) => item)
+}
+
+/** Every action that fits the selection; `ordered` puts them in groups. */
 function menuItems(
   editor: Editor,
   state: EditorState,

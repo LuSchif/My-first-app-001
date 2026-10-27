@@ -65,6 +65,8 @@ import {
   applySuggestion,
   around,
   fillFor,
+  arrowFor,
+  arrowStrokes,
   insertBelow,
   outlineSources,
   suggestFor,
@@ -139,7 +141,7 @@ export interface EditorState {
   features: Features
   /** The offer currently shown, placed near what it would change. */
   suggestion: {
-    kind: 'shape' | 'fill' | 'table' | 'clef' | 'arrow'
+    kind: 'shape' | 'fill' | 'table' | 'clef'
     label: string
     rect: ScreenRect
   } | null
@@ -188,6 +190,8 @@ const RIGHT_INSET = 76
 const HOLD_MS = 550
 const HOLD_SLOP_PX = 4
 const MIN_HOLD_SHAPE = 30
+/** An arrow head drawn after its shaft may be smaller than a shape. */
+const MIN_HOLD_HEAD = 10
 
 /** Pause after a stroke before looking for shapes to offer. */
 const SUGGEST_DELAY_MS = 350
@@ -236,6 +240,8 @@ interface InkSession {
   holdTimer: ReturnType<typeof setTimeout> | null
   /** Set once the pen was held still: the stroke becomes this perfect shape. */
   snapped: Shape | null
+  /** Or, held at the end of an arrow: these clean strokes replace it (and its parts drawn before). */
+  arrow: { strokes: StrokeObject[]; replaces: Id[] } | null
 }
 
 interface EraseSession {
@@ -2352,6 +2358,7 @@ export class Editor {
       holdAt: this.screenPos(e),
       holdTimer: null,
       snapped: null,
+      arrow: null,
     }
     this.session = session
     this.host.setPointerCapture(e.pointerId)
@@ -2419,7 +2426,7 @@ export class Editor {
   }
 
   private extendInk(s: InkSession, e: PointerEvent): void {
-    if (s.snapped) return
+    if (s.snapped || s.arrow) return
     const p = this.screenPos(e)
     if (Math.hypot(p.x - s.holdAt.x, p.y - s.holdAt.y) > HOLD_SLOP_PX) {
       s.holdAt = p
@@ -2432,7 +2439,7 @@ export class Editor {
     if (!this.inkFrame) {
       this.inkFrame = requestAnimationFrame(() => {
         this.inkFrame = 0
-        if (this.session === s && !s.snapped) this.drawInk(s)
+        if (this.session === s && !s.snapped && !s.arrow) this.drawInk(s)
       })
     }
   }
@@ -2626,7 +2633,18 @@ export class Editor {
     if (this.session !== s || s.snapped) return
     const points = this.drawnPoints(s)
     const b = boundsOfPoints(points)
-    if (Math.hypot(b.maxX - b.minX, b.maxY - b.minY) < MIN_HOLD_SHAPE) return
+    const size = Math.hypot(b.maxX - b.minX, b.maxY - b.minY)
+    if (size < MIN_HOLD_HEAD) return
+    // An arrow first: drawn in one stroke, or this is its head after the shaft.
+    const page = this.doc.page(s.pageId)
+    const drawn: StrokeObject = { ...s.stroke, points }
+    const arrow = page && s.stroke.tool === 'pen' ? arrowFor([...page.objects, drawn], drawn) : null
+    if (arrow) {
+      s.arrow = { strokes: arrowStrokes(drawn, arrow), replaces: arrow.ids }
+      this.showHeldArrow(s)
+      return
+    }
+    if (size < MIN_HOLD_SHAPE) return
     const shape = recognizeShape(points)
     if (!shape) return
     s.snapped = perfectShape(shape)
@@ -2644,10 +2662,44 @@ export class Editor {
     this.tipDirty = { x: 0, y: 0, w: width * dpr, h: height * dpr }
   }
 
+  /** Shows the clean arrow in place of what was drawn, until the pen lifts. */
+  private showHeldArrow(s: InkSession): void {
+    const held = s.arrow
+    if (!held) return
+    this.clearArea(this.wet, s.wetDirty)
+    s.wetDirty = null
+    this.clearTip()
+    this.tip.save()
+    enterPage(this.tip, this.camera, this.view.dpr, s.pageIndex, this.layout)
+    for (const stroke of held.strokes) paintStroke(this.tip, stroke)
+    this.tip.restore()
+    const { width, height, dpr } = this.view
+    this.tipDirty = { x: 0, y: 0, w: width * dpr, h: height * dpr }
+    // The parts drawn before (a shaft) are hidden while the clean arrow shows.
+    this.hidden = new Set(held.replaces.filter((id) => id !== s.stroke.id))
+    this.requestRender()
+  }
+
   private finishInk(s: InkSession): void {
     if (s.holdTimer) clearTimeout(s.holdTimer)
     cancelAnimationFrame(this.inkFrame)
     this.inkFrame = 0
+    if (s.arrow) {
+      const page = this.doc.page(s.pageId)
+      this.hidden = new Set()
+      if (page) {
+        const gone = new Set(s.arrow.replaces)
+        const at = page.objects.findIndex((o) => gone.has(o.id))
+        const kept = page.objects.filter((o) => !gone.has(o.id))
+        kept.splice(at < 0 ? kept.length : at, 0, ...s.arrow.strokes)
+        this.history.execute(setPageObjects('Arrow', page.id, page.objects, kept))
+        this.rememberColor(s.stroke.color)
+      }
+      this.clearArea(this.wet, s.wetDirty)
+      this.clearTip()
+      this.requestRender()
+      return
+    }
     const snapped = s.snapped
     const points = snapped ? snapped.points : this.drawnPoints(s)
     const page = this.doc.page(s.pageId)
@@ -3214,6 +3266,10 @@ export class Editor {
       if (s.holdTimer) clearTimeout(s.holdTimer)
       this.clearArea(this.wet, s.wetDirty)
       this.clearTip()
+      if (s.arrow) {
+        this.hidden = new Set()
+        this.requestRender()
+      }
     } else if (s.kind === 'tape' || s.kind === 'pick' || s.kind === 'look') {
       this.clearTip()
     } else {

@@ -12,6 +12,7 @@ import {
 } from '../geometry/shapes.ts'
 import { detectTable } from '../geometry/tableDetect.ts'
 import { withPoints } from '../model/factory.ts'
+import { newId } from '../model/ids.ts'
 import { DEFAULT_TABLE_STYLE, tableFromGrid } from '../model/table.ts'
 import type { CanvasObject, FillObject, Id, PaperKind, StrokeObject } from '../model/types.ts'
 import { PAPER_STYLE } from '../render/paper.ts'
@@ -37,8 +38,6 @@ export type Suggestion =
   | { kind: 'fill'; region: Region; color: string; opacity: number; removeIds: Id[] }
   /** Hand-drawn grid lines become a table with the same spacing. */
   | { kind: 'table'; strokeIds: Id[]; xs: number[]; ys: number[]; color: string; width: number }
-  /** A hand-drawn arrow becomes a clean one: its shaft (straightened if nearly straight) and an even head. */
-  | { kind: 'arrow'; strokeIds: Id[]; arrow: CleanArrow }
   /** A hand-drawn clef on music paper becomes a clean one on its staff line. */
   | { kind: 'clef'; strokeIds: Id[]; clef: ClefKind; strokes: ClefStroke[] }
 
@@ -53,7 +52,6 @@ export function suggestionBounds(s: Suggestion): Rect {
   if (s.kind === 'fill') return boundsOfPoints(s.region.points)
   if (s.kind === 'shape') return boundsOfPoints(s.shape.points)
   if (s.kind === 'clef') return boundsOfPoints(s.strokes.flatMap((c) => c.points))
-  if (s.kind === 'arrow') return boundsOfPoints([...s.arrow.shaft, ...s.arrow.head])
   return {
     minX: s.xs[0]!,
     minY: s.ys[0]!,
@@ -66,7 +64,6 @@ export function suggestionLabel(s: Suggestion): string {
   if (s.kind === 'fill') return 'Auto fill'
   if (s.kind === 'shape') return `Auto shape · ${s.shape.label}`
   if (s.kind === 'clef') return `Clean clef · ${CLEF_LABEL[s.clef]}`
-  if (s.kind === 'arrow') return 'Auto arrow'
   return `Auto table · ${s.ys.length - 1} × ${s.xs.length - 1}`
 }
 
@@ -159,9 +156,6 @@ export function suggestFor(
   }
   if (tableOnly) return null
 
-  const arrow = arrowFor(objects, stroke)
-  if (arrow) return arrow
-
   const region = regionAt(
     outlineSources(objects, stroke.layerId, around(cx, cy, reach), stroke.id),
     cx,
@@ -236,16 +230,46 @@ function recentNear(
   return recent[0]?.id === stroke.id ? recent : []
 }
 
-/** An arrow drawn with the latest stroke, alone or with up to two strokes before it. */
-function arrowFor(objects: readonly CanvasObject[], stroke: StrokeObject): Suggestion | null {
+/**
+ * An arrow drawn with `stroke`, alone or with up to two strokes just before it (a shaft, then
+ * the head). Only asked for when the pen is held still at the end of a stroke: guessing after
+ * every stroke found arrows in ordinary handwriting.
+ */
+export function arrowFor(
+  objects: readonly CanvasObject[],
+  stroke: StrokeObject,
+): CleanArrow | null {
   if (stroke.tool !== 'pen' || stroke.closed) return null
   const recent = recentNear(objects, stroke, 3, { x: 4, y: 4 })
   for (let k = recent.length; k >= 1; k--) {
-    const group = recent.slice(0, k).reverse()
-    const arrow = detectArrow(group)
-    if (arrow) return { kind: 'arrow', strokeIds: arrow.ids, arrow }
+    const arrow = detectArrow(recent.slice(0, k).reverse())
+    if (arrow) return arrow
   }
   return null
+}
+
+/** The strokes of a clean arrow in the style of `like`: the shaft, then an even head. */
+export function arrowStrokes(like: StrokeObject, arrow: CleanArrow): StrokeObject[] {
+  const {
+    path: _path,
+    closed: _closed,
+    widths: _widths,
+    input: _input,
+    dash,
+    straight: _straight,
+    ...ink
+  } = like
+  // A dashed shaft stays dashed; the head is always solid.
+  return [
+    {
+      ...ink,
+      ...(dash ? { dash } : {}),
+      id: newId(),
+      points: arrow.shaft,
+      straight: arrow.straight,
+    },
+    { ...ink, id: newId(), points: arrow.head, straight: true },
+  ]
 }
 
 /** The staves on music paper. */
@@ -322,27 +346,6 @@ export function applySuggestion(
     const at = objects.findIndex((o) => strokeIds.includes(o.id))
     const kept = objects.filter((o) => !strokeIds.includes(o.id))
     kept.splice(Math.max(0, Math.min(at, kept.length)), 0, table)
-    return kept
-  }
-  if (suggestion.kind === 'arrow') {
-    const { strokeIds, arrow } = suggestion
-    const shaft = objects.find((o) => o.id === strokeIds[0])
-    if (shaft?.type !== 'stroke') return [...objects]
-    const { path: _path, closed: _closed, widths: _widths, input: _input, dash, ...ink } = shaft
-    // A dashed shaft stays dashed; the head is always solid.
-    const clean: StrokeObject[] = [
-      {
-        ...ink,
-        ...(dash ? { dash } : {}),
-        id: newId(),
-        points: arrow.shaft,
-        straight: arrow.straight,
-      },
-      { ...ink, id: newId(), points: arrow.head, straight: true },
-    ]
-    const at = objects.findIndex((o) => strokeIds.includes(o.id))
-    const kept = objects.filter((o) => !strokeIds.includes(o.id))
-    kept.splice(Math.max(0, Math.min(at, kept.length)), 0, ...clean)
     return kept
   }
   if (suggestion.kind === 'clef') {

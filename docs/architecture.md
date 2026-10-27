@@ -211,8 +211,13 @@ The ink pipeline, from pen to storage, each part in its own module:
 - The control center (gear in the editor) switches features and toolbar tools on and off; the
   choice is kept per device (`editor/features.ts`).
 
-- Hand-drawn arrows (one stroke, or a shaft and a head) offer Auto arrow: the shaft is kept
-  (made straight when it nearly is) and gets an even head (`engine/geometry/arrows.ts`).
+- Hand-drawn arrows (one stroke, or a shaft and a head) become clean arrows only when the pen
+  rests at the end, like perfect shapes: the shaft is kept (made straight when it nearly is) and
+  gets an even head (`engine/geometry/arrows.ts`). An automatic suggestion found arrows in
+  ordinary writing, so there is none.
+- Every edit bar is ordered the same way, with a thin line between the groups: first what is
+  done with the selection as a whole (delete, cut, duplicate, copy), then what changes its
+  content or arrangement, then how it looks (color, outline).
 - A highlighter stroke over typed text becomes a text highlight in its color (a span style),
   snapped to whole words (`editor/textHighlight.ts`).
 - The laser drawing stays in full until the pen has rested for a second, then fades.

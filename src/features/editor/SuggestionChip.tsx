@@ -1,4 +1,4 @@
-import { MoveUpRight, Music, PaintBucket, Shapes, Table2, X } from 'lucide-react'
+import { Music, PaintBucket, Shapes, Table2, X } from 'lucide-react'
 import type { Editor, EditorState } from '../../engine/editor/Editor.ts'
 
 const CHIP_HEIGHT = 48
@@ -25,8 +25,6 @@ export function SuggestionChip({ editor, state }: { editor: Editor; state: Edito
           <PaintBucket size={18} />
         ) : s.kind === 'table' ? (
           <Table2 size={18} />
-        ) : s.kind === 'arrow' ? (
-          <MoveUpRight size={18} />
         ) : s.kind === 'clef' ? (
           <Music size={18} />
         ) : (
