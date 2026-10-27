@@ -218,7 +218,10 @@ The ink pipeline, from pen to storage, each part in its own module:
   so there is none.
 - Graph axes: a horizontal and a vertical line (an "L" or a cross) with an arrow head drawn at
   one end become straight axes with heads at the right and the top, never left or bottom
-  (`geometry/graphs.ts`); also on resting the pen.
+  (`geometry/graphs.ts`). This happens as soon as the head is drawn, also with the plain pen:
+  axes with a head at their end are never handwriting.
+- Arrow heads are judged at their own scale: a small head on a long shaft counts, a piece of
+  the shaft itself never counts as a barb, and the shaft runs right up to the tip.
 - The magic pen (a tool beside the pen, with the pen's color and size) makes every stroke clean
   as the pen lifts (`magicFor` in `editor/suggestions.ts`): axes and arrows as above, coloring
   in a shape fills it, shapes and tables become clean ones, and any other line is smoothed with

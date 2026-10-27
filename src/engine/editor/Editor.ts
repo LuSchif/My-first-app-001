@@ -67,6 +67,7 @@ import {
   around,
   fillFor,
   cleanDrawingFor,
+  graphFor,
   magicFor,
   replaceStrokes,
   type CleanDrawing,
@@ -2817,6 +2818,17 @@ export class Editor {
       if (s.magic) {
         const magic = magicFor([...page.objects, stroke], stroke, page.paper)
         this.history.execute(setPageObjects(magic.label, page.id, page.objects, magic.objects))
+        this.rememberColor(stroke.color)
+        this.lastInkAt = performance.now()
+        this.clearArea(this.wet, s.wetDirty)
+        this.clearTip()
+        return
+      }
+      // An arrow head at the end of graph axes makes them clean right away, no hold needed.
+      const graph = stroke.tool === 'pen' ? graphFor([...page.objects, stroke], stroke) : null
+      if (graph) {
+        const after = replaceStrokes([...page.objects, stroke], graph.replaces, graph.strokes)
+        this.history.execute(setPageObjects(graph.label, page.id, page.objects, after))
         this.rememberColor(stroke.color)
         this.lastInkAt = performance.now()
         this.clearArea(this.wet, s.wetDirty)

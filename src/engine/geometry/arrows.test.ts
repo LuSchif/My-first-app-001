@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { detectArrow } from './arrows.ts'
+import { perfectLine } from './perfect.ts'
 
 let seed = 5
 const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647 - 0.5) * 2
@@ -79,6 +80,31 @@ describe('arrow recognition', () => {
       if ((ys[i]! - ys[i - 1]!) * (ys[i - 1]! - ys[i - 2]!) < -1e-9) turns++
     }
     expect(turns).toBeLessThanOrEqual(1)
+  })
+
+  it('puts a small head on a long smooth curve right at its end', () => {
+    const shaft = perfectLine(
+      Array.from({ length: 200 }, (_, i) => {
+        const t = i / 199
+        return [160 + t * 400, 400 - Math.sin(t * Math.PI * 1.75) * 80 - t * 60]
+      }).flat(),
+    )
+    const n = shaft.length
+    const tip = { x: shaft[n - 2]!, y: shaft[n - 1]! }
+    const head = [
+      ...line(tip.x - 14, tip.y + 2, tip.x, tip.y, 8),
+      ...line(tip.x, tip.y, tip.x + 1, tip.y + 14, 8),
+    ]
+    const arrow = detectArrow([
+      { id: 's', points: shaft },
+      { id: 'h', points: head },
+    ])
+    expect(arrow).not.toBeNull()
+    // The head is where the curve ends, about as big as drawn, not a piece of the curve.
+    expect(Math.hypot(arrow!.head[2]! - tip.x, arrow!.head[3]! - tip.y)).toBeLessThan(3)
+    expect(
+      Math.hypot(arrow!.head[0]! - arrow!.head[2]!, arrow!.head[1]! - arrow!.head[3]!),
+    ).toBeLessThan(20)
   })
 
   it('ignores lines, angles and letters', () => {

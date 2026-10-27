@@ -249,6 +249,25 @@ export function cleanDrawingFor(
   stroke: StrokeObject,
 ): CleanDrawing | null {
   if (stroke.tool !== 'pen' || stroke.closed) return null
+  const graph = graphFor(objects, stroke)
+  if (graph) return graph
+  const recent = recentNear(objects, stroke, 3, { x: 4, y: 4 })
+  for (let k = recent.length; k >= 1; k--) {
+    const arrow = detectArrow(recent.slice(0, k).reverse())
+    if (arrow) return { label: 'Arrow', strokes: arrowStrokes(stroke, arrow), replaces: arrow.ids }
+  }
+  return null
+}
+
+/**
+ * Graph axes finished by `stroke`, an arrow head at the end of an axis drawn just before it.
+ * Axes with a head are never handwriting, so the pen turns them clean as soon as it lifts.
+ */
+export function graphFor(
+  objects: readonly CanvasObject[],
+  stroke: StrokeObject,
+): CleanDrawing | null {
+  if (stroke.tool !== 'pen' || stroke.closed) return null
   const recent = recentNear(objects, stroke, 3, { x: 4, y: 4 })
   for (let k = recent.length; k >= 2; k--) {
     const graph = detectGraph(recent.slice(0, k).reverse())
@@ -260,10 +279,6 @@ export function cleanDrawingFor(
         replaces: graph.ids,
       }
     }
-  }
-  for (let k = recent.length; k >= 1; k--) {
-    const arrow = detectArrow(recent.slice(0, k).reverse())
-    if (arrow) return { label: 'Arrow', strokes: arrowStrokes(stroke, arrow), replaces: arrow.ids }
   }
   return null
 }

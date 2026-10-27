@@ -26,8 +26,10 @@ export interface CleanArrow {
 type Pt = { x: number; y: number }
 
 /** Barbs this far from the shaft direction (in degrees) count as an arrow head. */
-const MIN_BARB_ANGLE = 12
+const MIN_BARB_ANGLE = 5
 const MAX_BARB_ANGLE = 80
+/** The two barbs together open at least this far (in degrees). */
+const MIN_HEAD_OPEN = 25
 /** Smaller drawings (their diagonal, in points) are dots or writing. */
 const MIN_SIZE = 6
 /** The head opens this far on each side, in degrees. */
@@ -72,7 +74,12 @@ export function detectArrow(strokes: readonly DrawnStroke[]): CleanArrow | null 
   const reach = Math.max(2.5, size * 0.09)
 
   // Every straight piece of every stroke, as a possible barb or the end of the shaft.
-  const polylines = strokes.map((s) => simplify(toPts(s.points), eps))
+  // Each stroke is simplified at its own scale: a small head next to a long shaft keeps its "V".
+  const polylines = strokes.map((s) => {
+    const sb = boundsOfPoints(s.points)
+    const own = Math.hypot(sb.maxX - sb.minX, sb.maxY - sb.minY)
+    return simplify(toPts(s.points), Math.min(eps, Math.max(0.6, own * 0.06)))
+  })
   const tips: { p: Pt; stroke: number; vertex: number }[] = []
   polylines.forEach((line, si) => line.forEach((p, vi) => tips.push({ p, stroke: si, vertex: vi })))
 
@@ -104,7 +111,9 @@ export function detectArrow(strokes: readonly DrawnStroke[]): CleanArrow | null 
         ] as const) {
           if (Math.hypot(from.x - tip.p.x, from.y - tip.p.y) > reach) continue
           const l = Math.hypot(to.x - from.x, to.y - from.y)
-          if (l < Math.max(1.5, shaftLength * 0.06) || l > shaftLength * 0.7) continue
+          if (l < Math.max(1.5, shaftLength * 0.015) || l > shaftLength * 0.7) continue
+          // A piece that runs along the shaft is the shaft itself, not a barb.
+          if (distanceToLine(to, toTip) < Math.max(1, l * 0.12)) continue
           arms.push({
             stroke: si,
             from,
@@ -126,6 +135,7 @@ export function detectArrow(strokes: readonly DrawnStroke[]): CleanArrow | null 
     if (!left.length || !right.length) continue
     const l = left.reduce((m, a) => (a.length > m.length ? a : m))
     const r = right.reduce((m, a) => (a.length > m.length ? a : m))
+    if (angle(l.dx, l.dy, r.dx, r.dy) < MIN_HEAD_OPEN) continue
     // Barbs of very different sizes are more likely writing than a head.
     if (Math.min(l.length, r.length) < Math.max(l.length, r.length) * 0.3) continue
     const used = new Set([shaftIndex, l.stroke, r.stroke])
@@ -172,7 +182,18 @@ function shaftTo(points: readonly number[], tip: Pt, near: number, minLength: nu
       travelled += Math.hypot(line[i * 2]! - line[i * 2 - 2]!, line[i * 2 + 1]! - line[i * 2 - 1]!)
       if (travelled < minLength) continue
       if (Math.hypot(line[i * 2]! - tip.x, line[i * 2 + 1]! - tip.y) > near) continue
-      const piece = line.slice(0, i * 2 + 2)
+      // Run on to the point closest to the tip, so the shaft reaches it.
+      let end = i
+      let closest = Infinity
+      for (let j = i; j < line.length / 2; j++) {
+        const d = Math.hypot(line[j * 2]! - tip.x, line[j * 2 + 1]! - tip.y)
+        if (d > near) break
+        if (d < closest) {
+          closest = d
+          end = j
+        }
+      }
+      const piece = line.slice(0, end * 2 + 2)
       if (!best || travelled > length(best)) best = piece
       break
     }
@@ -184,6 +205,23 @@ function reverse(points: readonly number[]): number[] {
   const out: number[] = []
   for (let i = points.length - 2; i >= 0; i -= 2) out.push(points[i]!, points[i + 1]!)
   return out
+}
+
+/** How far a point is from a polyline. */
+function distanceToLine(p: Pt, points: readonly number[]): number {
+  let best = Infinity
+  for (let i = 0; i + 3 < points.length; i += 2) {
+    const ax = points[i]!
+    const ay = points[i + 1]!
+    const bx = points[i + 2]!
+    const by = points[i + 3]!
+    const dx = bx - ax
+    const dy = by - ay
+    const l2 = dx * dx + dy * dy
+    const t = l2 > 0 ? Math.max(0, Math.min(1, ((p.x - ax) * dx + (p.y - ay) * dy) / l2)) : 0
+    best = Math.min(best, Math.hypot(p.x - ax - dx * t, p.y - ay - dy * t))
+  }
+  return best
 }
 
 /** The point `distance` before the end of a polyline. */
