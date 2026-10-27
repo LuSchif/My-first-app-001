@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { anchorCount } from '../geometry/pathEdit.ts'
 import type { StrokeObject } from '../model/types.ts'
 import { applySuggestion, cleanDrawingFor, magicFor, suggestFor } from './suggestions.ts'
 
@@ -80,7 +81,10 @@ describe('suggestions', () => {
     const drawn = stroke('w', wave)
     const after = magicFor([drawn], drawn).objects[0] as StrokeObject
     expect(after.id).toBe('w')
-    expect(after.straight).toBe(true)
+    // A curve with anchors at its ends and its three high and low points, hardly more.
+    expect(after.path).toBeDefined()
+    expect(anchorCount(after.path!)).toBeGreaterThanOrEqual(5)
+    expect(anchorCount(after.path!)).toBeLessThanOrEqual(7)
     const ys = after.points.filter((_, i) => i % 2 === 1)
     expect(Math.max(...ys)).toBeGreaterThan(234)
     expect(Math.min(...ys)).toBeLessThan(166)

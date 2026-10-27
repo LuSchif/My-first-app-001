@@ -221,13 +221,19 @@ The ink pipeline, from pen to storage, each part in its own module:
   so there is none.
 - Graph axes: a horizontal and a vertical line (an "L" or a cross), maybe a third, slanted line
   through their crossing (depth), with an arrow head drawn at one end become straight axes with
-  heads at the right, the top and the slanted axis's upper end, never left or bottom
+  heads at the right and the top, never left or bottom; a slanted axis that runs on through
+  the origin (a vector graph) gets its head at its lower end, one that ends at the origin none
   (`geometry/graphs.ts`). This happens as soon as the head is drawn, also with the plain pen:
   axes with a head at their end are never handwriting.
 - In a one-stroke arrow only the head may follow the tip: a wave or a word that goes on past a
   turn is never an arrow.
 - Arrow heads are judged at their own scale: a small head on a long shaft counts, a piece of
   the shaft itself never counts as a barb, and the shaft runs right up to the tip.
+- Clean curved lines (magic pen, curved arrow shafts) are stored as vector paths with anchors
+  only at their ends and high and low points (`curvePath` in `geometry/perfect.ts`), so the
+  path tool shows few points.
+- Arrow heads may also be drawn as a triangle, on their own or on from the shaft in one stroke;
+  the clean head is then a closed triangle of the drawn size (`detectTriangleArrow`).
 - The magic pen (a tool beside the pen, with the pen's color and size) makes every stroke clean
   as the pen lifts (`magicFor` in `editor/suggestions.ts`): axes and arrows as above, coloring
   in a shape fills it, shapes and tables become clean ones, and any other line keeps exactly its
@@ -239,8 +245,9 @@ The ink pipeline, from pen to storage, each part in its own module:
 - The pages overview: tapping a page opens a card to open it, change its paper, export,
   duplicate or delete it; above the pages, the page direction, the paper of new pages and the
   notebook export.
-- Whatever is chosen (a paper, a tool, an option) is outlined in `--color-selected`, set once
-  in `index.css` for every pressed, checked, selected or current control.
+- A choice that nothing else marks (a paper, a recent color, the page in view) is outlined in
+  `--color-selected` (`data-choice` with aria-pressed, -checked or -current, in `index.css`);
+  buttons that fill in color when chosen get no outline.
 - Every edit bar is ordered the same way, with a thin line between the groups: first what is
   done with the selection as a whole (delete, cut, duplicate, copy), then what changes its
   content or arrangement, then how it looks (color, outline).

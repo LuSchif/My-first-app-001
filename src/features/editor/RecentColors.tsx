@@ -28,6 +28,7 @@ export function RecentColors({ editor, state }: { editor: Editor; state: EditorS
 
   // Empty until the first color is used in this notebook.
   if (state.recentColors.length === 0) return null
+  const current = currentColor(state).toLowerCase()
 
   return (
     <>
@@ -37,6 +38,8 @@ export function RecentColors({ editor, state }: { editor: Editor; state: EditorS
             key={color}
             type="button"
             aria-label={`Use color ${color}`}
+            aria-pressed={color.toLowerCase() === current}
+            data-choice
             title="Tap to use, drag onto ink, text or paper to color it"
             className="grid size-11 touch-none place-items-center rounded-full"
             onPointerDown={(e) => {
@@ -70,4 +73,12 @@ export function RecentColors({ editor, state }: { editor: Editor; state: EditorS
       ) : null}
     </>
   )
+}
+
+/** The color the tool in use draws or writes with. */
+function currentColor(state: EditorState): string {
+  if (state.tool === 'highlighter') return state.highlighter.color
+  if (state.tool === 'tape') return state.tape.color
+  if (state.tool === 'text' || state.editingText) return state.textStyle.color
+  return state.pen.color
 }

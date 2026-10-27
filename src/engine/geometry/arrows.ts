@@ -1,6 +1,6 @@
 import { perfectLine } from './perfect.ts'
 import { boundsOfPoints } from './rect.ts'
-import { simplify, toPts } from './shapes.ts'
+import { closedLoop, polygonArea, simplify, toPts } from './shapes.ts'
 
 /**
  * Hand-drawn arrows: a shaft (straight or bent) with two barbs at its tip, drawn in one stroke
@@ -21,6 +21,8 @@ export interface CleanArrow {
   /** The shaft's points are joined by straight segments (always, once it is clean). */
   straight: boolean
   head: number[]
+  /** The head is a closed triangle (drawn as one) rather than two barbs. */
+  closedHead?: boolean
 }
 
 type Pt = { x: number; y: number }
@@ -281,4 +283,171 @@ export function headAt(tip: Pt, dir: Pt, size: number): number[] {
   const l = rot(a)
   const r = rot(-a)
   return [l.x, l.y, tip.x, tip.y, r.x, r.y]
+}
+
+/**
+ * An arrow whose head is drawn as a triangle: a separate triangle at the shaft's end, or one
+ * drawn on from the shaft in the same stroke. The clean arrow keeps the drawn head's size and
+ * proportions, made symmetric, pointing where the drawn one points.
+ */
+export function detectTriangleArrow(strokes: readonly DrawnStroke[]): CleanArrow | null {
+  if (!strokes.length || strokes.length > 2) return null
+  let shaft: Pt[]
+  let loop: Pt[] | null
+  if (strokes.length === 2) {
+    const [a, b] = strokes
+    const shaftStroke = length(a!.points) >= length(b!.points) ? a! : b!
+    const headStroke = shaftStroke === a ? b! : a!
+    shaft = toPts(shaftStroke.points)
+    loop = closedLoop(headStroke.points)
+  } else {
+    const split = loopAtEnd(toPts(strokes[0]!.points))
+    if (!split) return null
+    shaft = split.shaft
+    loop = split.loop
+  }
+  if (!loop || loop.length < 4 || shaft.length < 2) return null
+  const tri = triangleOf(loop)
+  if (!tri) return null
+  const start = shaft[0]!
+  // The tip is the corner furthest from where the shaft starts.
+  const order = [...tri].sort(
+    (p, q) => Math.hypot(q.x - start.x, q.y - start.y) - Math.hypot(p.x - start.x, p.y - start.y),
+  )
+  const tip = order[0]!
+  const b1 = order[1]!
+  const b2 = order[2]!
+  const base = { x: (b1.x + b2.x) / 2, y: (b1.y + b2.y) / 2 }
+  const headLength = Math.hypot(tip.x - base.x, tip.y - base.y)
+  if (headLength < 2) return null
+  const dir = { x: (tip.x - base.x) / headLength, y: (tip.y - base.y) / headLength }
+  // The shaft up to the head, without what was drawn inside it.
+  const inside = (p: Pt) => pointInTriangle(p, tri)
+  let end = shaft.length
+  while (end > 1 && inside(shaft[end - 1]!)) end--
+  const body = shaft.slice(0, end)
+  const last = body[body.length - 1]!
+  const shaftLength =
+    length(body.flatMap((p) => [p.x, p.y])) + Math.hypot(base.x - last.x, base.y - last.y)
+  if (shaftLength < headLength * 1.5) return null
+  // The shaft must come to the head's base, and arrive roughly in the head's direction.
+  const triSize = Math.max(...tri.map((p) => Math.hypot(p.x - base.x, p.y - base.y)))
+  if (Math.hypot(last.x - base.x, last.y - base.y) > triSize * 1.3 + 4) return null
+  const before = pointBefore(
+    body.flatMap((p) => [p.x, p.y]),
+    Math.min(shaftLength * 0.25, Math.max(6, headLength * 2)),
+  )
+  const sl = Math.hypot(base.x - before.x, base.y - before.y)
+  if (sl > 1e-6 && ((base.x - before.x) * dir.x + (base.y - before.y) * dir.y) / sl < 0.5) {
+    return null
+  }
+  const drawn = [...body.flatMap((p) => [p.x, p.y]), base.x, base.y]
+  const straight = maxDeviation(drawn) < Math.max(1.5, shaftLength * 0.06)
+  const cleanShaft = straight ? [start.x, start.y, base.x, base.y] : perfectLine(drawn)
+  // A symmetric head as wide as the drawn one.
+  const halfBase = Math.hypot(b1.x - b2.x, b1.y - b2.y) / 2
+  const n = { x: -dir.y, y: dir.x }
+  return {
+    ids: strokes.map((s) => s.id),
+    shaft: cleanShaft,
+    straight: true,
+    head: [
+      tip.x,
+      tip.y,
+      base.x + n.x * halfBase,
+      base.y + n.y * halfBase,
+      base.x - n.x * halfBase,
+      base.y - n.y * halfBase,
+    ],
+    closedHead: true,
+  }
+}
+
+/**
+ * A stroke that ends by drawing a small closed loop (a triangle head drawn on from the shaft):
+ * the shaft before it and the loop. The loop is found where the end of the stroke crosses or
+ * comes back to an earlier point, and must be a small part of the stroke.
+ */
+function loopAtEnd(pts: Pt[]): { shaft: Pt[]; loop: Pt[] } | null {
+  const n = pts.length
+  if (n < 8) return null
+  const total = length(pts.flatMap((p) => [p.x, p.y]))
+  const cum = [0]
+  for (let i = 1; i < n; i++)
+    cum.push(cum[i - 1]! + Math.hypot(pts[i]!.x - pts[i - 1]!.x, pts[i]!.y - pts[i - 1]!.y))
+  const minFrom = cum.findIndex((c) => c >= total * 0.45)
+  // The stroke's end comes back to (or crosses) an earlier point.
+  const e = pts[n - 1]!
+  let best: { at: number; hit: Pt } | null = null
+  for (let i = Math.max(0, minFrom); i < n - 3; i++) {
+    const p = pts[i]!
+    const q = pts[i + 1]!
+    const perimeter = total - cum[i]!
+    if (perimeter < 6) break
+    const near = Math.max(2, perimeter * 0.08)
+    // Only the last part of the loop can close it: earlier crossings are bends of the shaft.
+    for (let j = n - 2; j > i + 2 && cum[j]! >= total - perimeter * 0.3; j--) {
+      const hit = crossing(p, q, pts[j]!, pts[j + 1]!)
+      if (hit) {
+        best = { at: i, hit }
+        break
+      }
+    }
+    if (best) break
+    if (Math.hypot(e.x - p.x, e.y - p.y) < near) {
+      best = { at: i, hit: p }
+      break
+    }
+  }
+  if (!best) return null
+  const shaft = [...pts.slice(0, best.at + 1), best.hit]
+  const loop = [best.hit, ...pts.slice(best.at + 1)]
+  if (length(loop.flatMap((p) => [p.x, p.y])) > total * 0.5) return null
+  return { shaft, loop }
+}
+
+function crossing(a: Pt, b: Pt, c: Pt, d: Pt): Pt | null {
+  const den = (b.x - a.x) * (d.y - c.y) - (b.y - a.y) * (d.x - c.x)
+  if (Math.abs(den) < 1e-9) return null
+  const t = ((c.x - a.x) * (d.y - c.y) - (c.y - a.y) * (d.x - c.x)) / den
+  const u = ((c.x - a.x) * (b.y - a.y) - (c.y - a.y) * (b.x - a.x)) / den
+  if (t < 0 || t > 1 || u < 0 || u > 1) return null
+  return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t }
+}
+
+/**
+ * The three corners of a loop that is a triangle: the largest triangle inside it must cover
+ * most of it (a circle or a square covers much less).
+ */
+function triangleOf(loop: Pt[]): [Pt, Pt, Pt] | null {
+  // The largest triangle between points of the loop (every few points is enough).
+  const every = Math.max(1, Math.floor(loop.length / 40))
+  const pts = loop.filter((_, i) => i % every === 0)
+  let best: [Pt, Pt, Pt] | null = null
+  let bestArea = 0
+  for (let i = 0; i < pts.length; i++) {
+    for (let j = i + 1; j < pts.length; j++) {
+      for (let k = j + 1; k < pts.length; k++) {
+        const a = pts[i]!
+        const b = pts[j]!
+        const c = pts[k]!
+        const area = Math.abs((b.x - a.x) * (c.y - a.y) - (c.x - a.x) * (b.y - a.y)) / 2
+        if (area > bestArea) {
+          bestArea = area
+          best = [a, b, c]
+        }
+      }
+    }
+  }
+  if (!best || bestArea < 2) return null
+  const area = Math.abs(polygonArea(loop))
+  return area > 1e-6 && bestArea / area >= 0.7 ? best : null
+}
+
+function pointInTriangle(p: Pt, [a, b, c]: [Pt, Pt, Pt]): boolean {
+  const s = (u: Pt, v: Pt) => (v.x - u.x) * (p.y - u.y) - (v.y - u.y) * (p.x - u.x)
+  const d1 = s(a, b)
+  const d2 = s(b, c)
+  const d3 = s(c, a)
+  return !((d1 < 0 || d2 < 0 || d3 < 0) && (d1 > 0 || d2 > 0 || d3 > 0))
 }

@@ -113,6 +113,7 @@ export function PagesOverview({
                   type="button"
                   aria-label={`Page ${index + 1}`}
                   aria-current={index === currentIndex}
+                  data-choice
                   className="overflow-hidden rounded-md shadow-raised ring-1 ring-line transition-transform duration-150 active:scale-[0.98]"
                 >
                   <PageThumbnail
@@ -186,6 +187,7 @@ function PaperChoice({
           type="button"
           role="radio"
           aria-checked={value === option.kind}
+          data-choice
           aria-label={option.label}
           onClick={() => onChange(option.kind)}
           className="group grid gap-1 rounded-lg p-1 text-xs"

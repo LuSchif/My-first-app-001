@@ -5,7 +5,7 @@ import { simplify, toPts } from './shapes.ts'
 
 /**
  * Hand-drawn graph axes: a horizontal and a vertical line (an "L", drawn in one stroke or two,
- * or a cross of two strokes), maybe a third, slanted one through their crossing, and an arrow
+ * or a cross of two strokes), maybe a third, slanted one from their crossing, and an arrow
  * head drawn at the end of one of them. The clean
  * version has straight axes that meet where they were drawn to meet, and arrow heads at the
  * right end of the horizontal axis and the top end of the vertical one, never left or bottom.
@@ -16,7 +16,10 @@ type Pt = { x: number; y: number }
 export interface CleanGraph {
   /** The strokes the axes were drawn with, the head last. */
   ids: string[]
-  /** Horizontal axis, vertical axis, their heads (right, top), then a slanted axis and its head. */
+  /**
+   * Horizontal axis, vertical axis, their heads (right, top), then a slanted axis and, when it
+   * runs on through the origin, its head at its lower end.
+   */
   lines: number[][]
 }
 
@@ -147,16 +150,23 @@ export function detectGraph(strokes: readonly DrawnStroke[]): CleanGraph | null 
   // The axes cross or meet.
   if (v.at < h.from - reach || v.at > h.to + reach) return null
   if (h.at < v.from - reach || h.at > v.to + reach) return null
-  // A slanted axis runs through where the others cross; its head goes on its upper end.
-  let slant: { from: Pt; to: Pt; dir: Pt } | null = null
+  // A slanted axis meets the others where they cross. When it runs on through there (a vector
+  // graph's depth axis), its head goes on its lower end; ending at the origin, it gets none.
+  let slant: { from: Pt; to: Pt; dir: Pt; through: boolean } | null = null
   if (d) {
     const [a, c] = d
     const l = len(a, c)
     const cross = (v.at - a.x) * (c.y - a.y) - (h.at - a.y) * (c.x - a.x)
     if (l < longest * 0.3 || Math.abs(cross) / l > reach) return null
-    const up = a.y < c.y || (a.y === c.y && a.x > c.x) ? a : c
-    const down = up === a ? c : a
-    slant = { from: down, to: up, dir: { x: (up.x - down.x) / l, y: (up.y - down.y) / l } }
+    const down = a.y > c.y || (a.y === c.y && a.x < c.x) ? a : c
+    const up = down === a ? c : a
+    const t = ((v.at - up.x) * (down.x - up.x) + (h.at - up.y) * (down.y - up.y)) / (l * l)
+    slant = {
+      from: up,
+      to: down,
+      dir: { x: (down.x - up.x) / l, y: (down.y - up.y) / l },
+      through: t > 0.15 && t < 0.85,
+    }
   }
   // The head sits at an axis end and points outwards along it.
   const ends = [
@@ -193,7 +203,10 @@ export function detectGraph(strokes: readonly DrawnStroke[]): CleanGraph | null 
       headAt({ x: right, y: h.at }, { x: 1, y: 0 }, size),
       headAt({ x: v.at, y: top }, { x: 0, y: -1 }, size),
       ...(slant
-        ? [[slant.from.x, slant.from.y, slant.to.x, slant.to.y], headAt(slant.to, slant.dir, size)]
+        ? [
+            [slant.from.x, slant.from.y, slant.to.x, slant.to.y],
+            ...(slant.through ? [headAt(slant.to, slant.dir, size)] : []),
+          ]
         : []),
     ],
   }

@@ -22,13 +22,12 @@ body {
 }
 
 /*
- * Whatever is chosen gets an outline, everywhere: a paper, a pen type, a tool, an option in a
- * group. Switches (role="switch") show their state themselves.
+ * A choice that nothing else marks (a paper, a recent color, the page in view) gets an outline.
+ * Buttons that are filled in color when chosen stay without one.
  */
-[aria-pressed='true'],
-[aria-checked='true']:not([role='switch']):not([role='checkbox']),
-[aria-selected='true'],
-[aria-current='true'] {
+[data-choice][aria-pressed='true'],
+[data-choice][aria-checked='true'],
+[data-choice][aria-current='true'] {
   outline: 2.5px solid var(--color-selected);
   outline-offset: 1px;
 }

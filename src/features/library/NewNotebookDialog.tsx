@@ -205,6 +205,7 @@ export function NewNotebookDialog({
                     key={option.kind}
                     type="button"
                     aria-pressed={paper === option.kind}
+                    data-choice
                     onClick={() => setPaper(option.kind)}
                     className="group grid gap-1.5 rounded-lg p-1 text-sm"
                   >

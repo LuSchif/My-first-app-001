@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { detectArrow } from './arrows.ts'
+import { detectArrow, detectTriangleArrow } from './arrows.ts'
 import { perfectLine } from './perfect.ts'
 
 let seed = 5
@@ -136,6 +136,70 @@ describe('arrow recognition', () => {
       .slice(1)
       .flatMap(([x, y], i) => line(anchors[i]![0]!, anchors[i]![1]!, x!, y!, 12))
     expect(detectArrow([{ id: 'w', points }])).toBeNull()
+  })
+
+  describe('triangle heads', () => {
+    // Traced from drawings on the iPad (screen pixels, about 2.5 per point on the page).
+    const traced = (...anchors: number[][]) => {
+      const pts = anchors.map(([x, y]) => [x! / 2.5, y! / 2.5])
+      return pts.slice(1).flatMap(([x, y], i) => line(pts[i]![0]!, pts[i]![1]!, x!, y!, 8))
+    }
+
+    it('finds a triangle drawn on from the shaft in one stroke', () => {
+      const points = traced(
+        [497, 660],
+        [600, 610],
+        [700, 560],
+        [775, 525],
+        [770, 495],
+        [838, 503],
+        [785, 540],
+        [776, 526],
+      )
+      const arrow = detectTriangleArrow([{ id: 'a', points }])
+      expect(arrow?.closedHead).toBe(true)
+      // The tip is the drawn tip.
+      expect(Math.hypot(arrow!.head[0]! - 838 / 2.5, arrow!.head[1]! - 503 / 2.5)).toBeLessThan(4)
+      // The shaft ends at the head's base, not inside it.
+      const s = arrow!.shaft
+      expect(
+        Math.hypot(s[s.length - 2]! - 838 / 2.5, s[s.length - 1]! - 503 / 2.5),
+      ).toBeGreaterThan(8)
+    })
+
+    it('finds a triangle at the end of a curved shaft', () => {
+      const points = traced(
+        [1180, 905],
+        [1350, 870],
+        [1460, 830],
+        [1500, 790],
+        [1460, 760],
+        [1390, 740],
+        [1395, 700],
+        [1460, 670],
+        [1575, 650],
+        [1575, 630],
+        [1632, 655],
+        [1577, 678],
+        [1575, 650],
+      )
+      expect(detectTriangleArrow([{ id: 'a', points }])?.closedHead).toBe(true)
+    })
+
+    it('finds a triangle drawn as a stroke of its own', () => {
+      const shaft = { id: 'a', points: traced([210, 610], [330, 550], [440, 497]) }
+      const head = { id: 'b', points: traced([430, 470], [492, 480], [452, 520], [431, 471]) }
+      expect(detectTriangleArrow([shaft, head])?.closedHead).toBe(true)
+    })
+
+    it('does not take a line ending in a circle for an arrow', () => {
+      const circle = Array.from({ length: 30 }, (_, i) => [
+        200 + 12 * Math.cos((i / 29) * Math.PI * 2 + Math.PI),
+        100 + 12 * Math.sin((i / 29) * Math.PI * 2 + Math.PI),
+      ]).flat()
+      const points = [...line(80, 100, 188, 100, 20), ...circle]
+      expect(detectTriangleArrow([{ id: 'a', points }])).toBeNull()
+    })
   })
 
   it('ignores lines, angles and letters', () => {

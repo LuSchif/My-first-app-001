@@ -25,9 +25,10 @@ import {
   type Staves,
 } from '../geometry/clefs.ts'
 import { PAGE_SIZE } from '../model/types.ts'
-import { detectArrow, type CleanArrow } from '../geometry/arrows.ts'
+import { detectArrow, detectTriangleArrow, type CleanArrow } from '../geometry/arrows.ts'
 import { detectGraph } from '../geometry/graphs.ts'
-import { perfectLine } from '../geometry/perfect.ts'
+import { curvePath, perfectLine } from '../geometry/perfect.ts'
+import { samplePath } from '../geometry/fitCurve.ts'
 
 /** Strokes smaller than this (in points) are handwriting, not shapes. */
 const MIN_SHAPE_SIZE = 36
@@ -253,7 +254,9 @@ export function cleanDrawingFor(
   if (graph) return graph
   const recent = recentNear(objects, stroke, 3, { x: 4, y: 4 })
   for (let k = recent.length; k >= 1; k--) {
-    const arrow = detectArrow(recent.slice(0, k).reverse())
+    const group = recent.slice(0, k).reverse()
+    // A triangle head first: its sides would also pass for the two barbs of an open head.
+    const arrow = detectTriangleArrow(group) ?? detectArrow(group)
     if (arrow) return { label: 'Arrow', strokes: arrowStrokes(stroke, arrow), replaces: arrow.ids }
   }
   return null
@@ -309,11 +312,26 @@ function arrowStrokes(like: StrokeObject, arrow: CleanArrow): StrokeObject[] {
       ...ink,
       ...(like.dash ? { dash: like.dash } : {}),
       id: newId(),
-      points: arrow.shaft,
-      straight: arrow.straight,
+      ...asCurve(arrow.shaft),
     },
-    { ...ink, id: newId(), points: arrow.head, straight: true },
+    {
+      ...ink,
+      id: newId(),
+      points: arrow.head,
+      straight: true,
+      ...(arrow.closedHead ? { closed: true } : {}),
+    },
   ]
+}
+
+/**
+ * A clean line as a stroke's shape: a straight line between its two ends, or a vector path with
+ * anchors only at its ends and its high and low points, so editing its points stays simple.
+ */
+function asCurve(points: number[]): Pick<StrokeObject, 'points' | 'path' | 'straight'> {
+  if (points.length <= 4) return { points, straight: true }
+  const path = curvePath(points)
+  return { points: samplePath(path), path }
 }
 
 /** Puts `strokes` where the first of `replaces` was, without the replaced ones. */
@@ -353,12 +371,12 @@ export function magicFor(
       objects: applySuggestion(objects, suggestion, stroke.layerId, newId),
     }
   }
+  if (stroke.closed) return { label: 'Magic pen', objects: [...objects] }
   const smooth: StrokeObject = {
     ...cleanInk(stroke),
     ...(stroke.dash ? { dash: stroke.dash } : {}),
+    ...asCurve(perfectLine(stroke.points)),
     id: stroke.id,
-    points: stroke.closed ? stroke.points : perfectLine(stroke.points),
-    straight: true,
   }
   return { label: 'Magic pen', objects: objects.map((o) => (o.id === stroke.id ? smooth : o)) }
 }

@@ -39,29 +39,35 @@ describe('graph axes', () => {
     expect(v![1]).toBeGreaterThan(340)
   })
 
-  it('turns a cross with a slanted third axis into three axes with heads at their tops', () => {
+  it('gives a slanted axis through the origin a head at its lower end', () => {
     const across = { id: 'a', points: line(80, 200, 400, 206) }
     const up = { id: 'b', points: line(240, 40, 240, 340) }
     const slant = { id: 'c', points: line(140, 300, 340, 120) }
-    // The head drawn on the slanted axis.
     const head = {
       id: 'd',
-      points: [...line(318, 122, 341, 119, 6), ...line(341, 119, 336, 142, 6)],
+      points: [...line(384, 192, 401, 206, 6), ...line(401, 206, 384, 218, 6)],
     }
     const graph = detectGraph([across, up, slant, head])
     expect(graph?.lines).toHaveLength(6)
     const [h, v, right, top, d, dHead] = graph!.lines
     expect(right![2]).toBeCloseTo(h![2]!, 5)
     expect(top![3]).toBeCloseTo(v![3]!, 5)
-    // The slanted axis ends at its upper end, where its head is.
-    expect(d![3]).toBeLessThan(d![1]!)
+    // The slanted axis ends at its lower end, where its head is.
+    expect(d![3]).toBeGreaterThan(d![1]!)
     expect(dHead![2]).toBeCloseTo(d![2]!, 5)
-    // A head on the horizontal axis gives the slanted one a head too.
-    const onRight = {
-      id: 'e',
+    expect(dHead![3]).toBeCloseTo(d![3]!, 5)
+  })
+
+  it('gives a slanted axis that ends at the origin no head', () => {
+    const across = { id: 'a', points: line(80, 200, 400, 206) }
+    const up = { id: 'b', points: line(240, 40, 240, 340) }
+    const slant = { id: 'c', points: line(240, 203, 120, 310) }
+    const head = {
+      id: 'd',
       points: [...line(384, 192, 401, 206, 6), ...line(401, 206, 384, 218, 6)],
     }
-    expect(detectGraph([across, up, slant, onRight])?.lines).toHaveLength(6)
+    const graph = detectGraph([across, up, slant, head])
+    expect(graph?.lines).toHaveLength(5)
   })
 
   it('needs a head at an axis end', () => {
