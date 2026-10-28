@@ -209,7 +209,13 @@ export class TextController {
 
   /** Focuses the text field again if something else took focus while it is being edited. */
   refocus(): void {
-    if (this.editing && document.activeElement !== this.textarea) this.focusField()
+    if (!this.editing) return
+    // The app's own keyboard never focuses the field; while it types into it, nothing is lost,
+    // and asking again would move the caret to the end (dropping a selection).
+    const typing = document.documentElement.hasAttribute('data-own-keyboard')
+      ? this.textarea.hasAttribute('data-virtual-focus')
+      : document.activeElement === this.textarea
+    if (!typing) this.focusField()
   }
 
   /**

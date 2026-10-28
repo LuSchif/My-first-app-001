@@ -4,6 +4,7 @@ import {
   GraduationCap,
   Layers,
   Pencil,
+  Plus,
   Presentation,
   X,
 } from 'lucide-react'
@@ -16,7 +17,8 @@ import { pageSizeOf } from '../../engine/render/layout.ts'
 import { Button, IconButton } from '../../design/index.ts'
 import { cn } from '../../lib/cn.ts'
 import { formatEdited } from '../../lib/time.ts'
-import { deletePages, loadNotebook, saveStudy } from '../../storage/notebooks.ts'
+import { createPage } from '../../engine/model/factory.ts'
+import { appendPage, deletePages, loadNotebook, saveStudy } from '../../storage/notebooks.ts'
 import { PageThumbnail } from '../editor/PageThumbnail.tsx'
 import { openNotebookAt } from '../editor/openAt.ts'
 import { FolderGraphic } from '../folders/FolderGraphic.tsx'
@@ -189,6 +191,17 @@ function NotebookPeek({
                 }}
               />
             ))}
+            {shownPages.length < MAX_PAGES ? (
+              <AddPage
+                notebook={notebook}
+                unit={unit}
+                number={shownPages.length + 1}
+                onAdded={(page) => {
+                  setPages((list) => (list ? [...list, page] : list))
+                  reload()
+                }}
+              />
+            ) : null}
           </ol>
         )}
         {shownPages && shownPages.length > MAX_PAGES ? (
@@ -209,7 +222,14 @@ function usePages(
   useEffect(() => {
     let alive = true
     loadNotebook(notebookId)
-      .then((data) => alive && setPages(data?.pages ?? []))
+      .then((data) => {
+        if (!alive) return
+        // In the notebook's order, so a page's place here is its place in the notebook.
+        const order = new Map(data?.notebook.pageIds.map((id, i) => [id, i]))
+        const sorted = (data?.pages ?? []).filter((p) => order.has(p.id))
+        sorted.sort((a, b) => order.get(a.id)! - order.get(b.id)!)
+        setPages(sorted)
+      })
       .catch((err: unknown) => {
         console.error(err)
         if (alive) setPages([])
@@ -488,6 +508,54 @@ function PeekPage({
         <span className="text-center text-xs font-semibold text-ink-muted tabular-nums">
           {number}
         </span>
+      </button>
+    </li>
+  )
+}
+
+/** The last tile of a notebook's pages: adds an empty page at the end. */
+function AddPage({
+  notebook,
+  unit,
+  number,
+  onAdded,
+}: {
+  notebook: Notebook
+  unit: string
+  number: number
+  onAdded: (page: Page) => void
+}) {
+  const [busy, setBusy] = useState(false)
+  const size = pageSizeOf(notebook)
+  return (
+    <li className="animate-page-out" style={stagger(number - 1)}>
+      <button
+        type="button"
+        disabled={busy}
+        onClick={() => {
+          setBusy(true)
+          const page = createPage(notebook.id, notebook.paper)
+          appendPage(notebook.id, page)
+            .then(() => onAdded(page))
+            .catch((err: unknown) => {
+              console.error(err)
+              showNotice(`The ${unit} could not be added.`)
+            })
+            .finally(() => setBusy(false))
+        }}
+        className="grid w-full touch-manipulation gap-1.5 text-left select-none"
+      >
+        <span
+          className="grid place-items-center rounded-md border-2 border-dashed border-line-strong text-ink-muted transition-colors duration-150 hover:bg-hover hover:text-ink"
+          style={{ aspectRatio: `${size.width} / ${size.height}` }}
+        >
+          <span className="grid justify-items-center gap-1 text-xs font-semibold">
+            <Plus size={22} />
+            Add {unit}
+          </span>
+        </span>
+        {/* Room for a number, like the pages beside it. */}
+        <span aria-hidden="true" className="h-4" />
       </button>
     </li>
   )

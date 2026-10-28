@@ -94,6 +94,24 @@ export async function deletePages(
   })
 }
 
+/** Adds a page at the end of a notebook. */
+export async function appendPage(
+  notebookId: string,
+  page: Page,
+  database: BroomitDatabase = db,
+): Promise<void> {
+  await database.transaction('rw', database.notebooks, database.pages, async () => {
+    const notebook = await database.notebooks.get(notebookId)
+    if (!notebook) return
+    await database.pages.add(page)
+    await database.notebooks.put({
+      ...notebook,
+      pageIds: [...notebook.pageIds, page.id],
+      updatedAt: Date.now(),
+    })
+  })
+}
+
 /** Flashcards: stores how well each card of a deck is known. */
 export async function saveStudy(
   notebookId: string,

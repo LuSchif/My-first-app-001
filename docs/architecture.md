@@ -64,6 +64,9 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
   wrapping draws its text, caret and selection. A tap places the caret, a double tap selects a
   word, dragging selects text; arrow keys and sliding along the space bar move the caret.
 - A selection has two handles; dragging one moves that end of the selection.
+- A page text box asks for typing again after a touch only when it is not already the
+  keyboard's target (`TextController.refocus`); asking again would move the caret to the end
+  and drop the selection (the selected "Text" of a new box, or a dragged selection).
 - The name shown is "Broomit Keyboard".
 - There is no switch back to the system keyboard: on iPad it would bring the bar back.
 - Each finger is read from touch events and from pointer events; whichever reports it first
@@ -98,7 +101,8 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
   notebook's cover swings open and its pages come out to the right, a presentation fans out
   its slides, a folder opens and shows its folders and notebooks. A tap on a page opens the
   notebook there (`editor/openAt.ts`); "Open" opens it from the start, "Open folder" shows the
-  folder's own page (`#/folder/<id>`).
+  folder's own page (`#/folder/<id>`). The last tile of a notebook's pages, "Add page" ("Add
+  slide"), adds an empty page on the notebook's paper at the end (`appendPage`).
 - The carousel's first page, Create, lists what can be made (notebook, folder, presentation);
   it is the page shown on first start. While a
   notebook or presentation is held, every folder slides up in a row at the bottom of the
