@@ -233,6 +233,8 @@ The ink pipeline, from pen to storage, each part in its own module:
   edges, or be cut to a circle, diamond, square or heart (its crop is then square); the editor
   shows the cut as white dashes over the crop and a live preview of the result. Both are one
   SVG path (`pictureOutline`), used for clipping on the page and for the dashes.
+  After editing, a picture is never larger than half the page's width and a third of its
+  height (`mediumPicture`), so it never covers the page or the selection bar.
 - Recognized graph axes become a graph object (`model/graph.ts`, drawn by `render/graph.ts`): a
   box like a chart, with the axes measured from the origin, the drawn color and line width,
   ticks with their own spacing per axis (always as wide as the drawn line and all the same
@@ -245,7 +247,9 @@ The ink pipeline, from pen to storage, each part in its own module:
 - Areas closed off by several strokes however they meet (a shape drawn onto another one) are
   found by filling a grid of the nearby strokes from the colored spot (`enclosedArea` in
   `geometry/shapes.ts`), when no single outline or chain of strokes closes them. Outlines up to
-  6 pt apart count as meeting; the grid's staircase edge is moved onto the strokes' middles.
+  6 pt apart count as meeting (the lines are drawn thick to find the area); the area then grows
+  back up to the lines as drawn, also deep into narrow corners where two outlines meet, so no
+  spot stays white. The grid's staircase edge is moved onto the strokes' middles.
   Coloring in may run a little over the edge. With the magic pen, coloring in wins over taking
   a scribble at a line's end for an arrow head.
 - In a one-stroke arrow only the head may follow the tip: a wave or a word that goes on past a

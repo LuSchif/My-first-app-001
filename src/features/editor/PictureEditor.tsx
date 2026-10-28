@@ -7,6 +7,7 @@ import {
   FULL_CROP,
   imageBands,
   imageCrop,
+  mediumPicture,
   pictureOutline,
   squareCrop,
   takesRoundCorners,
@@ -360,7 +361,8 @@ function PictureEditorContent({
           disabled={!result}
           onClick={() => {
             if (!result) return
-            editor.updateObject(result, 'Edit picture')
+            // Never larger than a medium size on the page.
+            editor.updateObject(mediumPicture(result, editor.pageSize), 'Edit picture')
             onDone()
           }}
         >

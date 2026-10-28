@@ -254,13 +254,21 @@ export function enclosedArea(
   const oy = minY - cell * 2
   const w = Math.ceil((maxX - minX) / cell) + 4
   const h = Math.ceil((maxY - minY) / cell) + 4
+  // Each line twice: thick, so the filling cannot slip through a small gap where a shape drawn
+  // onto another one does not quite meet it; and thin, as drawn, for filling right up to it.
   const wall = new Uint8Array(w * h)
+  const thin = new Uint8Array(w * h)
   const thick = Math.max(1, Math.ceil(GAP_PT / 2 / cell))
   const mark = (px: number, py: number) => {
     const cx = Math.floor((px - ox) / cell)
     const cy = Math.floor((py - oy) / cell)
-    // Each line is drawn thick, so the filling cannot slip between its cells, nor through a
-    // small gap where a shape drawn onto another one does not quite meet it.
+    for (let dy = -1; dy <= 0; dy++) {
+      for (let dx = -1; dx <= 0; dx++) {
+        const gx = cx + dx
+        const gy = cy + dy
+        if (gx >= 0 && gy >= 0 && gx < w && gy < h) thin[gy * w + gx] = 1
+      }
+    }
     for (let dy = -thick; dy <= thick; dy++) {
       for (let dx = -thick; dx <= thick; dx++) {
         if (dx * dx + dy * dy > thick * thick + 1) continue
@@ -301,16 +309,27 @@ export function enclosedArea(
       }
     }
   }
-  // Grown back by the lines' thickness, so the area reaches under the middle of its outlines.
-  let grown = filled
-  for (let round = 0; round <= thick; round++) {
-    const next = new Uint8Array(grown)
-    for (let i = 0; i < grown.length; i++) {
-      if (!grown[i]) continue
-      for (const j of [i - 1, i + 1, i - w, i + w]) next[j] = 1
+  // Grown back into what only the thick lines kept out: right up to the lines as drawn, also deep
+  // into narrow corners where two outlines meet, but never on past a line.
+  const grown = new Uint8Array(filled)
+  const more: number[] = []
+  for (let i = 0; i < filled.length; i++) if (filled[i]) more.push(i)
+  while (more.length) {
+    const i = more.pop()!
+    for (const j of [i - 1, i + 1, i - w, i + w]) {
+      if (j < 0 || j >= grown.length || grown[j] || !wall[j] || thin[j]) continue
+      grown[j] = 1
+      more.push(j)
     }
-    grown = next
   }
+  // And one cell more, under the middle of the lines.
+  const edgeCells: number[] = []
+  for (let i = 0; i < grown.length; i++) {
+    if (!grown[i]) continue
+    for (const j of [i - 1, i + 1, i - w, i + w])
+      if (j >= 0 && j < grown.length && !grown[j]) edgeCells.push(j)
+  }
+  for (const j of edgeCells) grown[j] = 1
   const outline = traceOutline(grown, w, h)
   if (outline.length < 3) return null
   // The grid's edge is a staircase; each of its points moves onto the middle of the stroke it
@@ -321,7 +340,7 @@ export function enclosedArea(
     if (s.closed && sp.length > 2) sp.push(sp[0]!)
     for (let i = 1; i < sp.length; i++) segments.push([sp[i - 1]!, sp[i]!])
   }
-  const reach = cell * 3
+  const reach = cell * 2.5
   const onStrokes = simplify(
     outline.map((p) => ({ x: ox + p.x * cell, y: oy + p.y * cell })),
     cell * 0.3,

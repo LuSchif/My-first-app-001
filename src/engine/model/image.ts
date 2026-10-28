@@ -1,4 +1,4 @@
-import type { ImageObject, PictureShape } from './types.ts'
+import type { ImageObject, PageSize, PictureShape } from './types.ts'
 
 export type Crop = NonNullable<ImageObject['crop']>
 
@@ -145,4 +145,35 @@ export function editPicture(
     x: ncx - width / 2,
     y: ncy - frameHeight / 2,
   }
+}
+
+/** After editing, a picture is at most this share of the page's width and height. */
+const MEDIUM_WIDTH = 0.5
+const MEDIUM_HEIGHT = 1 / 3
+
+/**
+ * The picture made no larger than a medium size on the page (half its width, a third of its
+ * height), as a whole with its text and round corners, around the same middle.
+ */
+export function mediumPicture(image: ImageObject, page: PageSize): ImageObject {
+  const k = Math.min(
+    1,
+    (page.width * MEDIUM_WIDTH) / image.width,
+    (page.height * MEDIUM_HEIGHT) / image.height,
+  )
+  if (k >= 1) return image
+  const width = image.width * k
+  const height = image.height * k
+  const out: ImageObject = {
+    ...image,
+    x: image.x + (image.width - width) / 2,
+    y: image.y + (image.height - height) / 2,
+    width,
+    height,
+  }
+  if (image.fontSize !== undefined || image.title || image.caption) {
+    out.fontSize = (image.fontSize ?? DEFAULT_CAPTION_SIZE) * k
+  }
+  if (image.cornerRadius) out.cornerRadius = image.cornerRadius * k
+  return out
 }

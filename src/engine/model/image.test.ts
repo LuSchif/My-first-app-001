@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { editPicture, imageBands, pictureOutline, squareCrop } from './image.ts'
+import { editPicture, imageBands, mediumPicture, pictureOutline, squareCrop } from './image.ts'
 import type { ImageObject } from './types.ts'
 
 const picture: ImageObject = {
@@ -79,5 +79,19 @@ describe('editing pictures', () => {
     const sq = squareCrop({ x: 0, y: 0, width: 1, height: 1 }, { width: 400, height: 200 })
     expect(sq.width * 400).toBeCloseTo(sq.height * 200)
     expect(sq.x + sq.width / 2).toBeCloseTo(0.5)
+  })
+
+  it('is never larger than a medium size on the page after editing', () => {
+    const page = { width: 595, height: 842 }
+    const huge = { ...picture, width: 1200, height: 900, cornerRadius: 40 }
+    const medium = mediumPicture(huge, page)
+    expect(medium.width).toBeLessThanOrEqual(page.width / 2 + 1e-9)
+    expect(medium.height).toBeLessThanOrEqual(page.height / 3 + 1e-9)
+    // Same proportions and middle; the corners shrink with it.
+    expect(medium.width / medium.height).toBeCloseTo(1200 / 900)
+    expect(medium.x + medium.width / 2).toBeCloseTo(huge.x + 600)
+    expect(medium.cornerRadius!).toBeLessThan(40)
+    // A small picture stays as it is.
+    expect(mediumPicture(picture, page)).toBe(picture)
   })
 })
