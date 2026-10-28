@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { editPicture, imageBands } from './image.ts'
+import { editPicture, imageBands, pictureOutline, squareCrop } from './image.ts'
 import type { ImageObject } from './types.ts'
 
 const picture: ImageObject = {
@@ -52,5 +52,32 @@ describe('editing pictures', () => {
     expect(titled.height).toBeCloseTo(100 + bands.top + bands.bottom)
     // The picture itself starts where it did.
     expect(titled.y + bands.top).toBeCloseTo(100)
+  })
+
+  it('keeps a switched off title or caption, without room for it', () => {
+    const quiet = editPicture(picture, pixels, {
+      crop: { x: 0, y: 0, width: 1, height: 1 },
+      title: 'Leaf',
+      caption: 'Seen in May',
+      fontSize: 14,
+      titleOn: false,
+      captionOn: true,
+    })
+    expect(quiet.title).toBe('Leaf')
+    expect(quiet.titleHidden).toBe(true)
+    expect(imageBands(quiet).top).toBe(0)
+    expect(imageBands(quiet).bottom).toBeGreaterThan(0)
+  })
+
+  it('cuts to shapes and rounds corners', () => {
+    expect(pictureOutline(undefined, 100, 50)).toBeNull()
+    expect(pictureOutline(undefined, 100, 50, 10)).toContain('A10 10')
+    for (const shape of ['circle', 'diamond', 'square', 'heart'] as const) {
+      expect(pictureOutline(shape, 100, 100)).toMatch(/^M[^NaN]*Z$/)
+    }
+    // A shape needs a square crop: the largest square in pixels around the same middle.
+    const sq = squareCrop({ x: 0, y: 0, width: 1, height: 1 }, { width: 400, height: 200 })
+    expect(sq.width * 400).toBeCloseTo(sq.height * 200)
+    expect(sq.x + sq.width / 2).toBeCloseTo(0.5)
   })
 })

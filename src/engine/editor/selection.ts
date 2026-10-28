@@ -203,10 +203,13 @@ function transformShape(object: CanvasObject, t: Transform): CanvasObject {
     }
     if (t.scale === 1) return { ...object, ...frame }
     if (object.type === 'image') {
-      // Its title and caption grow with it.
-      return object.title || object.caption
-        ? { ...object, ...frame, fontSize: (object.fontSize ?? DEFAULT_CAPTION_SIZE) * t.scale }
+      // Its title, caption and round corners grow with it.
+      const grown = object.cornerRadius
+        ? { ...object, ...frame, cornerRadius: object.cornerRadius * t.scale }
         : { ...object, ...frame }
+      return object.title || object.caption
+        ? { ...grown, fontSize: (object.fontSize ?? DEFAULT_CAPTION_SIZE) * t.scale }
+        : grown
     }
     if (object.type === 'chart') return { ...object, ...frame, fontSize: object.fontSize * t.scale }
     if (object.type === 'graph') return { ...scaleGraph(object, t.scale), ...frame }

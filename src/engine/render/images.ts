@@ -5,6 +5,9 @@ import {
   DEFAULT_CAPTION_SIZE,
   imageBands,
   imageCrop,
+  pictureOutline,
+  shownCaption,
+  shownTitle,
 } from '../model/image.ts'
 import { strokeBoxOutline } from './outline.ts'
 import { FONT_STACKS } from './text.ts'
@@ -72,9 +75,13 @@ export function paintImage(ctx: CanvasRenderingContext2D, image: ImageObject): v
   ctx.save()
   ctx.globalAlpha = image.opacity
   enterBox(ctx, image)
+  // Cut to a shape or with rounded corners, inside the band between title and caption.
+  const cut = pictureOutline(image.shape, image.width, shownHeight, image.cornerRadius ?? 0)
+  const clip = cut ? new Path2D(cut) : null
   if (bitmap) {
     ctx.save()
     ctx.translate(0, bands.top)
+    if (clip) ctx.clip(clip)
     if (image.flipX || image.flipY) {
       ctx.translate(image.flipX ? image.width : 0, image.flipY ? shownHeight : 0)
       ctx.scale(image.flipX ? -1 : 1, image.flipY ? -1 : 1)
@@ -95,20 +102,35 @@ export function paintImage(ctx: CanvasRenderingContext2D, image: ImageObject): v
   } else {
     // A quiet placeholder while the picture loads.
     ctx.fillStyle = 'rgba(216, 193, 165, 0.35)'
-    ctx.fillRect(0, bands.top, image.width, shownHeight)
+    ctx.save()
+    ctx.translate(0, bands.top)
+    if (clip) ctx.fill(clip)
+    else ctx.fillRect(0, 0, image.width, shownHeight)
+    ctx.restore()
   }
   const size = image.fontSize ?? DEFAULT_CAPTION_SIZE
   ctx.fillStyle = image.textColor ?? DEFAULT_CAPTION_COLOR
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
-  if (image.title) {
+  const title = shownTitle(image)
+  const caption = shownCaption(image)
+  if (title) {
     ctx.font = `700 ${size * 1.25}px ${FONT_STACKS.sans}`
-    ctx.fillText(image.title, image.width / 2, bands.top / 2, image.width)
+    ctx.fillText(title, image.width / 2, bands.top / 2, image.width)
   }
-  if (image.caption) {
+  if (caption) {
     ctx.font = `400 ${size}px ${FONT_STACKS.sans}`
-    ctx.fillText(image.caption, image.width / 2, image.height - bands.bottom / 2, image.width)
+    ctx.fillText(caption, image.width / 2, image.height - bands.bottom / 2, image.width)
   }
-  if (image.outline) strokeBoxOutline(ctx, image.width, image.height, image.outline)
+  if (image.outline && clip) {
+    // The outline follows the picture's shape.
+    ctx.save()
+    ctx.translate(0, bands.top)
+    ctx.lineWidth = image.outline.width
+    ctx.strokeStyle = image.outline.color
+    ctx.lineJoin = 'round'
+    ctx.stroke(clip)
+    ctx.restore()
+  } else if (image.outline) strokeBoxOutline(ctx, image.width, image.height, image.outline)
   ctx.restore()
 }

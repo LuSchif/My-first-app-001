@@ -141,7 +141,16 @@ export interface ImageObject extends BoxFrame, Animatable {
   /** Of the title and caption, in points. */
   fontSize?: number
   textColor?: string
+  /** Title or caption switched off: kept, but not shown. */
+  titleHidden?: boolean
+  captionHidden?: boolean
+  /** Rounded corners of the picture, in points. */
+  cornerRadius?: number
+  /** The picture cut to a shape (its crop is then square). */
+  shape?: PictureShape
 }
+
+export type PictureShape = 'circle' | 'diamond' | 'square' | 'heart'
 
 /**
  * A table. Column widths and row heights are in points and add up to the frame's width and

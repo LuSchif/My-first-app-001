@@ -229,6 +229,10 @@ The ink pipeline, from pen to storage, each part in its own module:
   below, inside their frame ("Crop & caption" in the selection menu, `model/image.ts`). The crop
   is kept as shares of the stored picture, so showing all of it again is always possible; the
   picture keeps its scale and middle while its frame follows the part shown and the text.
+  Title and caption can each be switched off (kept, not shown). The picture can have round
+  edges, or be cut to a circle, diamond, square or heart (its crop is then square); the editor
+  shows the cut as white dashes over the crop and a live preview of the result. Both are one
+  SVG path (`pictureOutline`), used for clipping on the page and for the dashes.
 - Recognized graph axes become a graph object (`model/graph.ts`, drawn by `render/graph.ts`): a
   box like a chart, with the axes measured from the origin, the drawn color and line width,
   ticks with their own spacing per axis (always as wide as the drawn line and all the same
