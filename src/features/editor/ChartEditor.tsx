@@ -3,8 +3,10 @@ import {
   ArrowDownWideNarrow,
   ArrowLeftRight,
   ArrowUpNarrowWide,
+  Link2,
   Minus,
   Plus,
+  Unlink,
 } from 'lucide-react'
 import { useState } from 'react'
 import type { Editor } from '../../engine/editor/Editor.ts'
@@ -73,6 +75,8 @@ function ChartEditorContent({
   const [draft, setDraft] = useState(chart)
   const [tab, setTab] = useState<'data' | 'look'>('data')
   const round = draft.kind === 'pie' || draft.kind === 'donut'
+  /** Values follow a table; they are changed there. */
+  const linked = Boolean(draft.sourceTableId)
   // Pie and donut charts show one series: the first.
   const shown = round ? draft.series.slice(0, 1) : draft.series
   const save = () => {
@@ -80,7 +84,7 @@ function ChartEditorContent({
     onDone()
   }
   const field =
-    'h-10 w-28 rounded-control px-2 text-sm ring-1 ring-line ring-inset focus:ring-2 focus:ring-accent focus:outline-none'
+    'h-10 w-28 rounded-control px-2 text-sm ring-1 ring-line ring-inset focus:ring-2 focus:ring-accent focus:outline-none disabled:opacity-60'
 
   return (
     <EditDialog
@@ -104,6 +108,21 @@ function ChartEditorContent({
     >
       {tab === 'data' ? (
         <div className="grid gap-6">
+          {linked ? (
+            <div className="flex flex-wrap items-center gap-3 rounded-card bg-surface-sunken p-3 text-sm">
+              <Link2 size={18} className="shrink-0 text-accent" />
+              <span className="min-w-0 flex-1">
+                Made from a table: its values follow the table. Change them there, or unlink to edit
+                them here.
+              </span>
+              <Button
+                icon={<Unlink size={16} />}
+                onClick={() => setDraft((c) => ({ ...c, sourceTableId: undefined }))}
+              >
+                Unlink
+              </Button>
+            </div>
+          ) : null}
           <TextField
             label="Title"
             value={draft.title}
@@ -150,6 +169,7 @@ function ChartEditorContent({
                     {shown.map((s, k) => (
                       <th key={k}>
                         <input
+                          disabled={linked}
                           aria-label={`Name of series ${k + 1}`}
                           value={s.name}
                           onChange={(e) =>
@@ -171,6 +191,7 @@ function ChartEditorContent({
                     <tr key={i}>
                       <td>
                         <input
+                          disabled={linked}
                           aria-label={`Label ${i + 1}`}
                           value={label}
                           onChange={(e) =>
@@ -185,6 +206,7 @@ function ChartEditorContent({
                       {shown.map((s, k) => (
                         <td key={k}>
                           <NumberField
+                            disabled={linked}
                             label={`${s.name}, ${label}`}
                             value={s.values[i] ?? 0}
                             onChange={(v) => setDraft((c) => setValue(c, k, i, v))}
@@ -195,7 +217,7 @@ function ChartEditorContent({
                         <IconButton
                           label={`Remove ${label || `row ${i + 1}`}`}
                           icon={<Minus size={16} />}
-                          disabled={draft.labels.length <= 1}
+                          disabled={linked || draft.labels.length <= 1}
                           onClick={() => setDraft((c) => removeCategory(c, i))}
                         />
                       </td>
@@ -209,6 +231,7 @@ function ChartEditorContent({
                           <IconButton
                             label={`Remove ${s.name}`}
                             icon={<Minus size={16} />}
+                            disabled={linked}
                             onClick={() => setDraft((c) => removeSeries(c, k))}
                           />
                         </td>
@@ -219,11 +242,19 @@ function ChartEditorContent({
               </table>
             </div>
             <div className="flex flex-wrap gap-2">
-              <Button icon={<Plus size={16} />} onClick={() => setDraft((c) => addCategory(c))}>
+              <Button
+                icon={<Plus size={16} />}
+                disabled={linked}
+                onClick={() => setDraft((c) => addCategory(c))}
+              >
                 {round ? 'Slice' : 'Category'}
               </Button>
               {round ? null : (
-                <Button icon={<Plus size={16} />} onClick={() => setDraft((c) => addSeries(c))}>
+                <Button
+                  icon={<Plus size={16} />}
+                  disabled={linked}
+                  onClick={() => setDraft((c) => addSeries(c))}
+                >
                   Series
                 </Button>
               )}
@@ -237,18 +268,21 @@ function ChartEditorContent({
             <div className="flex flex-wrap gap-2">
               <Button
                 icon={<ArrowDownAZ size={16} />}
+                disabled={linked}
                 onClick={() => setDraft((c) => sortChart(c, 'label'))}
               >
                 A–Z
               </Button>
               <Button
                 icon={<ArrowUpNarrowWide size={16} />}
+                disabled={linked}
                 onClick={() => setDraft((c) => sortChart(c, 'ascending'))}
               >
                 Smallest first
               </Button>
               <Button
                 icon={<ArrowDownWideNarrow size={16} />}
+                disabled={linked}
                 onClick={() => setDraft((c) => sortChart(c, 'descending'))}
               >
                 Largest first
@@ -256,6 +290,7 @@ function ChartEditorContent({
               {round ? null : (
                 <Button
                   icon={<ArrowLeftRight size={16} />}
+                  disabled={linked}
                   onClick={() => setDraft((c) => transposeChart(c))}
                 >
                   Transpose
@@ -415,15 +450,18 @@ function NumberField({
   label,
   value,
   onChange,
+  disabled = false,
 }: {
   label: string
   value: number
   onChange: (value: number) => void
+  disabled?: boolean
 }) {
   const [text, setText] = useState<string | null>(null)
   return (
     <input
       aria-label={label}
+      disabled={disabled}
       inputMode="decimal"
       value={text ?? String(value)}
       onChange={(e) => {
@@ -433,7 +471,7 @@ function NumberField({
       }}
       onBlur={() => setText(null)}
       className={cn(
-        'h-10 w-28 rounded-control bg-surface-raised px-2 text-right text-sm tabular-nums',
+        'h-10 w-28 rounded-control bg-surface-raised px-2 text-right text-sm tabular-nums disabled:opacity-60',
         'ring-1 ring-line ring-inset focus:ring-2 focus:ring-accent focus:outline-none',
       )}
     />

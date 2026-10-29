@@ -2,6 +2,7 @@ import { ChevronLeft, ChevronRight, FolderKanban } from 'lucide-react'
 import { useEffect, useRef, type ReactNode } from 'react'
 import { IconButton } from '../../design/index.ts'
 import { cn } from '../../lib/cn.ts'
+import { ScrollBar } from './ScrollBar.tsx'
 
 /** Tile sizes, in px: a tile is 6:5, with its name and details under it (`TILE_TEXT`). */
 const TILE_TEXT_PX = 72 + 10
@@ -146,12 +147,7 @@ export function Carousel({
                 </h2>
                 {page.actions ? <div className="flex flex-wrap gap-1">{page.actions}</div> : null}
               </div>
-              <div
-                data-carousel-body=""
-                className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4"
-              >
-                {page.content}
-              </div>
+              <PageBody>{page.content}</PageBody>
             </section>
           ))}
         </div>
@@ -188,6 +184,23 @@ export function Carousel({
           onClick={() => go(current + 1)}
         />
       </nav>
+    </div>
+  )
+}
+
+/** A page's content, scrolling up and down, with a scroll bar that shows when there is more. */
+function PageBody({ children }: { children: ReactNode }) {
+  const body = useRef<HTMLDivElement>(null)
+  return (
+    <div className="relative flex min-h-0 flex-1 flex-col">
+      <div
+        ref={body}
+        data-carousel-body=""
+        className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 pr-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      >
+        {children}
+      </div>
+      <ScrollBar target={body} />
     </div>
   )
 }

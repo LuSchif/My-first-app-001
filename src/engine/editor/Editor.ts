@@ -2306,6 +2306,9 @@ export class Editor {
   private onKeyDown(e: KeyboardEvent): void {
     const target = e.target as HTMLElement | null
     if (target?.closest('input, textarea, [contenteditable="true"]')) return
+    // Keys typed into a dialog (an object's editor) or into a field the app's own keyboard types
+    // into belong there: Backspace must never delete what is selected on the page.
+    if (document.querySelector('[role="dialog"], [data-virtual-focus]')) return
     const mod = e.metaKey || e.ctrlKey
     const key = e.key.toLowerCase()
     const selected = this._state.selection !== null

@@ -32,10 +32,13 @@ export async function insertPicture(editor: Editor, notebookId: string, file: Fi
   const assetId = newId()
   await putAsset({ id: assetId, notebookId, blob, width, height })
   rememberImage(assetId, bitmap)
-  // About 2 pixels per point, so photos land at a natural size before fitting the page.
+  // A new picture is medium sized (half the page's width, a third of its height at most), so it
+  // never covers the page; it can be scaled up afterwards.
+  const page = editor.pageSize
+  const fit = Math.min(1, (page.width * 0.5) / width, page.height / 3 / height)
   editor.insertBox(
     (frame, layerId) => ({ id: newId(), type: 'image', layerId, assetId, opacity: 1, ...frame }),
-    width / 2,
-    height / 2,
+    width * fit,
+    height * fit,
   )
 }

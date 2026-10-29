@@ -8,6 +8,18 @@ export interface ThemeSetting {
   /** The color the theme is built from; null for Broomit's own look. */
   accent: string | null
   dark: boolean
+  /**
+   * A color gradient of the user's own: the app's background shows it (softened so text stays
+   * readable) and `accent` is its first color.
+   */
+  gradient?: ThemeGradient | null
+}
+
+export interface ThemeGradient {
+  type: 'linear' | 'radial'
+  /** Degrees, for a linear gradient. */
+  angle?: number
+  stops: { offset: number; color: string }[]
 }
 
 export const DEFAULT_THEME: ThemeSetting = { accent: null, dark: false }
@@ -110,6 +122,20 @@ export function themeColors(setting: ThemeSetting): Record<string, string> | nul
   }
 }
 
+/** The app's background for a gradient theme: its colors, mixed with the surface. */
+export function themeBackdrop(setting: ThemeSetting): string | null {
+  const g = setting.gradient
+  if (!g || g.stops.length < 2) return null
+  const toward = setting.dark ? '#000000' : '#ffffff'
+  const stops = [...g.stops]
+    .sort((a, b) => a.offset - b.offset)
+    .map((s) => `${mix(s.color, toward, setting.dark ? 0.72 : 0.7)} ${Math.round(s.offset * 100)}%`)
+    .join(', ')
+  return g.type === 'radial'
+    ? `radial-gradient(circle at 50% 30%, ${stops})`
+    : `linear-gradient(${Math.round(g.angle ?? 135)}deg, ${stops})`
+}
+
 const applied = new Set<string>()
 
 /** Puts the theme on the page, or back to tokens.css for the default. */
@@ -122,6 +148,9 @@ export function applyTheme(setting: ThemeSetting): void {
     root.style.setProperty(`--color-${name}`, value)
     applied.add(name)
   }
+  const backdrop = themeBackdrop(setting)
+  if (backdrop) root.style.setProperty('--app-backdrop', backdrop)
+  else root.style.removeProperty('--app-backdrop')
   root.style.colorScheme = setting.dark ? 'dark' : 'light'
   const surface = getComputedStyle(root).getPropertyValue('--color-surface').trim()
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', surface)
@@ -132,10 +161,11 @@ export function loadTheme(): ThemeSetting {
   try {
     const value: unknown = JSON.parse(localStorage.getItem(KEY) ?? 'null')
     if (value && typeof value === 'object') {
-      const { accent, dark } = value as Record<string, unknown>
+      const { accent, dark, gradient } = value as Record<string, unknown>
       return {
         accent: typeof accent === 'string' && /^#[0-9a-f]{6}$/i.test(accent) ? accent : null,
         dark: dark === true,
+        gradient: isGradient(gradient) ? gradient : null,
       }
     }
   } catch {
@@ -150,4 +180,17 @@ export function saveTheme(setting: ThemeSetting): void {
   } catch {
     // Private browsing or full storage: the theme applies until the app is closed.
   }
+}
+
+export function isGradient(value: unknown): value is ThemeGradient {
+  if (!value || typeof value !== 'object') return false
+  const g = value as { type?: unknown; stops?: unknown }
+  return (
+    (g.type === 'linear' || g.type === 'radial') &&
+    Array.isArray(g.stops) &&
+    g.stops.every(
+      (s: { offset?: unknown; color?: unknown }) =>
+        typeof s?.offset === 'number' && typeof s?.color === 'string',
+    )
+  )
 }

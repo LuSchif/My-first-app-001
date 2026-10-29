@@ -246,6 +246,8 @@ export interface ChartObject extends BoxFrame, Animatable {
   /** In points. */
   fontSize: number
   outline?: Outline
+  /** The table on the same page it was made from: its values follow that table. */
+  sourceTableId?: Id
 }
 
 export interface ChartSeries {

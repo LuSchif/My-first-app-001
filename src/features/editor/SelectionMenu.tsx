@@ -389,10 +389,9 @@ function menuItems(
       </MenuButton>
     ),
   })
-  // A table is not mirrored: flipping would only scramble it. A chart has no top-to-bottom
-  // mirror image that still reads as a chart. Lucide names these icons by their axis line.
-  // A graph's axes always point right and up, so it is not mirrored.
-  if (sel.boxKind !== 'table' && sel.boxKind !== 'graph') {
+  // Tables, charts and graphs are not mirrored: a mirrored one no longer reads. Lucide names
+  // these icons by their axis line.
+  if (sel.boxKind !== 'table' && sel.boxKind !== 'graph' && sel.boxKind !== 'chart') {
     items.push({
       key: 'flip-h',
       node: (
@@ -405,20 +404,18 @@ function menuItems(
         </MenuButton>
       ),
     })
-    if (sel.boxKind !== 'chart') {
-      items.push({
-        key: 'flip-v',
-        node: (
-          <MenuButton
-            label="Flip vertically"
-            iconOnly
-            onClick={() => editor.flipSelection('vertical')}
-          >
-            <FlipHorizontal2 size={18} />
-          </MenuButton>
-        ),
-      })
-    }
+    items.push({
+      key: 'flip-v',
+      node: (
+        <MenuButton
+          label="Flip vertically"
+          iconOnly
+          onClick={() => editor.flipSelection('vertical')}
+        >
+          <FlipHorizontal2 size={18} />
+        </MenuButton>
+      ),
+    })
   }
   return items
 }
@@ -534,7 +531,11 @@ function MakeChart({ editor, table }: { editor: Editor; table: TableObject }) {
         ? { x: right, y: table.y }
         : { x: table.x, y: table.y + table.height + 16 }
     editor.insertBox(
-      (frame, layerId) => chartFromData(newId(), layerId, frame, kind, data),
+      (frame, layerId) => ({
+        ...chartFromData(newId(), layerId, frame, kind, data),
+        // Its values follow the table from now on.
+        sourceTableId: table.id,
+      }),
       width,
       height,
       at,

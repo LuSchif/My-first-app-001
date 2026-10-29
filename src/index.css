@@ -18,6 +18,9 @@ html {
 
 body {
   @apply bg-surface font-sans text-ink antialiased;
+  /* A gradient theme shows its colors behind everything (see design/theme.ts). */
+  background-image: var(--app-backdrop, none);
+  background-attachment: fixed;
   -webkit-tap-highlight-color: transparent;
 }
 

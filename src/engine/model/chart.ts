@@ -1,4 +1,5 @@
-import type { BoxFrame, ChartKind, ChartObject, Id } from './types.ts'
+import { tableChartData } from './table.ts'
+import type { BoxFrame, CanvasObject, ChartKind, ChartObject, Id, TableObject } from './types.ts'
 
 export const CHART_COLORS = ['#b98b65', '#4a80c0', '#8fc172', '#e0715f', '#8063b4', '#3d9687']
 
@@ -133,4 +134,39 @@ export function chartFromData(
     labels: data.labels,
     series: data.series.map((s, k) => ({ ...s, color: CHART_COLORS[k % CHART_COLORS.length]! })),
   }
+}
+
+/**
+ * Charts made from a table follow it: after a change to the page, every linked chart whose
+ * table now holds other data gets that data (its type, colors and look stay). A chart whose
+ * table is gone keeps its last values.
+ */
+export function followTables(
+  before: readonly CanvasObject[],
+  after: CanvasObject[],
+): CanvasObject[] {
+  const linked = after.some((o) => o.type === 'chart' && o.sourceTableId)
+  if (!linked) return after
+  const old = new Set(before)
+  const tables = new Map<Id, TableObject>()
+  for (const o of after) if (o.type === 'table' && !old.has(o)) tables.set(o.id, o)
+  if (tables.size === 0) return after
+  return after.map((o) => {
+    if (o.type !== 'chart' || !o.sourceTableId) return o
+    const table = tables.get(o.sourceTableId)
+    if (!table) return o
+    const data = tableChartData(table)
+    if (data.series.length === 0) return o
+    const series = data.series.map((s, k) => ({
+      ...s,
+      color: o.series[k]?.color ?? CHART_COLORS[k % CHART_COLORS.length]!,
+    }))
+    if (
+      JSON.stringify(o.labels) === JSON.stringify(data.labels) &&
+      JSON.stringify(o.series) === JSON.stringify(series)
+    ) {
+      return o
+    }
+    return { ...o, labels: data.labels, series }
+  })
 }

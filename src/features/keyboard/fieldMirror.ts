@@ -61,12 +61,13 @@ export function showMirror(field: Field | null, sel: Selection): void {
     return
   }
   const style = getComputedStyle(field)
+  const at = placeIn(field, positionedParent(field))
   const key = [
     field.value,
     sel.start,
     sel.end,
-    field.offsetLeft,
-    field.offsetTop,
+    at.x,
+    at.y,
     field.offsetWidth,
     field.offsetHeight,
     style.font,
@@ -94,11 +95,11 @@ export function showMirror(field: Field | null, sel: Selection): void {
   const m = mirror
   const multiLine = field instanceof HTMLTextAreaElement
   for (const prop of COPIED) m.style[prop] = style[prop]
-  // The field sits in the same parent, so its layout position is the mirror's.
+  // The field's place inside the mirror's positioned parent (see `placeIn`).
   Object.assign(m.style, {
     position: 'absolute',
-    left: `${field.offsetLeft}px`,
-    top: `${field.offsetTop}px`,
+    left: `${at.x}px`,
+    top: `${at.y}px`,
     width: `${field.offsetWidth}px`,
     height: `${field.offsetHeight}px`,
     margin: '0',
@@ -122,6 +123,41 @@ export function showMirror(field: Field | null, sel: Selection): void {
   m.scrollTop = field.scrollTop
   keepCaretInView(m, multiLine)
   placeHandles(m, field, sel)
+}
+
+/**
+ * Where the field is inside `box` (the mirror's positioned parent): its offsets added up along
+ * the chain of offset parents (a table cell is one, though it is not positioned), less what
+ * the containers on the way are scrolled by, since the mirror does not scroll with them.
+ */
+/** The box an absolutely placed sibling of the field is placed in. */
+function positionedParent(field: Field): Element | null {
+  for (let a = field.parentElement; a && a !== document.body; a = a.parentElement) {
+    const css = getComputedStyle(a)
+    if (css.position !== 'static' || css.transform !== 'none') return a
+  }
+  return document.body
+}
+
+function placeIn(field: Field, box: Element | null): { x: number; y: number } {
+  let x = 0
+  let y = 0
+  let el: HTMLElement | null = field
+  while (el && el !== box) {
+    x += el.offsetLeft
+    y += el.offsetTop
+    const parent = el.offsetParent as HTMLElement | null
+    for (let a: HTMLElement | null = el.parentElement; a && a !== parent; a = a.parentElement) {
+      x -= a.scrollLeft
+      y -= a.scrollTop
+    }
+    if (parent && parent !== box) {
+      x += parent.clientLeft - parent.scrollLeft
+      y += parent.clientTop - parent.scrollTop
+    }
+    el = parent
+  }
+  return { x, y }
 }
 
 function fill(target: HTMLSpanElement, field: Field, sel: Selection): void {

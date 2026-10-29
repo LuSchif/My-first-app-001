@@ -4,7 +4,7 @@
  * number and a name of its own (see CLAUDE.md); the build copies it to `release.json`, which
  * the running app reads to name the version an update brings.
  */
-export const RELEASE = { number: 12, name: 'Fresh Sheet' } as const
+export const RELEASE = { number: 13, name: 'Live Link' } as const
 
 export function releaseLabel(release: { number: number; name: string } = RELEASE): string {
   return `Version ${release.number} · ${release.name}`

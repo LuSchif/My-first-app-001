@@ -1,4 +1,5 @@
 import type { NotebookDocument } from '../document/NotebookDocument.ts'
+import { followTables } from '../model/chart.ts'
 import type { CanvasObject, Id, LayerDef, Page, PaperKind } from '../model/types.ts'
 
 /** A reversible change to a document. */
@@ -16,8 +17,10 @@ export function setPageObjects(
   label: string,
   pageId: Id,
   before: CanvasObject[],
-  after: CanvasObject[],
+  changed: CanvasObject[],
 ): Command {
+  // Charts made from a table change with it, in the same step (one undo).
+  const after = followTables(before, changed)
   return {
     label,
     apply: (doc) => doc.setObjects(pageId, after),

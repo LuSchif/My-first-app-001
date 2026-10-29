@@ -1,4 +1,5 @@
 import {
+  Check,
   ChevronLeft,
   FolderOpen,
   GraduationCap,
@@ -14,15 +15,29 @@ import { navigate } from '../../app/router.ts'
 import { fillToCss, prefersLightText } from '../../engine/model/fill.ts'
 import type { Folder, Notebook, Page, PaperKind } from '../../engine/model/types.ts'
 import { pageSizeOf } from '../../engine/render/layout.ts'
-import { Button, IconButton, Popover, PopoverContent, PopoverTrigger } from '../../design/index.ts'
+import {
+  Button,
+  Dialog,
+  IconButton,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '../../design/index.ts'
 import { cn } from '../../lib/cn.ts'
 import { formatEdited } from '../../lib/time.ts'
 import { createPage } from '../../engine/model/factory.ts'
-import { appendPage, deletePages, loadNotebook, saveStudy } from '../../storage/notebooks.ts'
+import {
+  appendPage,
+  deletePages,
+  loadNotebook,
+  saveStudy,
+  setPagesPaper,
+} from '../../storage/notebooks.ts'
 import { PAPER_OPTIONS, paperPreviewStyle } from '../paper.ts'
 import { PageThumbnail } from '../editor/PageThumbnail.tsx'
 import { openNotebookAt } from '../editor/openAt.ts'
 import { FolderGraphic } from '../folders/FolderGraphic.tsx'
+import { FolderEditorDialog } from '../folders/FolderEditorDialog.tsx'
 import { countNotebooks, notebooksIn } from './libraryActions.ts'
 import { NotebookThumbnail } from './NotebookThumbnail.tsx'
 import { openPeek, usePeek } from './peek.ts'
@@ -99,7 +114,7 @@ export function PeekLayer({ library, reload }: { library: Library; reload: () =>
         ) : notebook ? (
           <NotebookPeek key={notebook.id} notebook={notebook} library={library} reload={reload} />
         ) : folder ? (
-          <FolderPeek key={folder.id} folder={folder} library={library} />
+          <FolderPeek key={folder.id} folder={folder} library={library} reload={reload} />
         ) : null}
       </div>
     </div>
@@ -123,6 +138,17 @@ function NotebookPeek({
 
   const count = shownPages?.length ?? notebook.pageIds.length
   const unit = slides ? 'slide' : 'page'
+  const [editing, setEditing] = useState(false)
+  /** Gives pages another paper, here and in storage. */
+  const changePaper = (ids: string[], paper: PaperKind) => {
+    setPages((list) => list?.map((p) => (ids.includes(p.id) ? { ...p, paper } : p)) ?? null)
+    setPagesPaper(notebook.id, ids, paper)
+      .then(reload)
+      .catch((err: unknown) => {
+        console.error(err)
+        showNotice('The paper could not be changed.')
+      })
+  }
   return (
     <>
       <Side>
@@ -144,17 +170,48 @@ function NotebookPeek({
             {count === 1 ? '' : 's'}
           </p>
         </div>
-        <Button
-          variant="primary"
-          onClick={() => {
-            openPeek(null)
-            navigate({ name: 'notebook', id: notebook.id })
-          }}
-        >
-          Open {slides ? 'presentation' : 'notebook'}
-        </Button>
+        <div className="grid gap-2">
+          {slides ? null : (
+            <Button
+              icon={editing ? <Check size={18} /> : <Pencil size={18} />}
+              aria-pressed={editing}
+              onClick={() => setEditing(!editing)}
+            >
+              {editing ? 'Done editing' : 'Edit pages'}
+            </Button>
+          )}
+          <Button
+            variant="primary"
+            onClick={() => {
+              openPeek(null)
+              navigate({ name: 'notebook', id: notebook.id })
+            }}
+          >
+            Open {slides ? 'presentation' : 'notebook'}
+          </Button>
+        </div>
       </Side>
-      <Contents title={slides ? 'Slides' : 'Pages'}>
+      <Contents
+        title={slides ? 'Slides' : editing ? 'Pages · tap a page to change its paper' : 'Pages'}
+      >
+        {editing && shownPages?.length ? (
+          <div className="mb-5 grid max-w-sm gap-2 rounded-card bg-surface-sunken p-3">
+            <p className="text-sm font-semibold">Every page</p>
+            <PaperOptions
+              value={
+                shownPages.every((p) => p.paper === shownPages[0]!.paper)
+                  ? shownPages[0]!.paper
+                  : null
+              }
+              onPick={(paper) =>
+                changePaper(
+                  shownPages.map((p) => p.id),
+                  paper,
+                )
+              }
+            />
+          </div>
+        ) : null}
         {pages === null || shownPages === null ? null : (
           <ol
             className={cn(
@@ -172,6 +229,7 @@ function NotebookPeek({
                 number={i + 1}
                 index={pages.indexOf(page)}
                 width={slides ? 220 : 150}
+                onPaper={editing ? (paper) => changePaper([page.id], paper) : undefined}
                 onDrop={(target) => {
                   if (target.kind !== 'trash') return
                   if (shownPages.length <= 1) {
@@ -466,6 +524,7 @@ function PeekPage({
   index,
   width,
   onDrop,
+  onPaper,
 }: {
   notebook: Notebook
   page: Page
@@ -474,7 +533,10 @@ function PeekPage({
   index: number
   width: number
   onDrop: (target: DropTarget) => void
+  /** While editing: a tap chooses the page's paper instead of opening it. */
+  onPaper?: (paper: PaperKind) => void
 }) {
+  const [choosing, setChoosing] = useState(false)
   const drag = useDragState()
   const dragging = drag?.item.kind === 'page' && drag.item.id === page.id
   const draggable = useDraggable(
@@ -486,29 +548,100 @@ function PeekPage({
       className={cn('animate-page-out transition-opacity', dragging && 'opacity-40')}
       style={stagger(number - 1)}
     >
-      <button
-        type="button"
-        {...draggable}
-        onClick={() => {
-          openPeek(null)
-          openNotebookAt(notebook.id, index)
-        }}
-        className="grid w-full touch-manipulation gap-1.5 text-left select-none [-webkit-touch-callout:none]"
-      >
-        <span className="block overflow-hidden rounded-md shadow-soft ring-1 ring-line transition-transform duration-150 ease-gentle hover:-translate-y-0.5">
-          <PageThumbnail
-            width={width}
-            page={page}
-            layers={notebook.layers}
-            background={notebook.background}
-            size={pageSizeOf(notebook)}
-          />
-        </span>
-        <span className="text-center text-xs font-semibold text-ink-muted tabular-nums">
-          {number}
-        </span>
-      </button>
+      {onPaper ? (
+        <Popover open={choosing} onOpenChange={setChoosing}>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              aria-label={`Paper of page ${number}`}
+              className="grid w-full touch-manipulation gap-1.5 text-left select-none [-webkit-touch-callout:none]"
+            >
+              <span
+                className={cn(
+                  'block overflow-hidden rounded-md shadow-soft ring-2 ring-accent ring-offset-2 ring-offset-surface-raised transition-transform duration-150 ease-gentle hover:-translate-y-0.5',
+                )}
+              >
+                <PageThumbnail
+                  width={width}
+                  page={page}
+                  layers={notebook.layers}
+                  background={notebook.background}
+                  size={pageSizeOf(notebook)}
+                />
+              </span>
+              <span className="text-center text-xs font-semibold text-ink-muted tabular-nums">
+                {number}
+              </span>
+            </button>
+          </PopoverTrigger>
+          <PopoverContent align="start" className="grid w-80 gap-3">
+            <p className="text-sm font-semibold">Paper for page {number}</p>
+            <PaperOptions
+              value={page.paper}
+              onPick={(paper) => {
+                setChoosing(false)
+                if (paper !== page.paper) onPaper(paper)
+              }}
+            />
+          </PopoverContent>
+        </Popover>
+      ) : (
+        <button
+          type="button"
+          {...draggable}
+          onClick={() => {
+            openPeek(null)
+            openNotebookAt(notebook.id, index)
+          }}
+          className="grid w-full touch-manipulation gap-1.5 text-left select-none [-webkit-touch-callout:none]"
+        >
+          <span className="block overflow-hidden rounded-md shadow-soft ring-1 ring-line transition-transform duration-150 ease-gentle hover:-translate-y-0.5">
+            <PageThumbnail
+              width={width}
+              page={page}
+              layers={notebook.layers}
+              background={notebook.background}
+              size={pageSizeOf(notebook)}
+            />
+          </span>
+          <span className="text-center text-xs font-semibold text-ink-muted tabular-nums">
+            {number}
+          </span>
+        </button>
+      )}
     </li>
+  )
+}
+
+/** The five papers as small previews; the current one is marked. */
+function PaperOptions({
+  value,
+  onPick,
+}: {
+  value: PaperKind | null
+  onPick: (paper: PaperKind) => void
+}) {
+  return (
+    <div role="group" aria-label="Paper" className="grid grid-cols-5 gap-2">
+      {PAPER_OPTIONS.map((option) => (
+        <button
+          key={option.kind}
+          type="button"
+          aria-pressed={value === option.kind}
+          data-choice
+          onClick={() => onPick(option.kind)}
+          className="group grid gap-1 rounded-lg p-0.5 text-xs"
+        >
+          <span
+            className="aspect-[3/4] w-full rounded-md shadow-soft ring-1 ring-line group-aria-pressed:ring-2 group-aria-pressed:ring-ink"
+            style={paperPreviewStyle(option.kind)}
+          />
+          <span className="truncate text-ink-muted group-aria-pressed:font-semibold group-aria-pressed:text-ink">
+            {option.label}
+          </span>
+        </button>
+      ))}
+    </div>
   )
 }
 
@@ -573,26 +706,7 @@ function AddPage({
           <PopoverTrigger asChild>{tile}</PopoverTrigger>
           <PopoverContent align="start" className="grid w-80 gap-3">
             <p className="text-sm font-semibold">Paper for the new page</p>
-            <div role="group" aria-label="Paper" className="grid grid-cols-5 gap-2">
-              {PAPER_OPTIONS.map((option) => (
-                <button
-                  key={option.kind}
-                  type="button"
-                  aria-pressed={paper === option.kind}
-                  data-choice
-                  onClick={() => add(option.kind)}
-                  className="group grid gap-1 rounded-lg p-0.5 text-xs"
-                >
-                  <span
-                    className="aspect-[3/4] w-full rounded-md shadow-soft ring-1 ring-line group-aria-pressed:ring-2 group-aria-pressed:ring-ink"
-                    style={paperPreviewStyle(option.kind)}
-                  />
-                  <span className="truncate text-ink-muted group-aria-pressed:font-semibold group-aria-pressed:text-ink">
-                    {option.label}
-                  </span>
-                </button>
-              ))}
-            </div>
+            <PaperOptions value={paper} onPick={add} />
             <p className="text-xs text-ink-muted">Only this page gets the paper you choose.</p>
           </PopoverContent>
         </Popover>
@@ -675,8 +789,17 @@ function OpeningSlides({ notebook }: { notebook: Notebook }) {
   )
 }
 
-function FolderPeek({ folder, library }: { folder: Folder; library: Library }) {
+function FolderPeek({
+  folder,
+  library,
+  reload,
+}: {
+  folder: Folder
+  library: Library
+  reload: () => void
+}) {
   const open = useOpened()
+  const [editing, setEditing] = useState(false)
   const subfolders = library.folders
     .filter((f) => f.parentId === folder.id)
     .sort((a, b) => a.order - b.order)
@@ -707,16 +830,32 @@ function FolderPeek({ folder, library }: { folder: Folder; library: Library }) {
               : ''}
           </p>
         </div>
-        <Button
-          variant="primary"
-          icon={<FolderOpen size={18} />}
-          onClick={() => {
-            openPeek(null)
-            navigate({ name: 'folder', id: folder.id })
-          }}
-        >
-          Open folder
-        </Button>
+        <div className="grid gap-2">
+          <Dialog open={editing} onOpenChange={setEditing}>
+            <Button icon={<Pencil size={18} />} onClick={() => setEditing(true)}>
+              Edit folder
+            </Button>
+            {editing ? (
+              <FolderEditorDialog
+                folder={folder}
+                onSaved={() => {
+                  setEditing(false)
+                  reload()
+                }}
+              />
+            ) : null}
+          </Dialog>
+          <Button
+            variant="primary"
+            icon={<FolderOpen size={18} />}
+            onClick={() => {
+              openPeek(null)
+              navigate({ name: 'folder', id: folder.id })
+            }}
+          >
+            Open folder
+          </Button>
+        </div>
       </Side>
       <Contents title="In this folder">
         {subfolders.length === 0 && notebooks.length === 0 ? (

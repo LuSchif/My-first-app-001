@@ -1,5 +1,5 @@
 import type { UnsavedChanges } from '../engine/document/NotebookDocument.ts'
-import type { Asset, CardStudy, Notebook, Page } from '../engine/model/types.ts'
+import type { Asset, CardStudy, Notebook, Page, PaperKind } from '../engine/model/types.ts'
 import { db, type BroomitDatabase } from './db.ts'
 
 export async function listNotebooks(database: BroomitDatabase = db): Promise<Notebook[]> {
@@ -109,6 +109,23 @@ export async function appendPage(
       pageIds: [...notebook.pageIds, page.id],
       updatedAt: Date.now(),
     })
+  })
+}
+
+/** Gives some pages of a notebook another paper. */
+export async function setPagesPaper(
+  notebookId: string,
+  pageIds: readonly string[],
+  paper: PaperKind,
+  database: BroomitDatabase = db,
+): Promise<void> {
+  await database.transaction('rw', database.notebooks, database.pages, async () => {
+    const now = Date.now()
+    await database.pages
+      .where('id')
+      .anyOf([...pageIds])
+      .modify({ paper, updatedAt: now })
+    await database.notebooks.update(notebookId, { updatedAt: now })
   })
 }
 

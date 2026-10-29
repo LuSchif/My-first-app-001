@@ -81,8 +81,10 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
   (iPadOS sends it a moment later; closing earlier moves the button away from under it, so
   "Create notebook" needed a second tap). Fields that save on blur get a
   blur when typing ends.
-- A popover is not closed by touches on the app's keyboard, and it is the positioned parent of
-  its fields, so the keyboard's mirror of a field scrolls along with the popover.
+- A popover is not closed by touches on the app's keyboard. The keyboard's mirror of a field
+  is placed by adding up the field's offsets up to the mirror's positioned parent, less what
+  the containers on the way are scrolled by (`placeIn`): table cells and scrolled dialogs and
+  popovers otherwise put the typed letters beside the field.
 - The keyboard's height (`lib/keyboardInset.ts`, CSS `--kb-height`) shrinks the visible area,
   so dialogs and the canvas keep the field in view.
 
@@ -119,8 +121,17 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
   typing (`uniqueName.ts`, `NameHint.tsx`).
 - In a notebook's peek, "Add page" asks for the paper of that one new page (the last page's
   paper is marked); slides are added straight away.
-- The appearance menu saves the current colors as named presets (kept on this device,
-  `themePresets.ts`).
+- "Edit pages" in a notebook's peek: a tap on a page chooses its paper, and "Every page" sets
+  all of them, without opening the notebook. "Edit folder" in a folder's peek opens the folder
+  editor.
+- Each carousel page has a scroll bar of its own along its right edge whenever there is more
+  to see (`ScrollBar.tsx`; iPadOS shows its own only while scrolling); its thumb can be
+  dragged.
+- Appearance: Broomit's looks, or "Your own color": one color or a linear or radial gradient
+  (`FillEditor`). A gradient theme is built from its first color, and the app's background
+  shows the gradient, softened (`--app-backdrop`, `themeBackdrop`). Only there, "Your presets"
+  saves the current look under a name; each preset has a switch that puts it on (kept on this
+  device, `themePresets.ts`).
   Both sides are as tall as the screen allows and scroll inside. Folders and notebooks have
   their own sort order (folders: own order, name, recently edited).
 - Folders and notebooks show as tiles or as a list (`libraryLayout.ts`, kept per device; the
@@ -152,6 +163,13 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
   with unsaved changes asks whether to save them. The chart editor has Data and Look tabs; a
   pie or donut shows one series, chosen there. A table written across (one row of numbers
   under names) becomes one series of those names (`tableChartData`).
+- A chart made with "Make chart" keeps `sourceTableId`: whenever page objects are set
+  (`setPageObjects`), linked charts take the table's current data (`followTables`), in the
+  same undo step. Its editor shows the link, locks the values and offers "Unlink".
+- Tables, charts and graphs cannot be mirrored.
+- Canvas shortcuts (Backspace deletes the selection, …) are off while a dialog is open or the
+  app's keyboard types into a field: Backspace in an editor's field deleted the object.
+- A new picture is medium sized: at most half the page's width and a third of its height.
 - Dialogs keep their main button in view (`DialogFooter`) and fold away long design options
   (`Fold`), as in the folder and notebook dialogs.
 - Dialogs close only by their close button or a tap on the dimmed backdrop: on iPad other

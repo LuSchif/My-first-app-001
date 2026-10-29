@@ -41,7 +41,7 @@ export function EditDialog({
     >
       {preview ? <div className="mb-4 shrink-0">{preview}</div> : null}
       {tabs ? <div className="mb-4 shrink-0">{tabs}</div> : null}
-      <div className="-mx-6 min-h-0 flex-1 overflow-y-auto px-6 pb-4">{children}</div>
+      <div className="relative -mx-6 min-h-0 flex-1 overflow-y-auto px-6 pb-4">{children}</div>
       <div className="-mx-6 -mb-6 flex shrink-0 items-center justify-end gap-2 border-t border-line px-6 py-4">
         <Button variant="ghost" onClick={onCancel}>
           Cancel

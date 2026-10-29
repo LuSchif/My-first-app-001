@@ -100,16 +100,21 @@ export function FolderView({ id }: { id: string }) {
           ))}
         </nav>
 
-        <header className="flex flex-wrap items-center gap-5">
-          <FolderGraphic fill={folder.fill} icon={folder.icon} className="w-24 shrink-0" />
-          <div className="grid min-w-0 flex-1 gap-1">
-            <h1 className="truncate text-3xl font-bold tracking-tight">{folder.name}</h1>
-            <p className="text-ink-muted">
-              {notebooks.length} {notebooks.length === 1 ? 'notebook' : 'notebooks'}
-              {subfolders.length
-                ? ` · ${subfolders.length} ${subfolders.length === 1 ? 'folder' : 'folders'}`
-                : ''}
-            </p>
+        {/* The name gets a row of its own, so the buttons never squeeze it. */}
+        <header className="grid gap-4">
+          <div className="flex min-w-0 items-center gap-5">
+            <FolderGraphic fill={folder.fill} icon={folder.icon} className="w-24 shrink-0" />
+            <div className="grid min-w-0 flex-1 gap-1">
+              <h1 className="text-3xl font-bold tracking-tight text-balance [overflow-wrap:anywhere]">
+                {folder.name}
+              </h1>
+              <p className="text-ink-muted">
+                {notebooks.length} {notebooks.length === 1 ? 'notebook' : 'notebooks'}
+                {subfolders.length
+                  ? ` · ${subfolders.length} ${subfolders.length === 1 ? 'folder' : 'folders'}`
+                  : ''}
+              </p>
+            </div>
           </div>
           <div className="flex flex-wrap gap-2">
             <LayoutToggle value={layout} onChange={setLayout} />

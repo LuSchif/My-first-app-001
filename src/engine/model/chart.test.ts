@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { niceScale } from '../render/chart.ts'
+import { createTable, tableChartData } from './table.ts'
 import {
   addCategory,
   addSeries,
+  chartFromData,
   createChart,
+  followTables,
   removeCategory,
   seriesStats,
   setValue,
@@ -47,5 +50,36 @@ describe('chart data tools', () => {
   })
   it('sums up a series', () => {
     expect(seriesStats([4, 7, 5, 9])).toEqual({ sum: 25, average: 6.25, min: 4, max: 9 })
+  })
+})
+
+describe('charts made from a table', () => {
+  it('follow the table when it changes', () => {
+    const frame = { x: 0, y: 0, width: 200, height: 100, rotation: 0 }
+    const base = createTable('t', 'l', frame, 2, 2)
+    const table = {
+      ...base,
+      cells: [
+        ['hans', 'wurst'],
+        ['100', '150'],
+      ],
+    }
+    const chart = {
+      ...chartFromData('c', 'l', frame, 'pie', tableChartData(table)),
+      sourceTableId: 't',
+    }
+    const edited = {
+      ...table,
+      cells: [
+        ['Kiddo', 'Pampers'],
+        ['100', '150'],
+      ],
+    }
+    const [, followed] = followTables([table, chart], [edited, chart])
+    expect(followed?.type === 'chart' && followed.labels).toEqual(['Kiddo', 'Pampers'])
+    expect(followed?.type === 'chart' && followed.kind).toBe('pie')
+    // Nothing changed in the table: the chart stays the same object.
+    const [, same] = followTables([table, chart], [table, chart])
+    expect(same).toBe(chart)
   })
 })
