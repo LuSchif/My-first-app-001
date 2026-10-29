@@ -1,7 +1,7 @@
 import { LoaderCircle, Trash2 } from 'lucide-react'
 import { useEffect } from 'react'
 import { cn } from '../../lib/cn.ts'
-import { refreshDropTarget, TRASH_BAND_PX, useDragState } from './dragDrop.ts'
+import { dragLabel, refreshDropTarget, TRASH_BAND_PX, useDragState } from './dragDrop.ts'
 import { useDeleting } from './trash.ts'
 
 /**
@@ -61,7 +61,11 @@ function DropZone() {
       >
         <Trash2 size={22} className={cn('transition-transform', over && '-rotate-12')} />
         <span className="max-w-[60vw] truncate">
-          {over ? `Release to delete “${drag.item.label}”` : 'Delete'}
+          {over
+            ? drag.item.kind !== 'page' && (drag.item.many?.length ?? 0) > 1
+              ? `Release to delete ${dragLabel(drag.item)}`
+              : `Release to delete “${drag.item.label}”`
+            : 'Delete'}
         </span>
       </span>
     </div>

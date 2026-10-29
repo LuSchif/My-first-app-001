@@ -129,6 +129,9 @@ export function PopoverContent({
         return
       }
       if (content.id && target.closest(`[aria-controls="${content.id}"]`)) return
+      // Typing into a field of the popover with the app's own keyboard (or its selection
+      // handles) is not touching outside.
+      if (target.closest('[data-virtual-keyboard], [data-keep-keyboard]')) return
       close()
     }
     document.addEventListener('pointerdown', onPointerDown, true)
@@ -148,7 +151,8 @@ export function PopoverContent({
         onCloseAutoFocus={(e) => e.preventDefault()}
         onOpenAutoFocus={(e) => e.preventDefault()}
         className={cn(
-          'z-60 max-h-[var(--radix-popover-content-available-height)] w-72 animate-pop-in overflow-y-auto rounded-panel bg-surface-raised p-4 shadow-raised ring-1 ring-line',
+          // relative: what is placed over a field (the keyboard's mirror) scrolls along with it.
+          'relative z-60 max-h-[var(--radix-popover-content-available-height)] w-72 animate-pop-in overflow-y-auto rounded-panel bg-surface-raised p-4 shadow-raised ring-1 ring-line',
           className,
         )}
         style={movable ? { translate: `${offset.x}px ${offset.y}px` } : undefined}

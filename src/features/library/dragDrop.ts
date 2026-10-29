@@ -35,6 +35,12 @@ interface DragState {
   over: DropTarget | null
 }
 
+/** What a drag carries, for the ghost and the trash: its name, or "3 items". */
+export function dragLabel(item: DragItem): string {
+  const many = item.kind === 'page' ? undefined : item.many
+  return many && many.length > 1 ? `${many.length} items` : item.label
+}
+
 /** Holding still this long picks an item up with a finger or pen. */
 const HOLD_MS = 380
 /** Moving further than this before the hold ends is scrolling, not picking up. */

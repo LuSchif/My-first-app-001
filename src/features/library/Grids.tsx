@@ -49,6 +49,11 @@ export function FolderGrid({
 }) {
   const selection = useLibrarySelection()
   const drop = makeDrop(library, reload, useOrganizer(), selection?.clear)
+  /** Dragging a selected folder drags (and drops) every selected one. */
+  const withMany = (id: string, label: string) => {
+    const many = carried(selection, id, (i) => library.folders.find((f) => f.id === i)?.name)
+    return { many, onDrop: drop({ kind: 'folder', id, label, many }) }
+  }
   const props = (folder: Folder) => ({
     folder,
     folders: library.folders,
@@ -57,10 +62,9 @@ export function FolderGrid({
       ? () => selection.toggle(folder.id)
       : () => openPeek({ kind: 'folder', id: folder.id }),
     onChanged: reload,
-    onDrop: drop({ kind: 'folder', id: folder.id, label: folder.name }),
     sortable,
     selected: selection ? selection.has(folder.id) : undefined,
-    many: carried(selection, folder.id, (id) => library.folders.find((f) => f.id === id)?.name),
+    ...withMany(folder.id, folder.name),
   })
   if (layout === 'list') {
     if (!folders.length && !add) return null
@@ -138,6 +142,11 @@ export function NotebookGrid({
 }) {
   const selection = useLibrarySelection()
   const drop = makeDrop(library, reload, useOrganizer(), selection?.clear)
+  /** Dragging a selected item drags (and drops) every selected one. */
+  const withMany = (id: string, label: string) => {
+    const many = carried(selection, id, (i) => library.notebooks.find((n) => n.id === i)?.title)
+    return { many, onDrop: drop({ kind: 'notebook', id, label, many }) }
+  }
   const props = (notebook: Notebook) => ({
     notebook,
     folders: library.folders,
@@ -145,14 +154,9 @@ export function NotebookGrid({
       ? () => selection.toggle(notebook.id)
       : () => openPeek({ kind: 'notebook', id: notebook.id }),
     onChanged: reload,
-    onDrop: drop({ kind: 'notebook', id: notebook.id, label: notebook.title }),
     showFolder,
     selected: selection ? selection.has(notebook.id) : undefined,
-    many: carried(
-      selection,
-      notebook.id,
-      (id) => library.notebooks.find((n) => n.id === id)?.title,
-    ),
+    ...withMany(notebook.id, notebook.title),
   })
   if (layout === 'list') {
     return (

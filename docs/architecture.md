@@ -81,6 +81,8 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
   (iPadOS sends it a moment later; closing earlier moves the button away from under it, so
   "Create notebook" needed a second tap). Fields that save on blur get a
   blur when typing ends.
+- A popover is not closed by touches on the app's keyboard, and it is the positioned parent of
+  its fields, so the keyboard's mirror of a field scrolls along with the popover.
 - The keyboard's height (`lib/keyboardInset.ts`, CSS `--kb-height`) shrinks the visible area,
   so dialogs and the canvas keep the field in view.
 
@@ -109,11 +111,14 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
   among the groups. The pinned box is only as wide as what is pinned.
 - "Select" in a page's header chooses several items (`librarySelection.ts`): a tap then
   marks an item, and a bar at the bottom moves them into a folder, puts them into a group or
-  deletes them; dragging one of the marked items carries all of them (`DragItem.many`).
+  deletes them; dragging one of the marked items carries all of them (`DragItem.many`, also
+  given to the drop). After any of these the selection ends.
+- Search results are grouped by kind: folders, notebooks, presentations, flashcards.
 - Names are unique: a folder, notebook, presentation, deck, group or interface preset with a
   name already taken gets the next number ("Mathe 2"), and the name field says so while
   typing (`uniqueName.ts`, `NameHint.tsx`).
-- A notebook's peek also changes its paper, for every page and for new ones.
+- In a notebook's peek, "Add page" asks for the paper of that one new page (the last page's
+  paper is marked); slides are added straight away.
 - The appearance menu saves the current colors as named presets (kept on this device,
   `themePresets.ts`).
   Both sides are as tall as the screen allows and scroll inside. Folders and notebooks have

@@ -14,17 +14,11 @@ import { navigate } from '../../app/router.ts'
 import { fillToCss, prefersLightText } from '../../engine/model/fill.ts'
 import type { Folder, Notebook, Page, PaperKind } from '../../engine/model/types.ts'
 import { pageSizeOf } from '../../engine/render/layout.ts'
-import { Button, IconButton } from '../../design/index.ts'
+import { Button, IconButton, Popover, PopoverContent, PopoverTrigger } from '../../design/index.ts'
 import { cn } from '../../lib/cn.ts'
 import { formatEdited } from '../../lib/time.ts'
 import { createPage } from '../../engine/model/factory.ts'
-import {
-  appendPage,
-  deletePages,
-  loadNotebook,
-  saveStudy,
-  setNotebookPaper,
-} from '../../storage/notebooks.ts'
+import { appendPage, deletePages, loadNotebook, saveStudy } from '../../storage/notebooks.ts'
 import { PAPER_OPTIONS, paperPreviewStyle } from '../paper.ts'
 import { PageThumbnail } from '../editor/PageThumbnail.tsx'
 import { openNotebookAt } from '../editor/openAt.ts'
@@ -150,22 +144,6 @@ function NotebookPeek({
             {count === 1 ? '' : 's'}
           </p>
         </div>
-        {slides ? null : (
-          <PaperChoice
-            value={pages?.[0]?.paper ?? notebook.paper}
-            onChange={(paper) => {
-              setNotebookPaper(notebook.id, paper)
-                .then(() => {
-                  setPages((list) => list?.map((p) => ({ ...p, paper })) ?? null)
-                  reload()
-                })
-                .catch((err: unknown) => {
-                  console.error(err)
-                  showNotice('The paper could not be changed.')
-                })
-            }}
-          />
-        )}
         <Button
           variant="primary"
           onClick={() => {
@@ -218,6 +196,7 @@ function NotebookPeek({
                 notebook={notebook}
                 unit={unit}
                 number={shownPages.length + 1}
+                paper={shownPages.at(-1)?.paper ?? notebook.paper}
                 onAdded={(page) => {
                   setPages((list) => (list ? [...list, page] : list))
                   reload()
@@ -233,41 +212,6 @@ function NotebookPeek({
         ) : null}
       </Contents>
     </>
-  )
-}
-
-/** The paper of every page of a notebook, chosen from small previews. */
-function PaperChoice({
-  value,
-  onChange,
-}: {
-  value: PaperKind
-  onChange: (paper: PaperKind) => void
-}) {
-  return (
-    <div className="grid gap-1.5">
-      <p className="text-xs font-semibold tracking-[0.14em] text-ink-muted uppercase">Paper</p>
-      <div role="group" aria-label="Paper" className="grid grid-cols-5 gap-2">
-        {PAPER_OPTIONS.map((option) => (
-          <button
-            key={option.kind}
-            type="button"
-            aria-pressed={value === option.kind}
-            data-choice
-            onClick={() => value !== option.kind && onChange(option.kind)}
-            className="group grid gap-1 rounded-lg p-0.5 text-xs"
-          >
-            <span
-              className="aspect-[3/4] w-full rounded-md shadow-soft ring-1 ring-line group-aria-pressed:ring-2 group-aria-pressed:ring-ink"
-              style={paperPreviewStyle(option.kind)}
-            />
-            <span className="truncate text-ink-muted group-aria-pressed:font-semibold group-aria-pressed:text-ink">
-              {option.label}
-            </span>
-          </button>
-        ))}
-      </div>
-    </div>
   )
 }
 
@@ -573,45 +517,86 @@ function AddPage({
   notebook,
   unit,
   number,
+  paper,
   onAdded,
 }: {
   notebook: Notebook
   unit: string
   number: number
+  /** The paper offered first: that of the last page. */
+  paper: PaperKind
   onAdded: (page: Page) => void
 }) {
   const [busy, setBusy] = useState(false)
+  const [open, setOpen] = useState(false)
   const size = pageSizeOf(notebook)
+  const slides = notebook.kind === 'presentation'
+  const add = (kind: PaperKind) => {
+    setOpen(false)
+    setBusy(true)
+    const page = createPage(notebook.id, kind)
+    appendPage(notebook.id, page)
+      .then(() => onAdded(page))
+      .catch((err: unknown) => {
+        console.error(err)
+        showNotice(`The ${unit} could not be added.`)
+      })
+      .finally(() => setBusy(false))
+  }
+  const tile = (
+    <button
+      type="button"
+      disabled={busy}
+      // Slides have no paper: they are added straight away.
+      onClick={slides ? () => add(notebook.paper) : undefined}
+      className="grid w-full touch-manipulation gap-1.5 text-left select-none"
+    >
+      <span
+        className="grid place-items-center rounded-md border-2 border-dashed border-line-strong text-ink-muted transition-colors duration-150 hover:bg-hover hover:text-ink"
+        style={{ aspectRatio: `${size.width} / ${size.height}` }}
+      >
+        <span className="grid justify-items-center gap-1 text-xs font-semibold">
+          <Plus size={22} />
+          Add {unit}
+        </span>
+      </span>
+      {/* Room for a number, like the pages beside it. */}
+      <span aria-hidden="true" className="h-4" />
+    </button>
+  )
   return (
     <li className="animate-page-out" style={stagger(number - 1)}>
-      <button
-        type="button"
-        disabled={busy}
-        onClick={() => {
-          setBusy(true)
-          const page = createPage(notebook.id, notebook.paper)
-          appendPage(notebook.id, page)
-            .then(() => onAdded(page))
-            .catch((err: unknown) => {
-              console.error(err)
-              showNotice(`The ${unit} could not be added.`)
-            })
-            .finally(() => setBusy(false))
-        }}
-        className="grid w-full touch-manipulation gap-1.5 text-left select-none"
-      >
-        <span
-          className="grid place-items-center rounded-md border-2 border-dashed border-line-strong text-ink-muted transition-colors duration-150 hover:bg-hover hover:text-ink"
-          style={{ aspectRatio: `${size.width} / ${size.height}` }}
-        >
-          <span className="grid justify-items-center gap-1 text-xs font-semibold">
-            <Plus size={22} />
-            Add {unit}
-          </span>
-        </span>
-        {/* Room for a number, like the pages beside it. */}
-        <span aria-hidden="true" className="h-4" />
-      </button>
+      {slides ? (
+        tile
+      ) : (
+        <Popover open={open} onOpenChange={setOpen}>
+          <PopoverTrigger asChild>{tile}</PopoverTrigger>
+          <PopoverContent align="start" className="grid w-80 gap-3">
+            <p className="text-sm font-semibold">Paper for the new page</p>
+            <div role="group" aria-label="Paper" className="grid grid-cols-5 gap-2">
+              {PAPER_OPTIONS.map((option) => (
+                <button
+                  key={option.kind}
+                  type="button"
+                  aria-pressed={paper === option.kind}
+                  data-choice
+                  onClick={() => add(option.kind)}
+                  className="group grid gap-1 rounded-lg p-0.5 text-xs"
+                >
+                  <span
+                    className="aspect-[3/4] w-full rounded-md shadow-soft ring-1 ring-line group-aria-pressed:ring-2 group-aria-pressed:ring-ink"
+                    style={paperPreviewStyle(option.kind)}
+                  />
+                  <span className="truncate text-ink-muted group-aria-pressed:font-semibold group-aria-pressed:text-ink">
+                    {option.label}
+                  </span>
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-ink-muted">Only this page gets the paper you choose.</p>
+          </PopoverContent>
+        </Popover>
+      )}
     </li>
   )
 }

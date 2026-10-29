@@ -619,11 +619,24 @@ function SearchResults({
 }) {
   const q = query.toLocaleLowerCase()
   const folders = library.folders.filter((f) => f.name.toLocaleLowerCase().includes(q))
-  const notebooks = sortNotebooks(
+  const found = sortNotebooks(
     library.notebooks.filter((n) => n.title.toLocaleLowerCase().includes(q)),
     'recent',
   )
-  if (!folders.length && !notebooks.length) {
+  // Each kind under its own heading.
+  const kinds = (
+    [
+      ['notebook', 'Notebooks'],
+      ['presentation', 'Presentations'],
+      ['deck', 'Flashcards'],
+    ] as const
+  )
+    .map(([kind, title]) => ({
+      title,
+      list: found.filter((n) => (n.kind ?? 'notebook') === kind),
+    }))
+    .filter(({ list }) => list.length > 0)
+  if (!folders.length && !found.length) {
     return <p className="py-8 text-center text-ink-muted">Nothing matches “{query}”.</p>
   }
   return (
@@ -639,11 +652,17 @@ function SearchResults({
           />
         </Section>
       ) : null}
-      {notebooks.length ? (
-        <Section title={`Notebooks (${notebooks.length})`}>
-          <NotebookGrid notebooks={notebooks} library={library} reload={reload} layout={layout} />
+      {kinds.map(({ title, list }) => (
+        <Section key={title} title={`${title} (${list.length})`}>
+          <NotebookGrid
+            notebooks={list}
+            library={library}
+            reload={reload}
+            layout={layout}
+            showFolder
+          />
         </Section>
-      ) : null}
+      ))}
     </>
   )
 }

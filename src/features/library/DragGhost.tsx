@@ -1,5 +1,5 @@
 import { FolderInput, Inbox } from 'lucide-react'
-import { useDragState } from './dragDrop.ts'
+import { dragLabel, useDragState } from './dragDrop.ts'
 
 /** What is being dragged, under the finger, and where it would go. */
 export function DragGhost() {
@@ -11,9 +11,11 @@ export function DragGhost() {
       ? 'No folder'
       : drag.over?.kind === 'folder' && drag.over.place === 'inside'
         ? 'Move into folder'
-        : drag.over
-          ? 'Place here'
-          : null
+        : drag.over?.kind === 'group'
+          ? 'Add to group'
+          : drag.over
+            ? 'Place here'
+            : null
   return (
     <div
       aria-hidden="true"
@@ -21,7 +23,7 @@ export function DragGhost() {
       style={{ left: drag.x, top: drag.y }}
     >
       {drag.over?.kind === 'root' ? <Inbox size={16} /> : <FolderInput size={16} />}
-      <span className="max-w-[16rem] truncate">{drag.item.label}</span>
+      <span className="max-w-[16rem] truncate">{dragLabel(drag.item)}</span>
       {hint ? <span className="font-normal opacity-75">· {hint}</span> : null}
     </div>
   )
