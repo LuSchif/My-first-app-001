@@ -182,7 +182,8 @@ export function hasChartData(t: TableObject): boolean {
 
 /**
  * The data of a table for a chart: the first column names the categories, every other column
- * holding numbers becomes a series, named by the first row if that holds no numbers.
+ * holding numbers becomes a series, named by the first row if that holds no numbers. A table
+ * with a single row of numbers is read across instead.
  */
 export function tableChartData(t: TableObject): {
   labels: string[]
@@ -205,5 +206,18 @@ export function tableChartData(t: TableObject): {
     if (!body.some((row) => cellNumber(row[c] ?? '') !== null)) return []
     return [{ name: header?.[c] || `Column ${c + 1}`, values }]
   })
+  // A table written across (names in the first row, one row of numbers under them) has one
+  // value per column: its columns are the categories, not series of one value each.
+  if (labels.length === 1 && series.length > 1) {
+    return {
+      labels: series.map((s) => s.name),
+      series: [
+        {
+          name: firstIsLabels ? labels[0]! : 'Values',
+          values: series.map((s) => s.values[0] ?? 0),
+        },
+      ],
+    }
+  }
   return { labels, series }
 }

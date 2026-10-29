@@ -16,7 +16,7 @@ import { countNotebooks } from '../library/libraryActions.ts'
 import { MoveList } from '../library/MoveList.tsx'
 import { useOrganizer } from '../library/organizer.ts'
 import { GroupList, OrganizeItems } from '../library/OrganizeMenu.tsx'
-import { PinMark, TILE_TEXT } from '../library/NotebookCard.tsx'
+import { PinMark, SelectMark, TILE_TEXT } from '../library/NotebookCard.tsx'
 import { FolderEditorDialog } from './FolderEditorDialog.tsx'
 import { FolderGraphic } from './FolderGraphic.tsx'
 
@@ -32,6 +32,8 @@ export function FolderCard({
   onChanged,
   onDrop,
   sortable,
+  selected,
+  many,
 }: {
   folder: Folder
   folders: readonly Folder[]
@@ -41,9 +43,16 @@ export function FolderCard({
   onDrop: (target: DropTarget) => void
   /** Whether dropping a folder beside this one sorts it there. */
   sortable: boolean
+  /** Whether it is selected; undefined when not selecting. */
+  selected?: boolean
+  /** Every selected item, carried along when this one is dragged. */
+  many?: { id: string; label: string }[]
 }) {
   const drag = useDragState()
-  const draggable = useDraggable({ kind: 'folder', id: folder.id, label: folder.name }, onDrop)
+  const draggable = useDraggable(
+    { kind: 'folder', id: folder.id, label: folder.name, many },
+    onDrop,
+  )
   const over = drag?.over?.kind === 'folder' && drag.over.id === folder.id ? drag.over.place : null
   const dragging = drag?.item.kind === 'folder' && drag.item.id === folder.id
   const count = countNotebooks(folders, notebooks, folder.id)
@@ -83,10 +92,11 @@ export function FolderCard({
         <FolderGraphic fill={folder.fill} icon={folder.icon} open={over === 'inside'} />
       </button>
       {pinned ? <PinMark /> : null}
+      {selected !== undefined ? <SelectMark selected={selected} /> : null}
       <div className={cn('flex items-start justify-between gap-1', TILE_TEXT)}>
         <div className="min-w-0 text-sm">
           <p className="truncate font-semibold">{folder.name}</p>
-          <p className="text-ink-muted">
+          <p className="truncate text-ink-muted">
             {count} {count === 1 ? 'notebook' : 'notebooks'}
             {subfolders ? ` · ${subfolders} ${subfolders === 1 ? 'folder' : 'folders'}` : ''}
           </p>
@@ -109,6 +119,8 @@ export function FolderRow({
   onChanged,
   onDrop,
   sortable,
+  selected,
+  many,
 }: {
   folder: Folder
   folders: readonly Folder[]
@@ -117,9 +129,14 @@ export function FolderRow({
   onChanged: () => void
   onDrop: (target: DropTarget) => void
   sortable: boolean
+  selected?: boolean
+  many?: { id: string; label: string }[]
 }) {
   const drag = useDragState()
-  const draggable = useDraggable({ kind: 'folder', id: folder.id, label: folder.name }, onDrop)
+  const draggable = useDraggable(
+    { kind: 'folder', id: folder.id, label: folder.name, many },
+    onDrop,
+  )
   const over = drag?.over?.kind === 'folder' && drag.over.id === folder.id ? drag.over.place : null
   const dragging = drag?.item.kind === 'folder' && drag.item.id === folder.id
   const count = countNotebooks(folders, notebooks, folder.id)
@@ -151,6 +168,7 @@ export function FolderRow({
         onClick={onOpenFolder}
         className="flex min-w-0 flex-1 touch-manipulation items-center gap-3 px-3 py-2 text-left select-none [-webkit-touch-callout:none]"
       >
+        {selected !== undefined ? <SelectMark selected={selected} inline /> : null}
         <FolderGraphic
           fill={folder.fill}
           icon={folder.icon}

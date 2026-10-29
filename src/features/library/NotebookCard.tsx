@@ -3,6 +3,7 @@ import {
   FolderInput,
   Layers,
   BarChart3,
+  Check,
   MoreHorizontal,
   Pin,
   Presentation,
@@ -47,6 +48,40 @@ export function PinMark({ inset = false }: { inset?: boolean }) {
   )
 }
 
+/** The round check of a selectable item: filled when it is selected. */
+export function SelectMark({
+  selected,
+  inline = false,
+  inset = false,
+}: {
+  selected: boolean
+  /** In a row, before the item. */
+  inline?: boolean
+  /** Inside a notebook's cover. */
+  inset?: boolean
+}) {
+  return (
+    <span
+      role="checkbox"
+      aria-checked={selected}
+      aria-label={selected ? 'Selected' : 'Not selected'}
+      className={cn(
+        'pointer-events-none grid size-7 shrink-0 place-items-center rounded-full ring-2 transition-colors',
+        inline
+          ? ''
+          : inset
+            ? 'absolute top-2 left-2 shadow-soft'
+            : 'absolute top-0 left-0 shadow-soft',
+        selected
+          ? 'bg-accent text-ink-inverse ring-surface-raised'
+          : 'bg-surface-raised/90 text-transparent ring-line-strong',
+      )}
+    >
+      <Check size={16} strokeWidth={3} />
+    </span>
+  )
+}
+
 const tilePress =
   'touch-manipulation select-none [-webkit-touch-callout:none] transition-transform duration-200 ease-gentle hover:-translate-y-0.5 active:scale-[0.98]'
 
@@ -62,6 +97,8 @@ export function NotebookCard({
   onChanged,
   onDrop,
   showFolder = false,
+  selected,
+  many,
 }: {
   notebook: Notebook
   folders: readonly Folder[]
@@ -69,12 +106,16 @@ export function NotebookCard({
   onChanged: () => void
   onDrop: (target: DropTarget) => void
   showFolder?: boolean
+  /** Whether it is selected; undefined when not selecting. */
+  selected?: boolean
+  /** Every selected item, carried along when this one is dragged. */
+  many?: { id: string; label: string }[]
 }) {
   const light = prefersLightText(notebook.cover)
   const drag = useDragState()
   const dragging = drag?.item.kind === 'notebook' && drag.item.id === notebook.id
   const draggable = useDraggable(
-    { kind: 'notebook', id: notebook.id, label: notebook.title },
+    { kind: 'notebook', id: notebook.id, label: notebook.title, many },
     onDrop,
   )
   const open = { type: 'button' as const, onClick: onOpen, 'aria-label': `Open ${notebook.title}` }
@@ -125,10 +166,15 @@ export function NotebookCard({
               {notebook.title}
             </span>
             {pinned ? <PinMark inset /> : null}
+            {selected !== undefined ? <SelectMark selected={selected} inset /> : null}
           </button>
         )}
         {pinned && (notebook.kind === 'presentation' || notebook.kind === 'deck') ? (
           <PinMark />
+        ) : null}
+        {selected !== undefined &&
+        (notebook.kind === 'presentation' || notebook.kind === 'deck') ? (
+          <SelectMark selected={selected} />
         ) : null}
       </div>
       <div className={cn('flex items-start justify-between gap-1', TILE_TEXT)}>
@@ -151,7 +197,7 @@ function Details({ notebook }: { notebook: Notebook }) {
     const cards = Math.ceil(pages / 2)
     const due = dueCount(notebook, now.getTime())
     return (
-      <p className="text-ink-muted">
+      <p className="truncate text-ink-muted">
         {cards} {cards === 1 ? 'card' : 'cards'}
         {due ? (
           <span className="font-semibold text-accent"> · {due} due</span>
@@ -163,7 +209,7 @@ function Details({ notebook }: { notebook: Notebook }) {
   }
   const unit = notebook.kind === 'presentation' ? 'slide' : 'page'
   return (
-    <p className="text-ink-muted">
+    <p className="truncate text-ink-muted">
       {formatEdited(notebook.updatedAt)} · {pages} {unit}
       {pages === 1 ? '' : 's'}
     </p>
@@ -229,6 +275,8 @@ export function NotebookRow({
   onChanged,
   onDrop,
   showFolder = false,
+  selected,
+  many,
 }: {
   notebook: Notebook
   folders: readonly Folder[]
@@ -236,11 +284,15 @@ export function NotebookRow({
   onChanged: () => void
   onDrop: (target: DropTarget) => void
   showFolder?: boolean
+  /** Whether it is selected; undefined when not selecting. */
+  selected?: boolean
+  /** Every selected item, carried along when this one is dragged. */
+  many?: { id: string; label: string }[]
 }) {
   const drag = useDragState()
   const dragging = drag?.item.kind === 'notebook' && drag.item.id === notebook.id
   const draggable = useDraggable(
-    { kind: 'notebook', id: notebook.id, label: notebook.title },
+    { kind: 'notebook', id: notebook.id, label: notebook.title, many },
     onDrop,
   )
   return (
@@ -251,6 +303,7 @@ export function NotebookRow({
         onClick={onOpen}
         className="flex min-w-0 flex-1 touch-manipulation items-center gap-3 px-3 py-2 text-left select-none [-webkit-touch-callout:none]"
       >
+        {selected !== undefined ? <SelectMark selected={selected} inline /> : null}
         <span className="grid w-12 shrink-0 place-items-center">
           {notebook.kind === 'presentation' ? (
             <NotebookThumbnail notebook={notebook} width={48} className="!w-12 shadow-soft" />

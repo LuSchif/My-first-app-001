@@ -26,12 +26,13 @@ import {
   Button,
   ColorSwatch,
   Dialog,
-  DialogContent,
   IconButton,
   Slider,
   Switch,
   TextField,
 } from '../../design/index.ts'
+import { EditDialog, EditSection, EditTabs } from './EditDialog.tsx'
+import { changed } from './changed.ts'
 import { cn } from '../../lib/cn.ts'
 import { CHART_ICONS } from './chartIcons.tsx'
 import { ObjectPreview } from './ObjectPreview.tsx'
@@ -70,46 +71,84 @@ function ChartEditorContent({
   onDone: () => void
 }) {
   const [draft, setDraft] = useState(chart)
+  const [tab, setTab] = useState<'data' | 'look'>('data')
   const round = draft.kind === 'pie' || draft.kind === 'donut'
-  // Pie and donut charts show the first series only.
+  // Pie and donut charts show one series: the first.
   const shown = round ? draft.series.slice(0, 1) : draft.series
+  const save = () => {
+    editor.updateSelectedObject(draft, 'Edit chart')
+    onDone()
+  }
+  const field =
+    'h-10 w-28 rounded-control px-2 text-sm ring-1 ring-line ring-inset focus:ring-2 focus:ring-accent focus:outline-none'
 
   return (
-    <DialogContent title="Edit chart" className="w-[min(48rem,calc(100%-2rem))]">
-      <div className="grid gap-5">
-        <ObjectPreview object={draft} height={190} />
-        <div role="group" aria-label="Chart type" className="grid grid-cols-4 gap-2">
-          {CHART_KINDS.map(({ kind, label }) => (
-            <button
-              key={kind}
-              type="button"
-              aria-pressed={draft.kind === kind}
-              onClick={() => setDraft((c) => ({ ...c, kind }))}
-              className="flex min-h-14 flex-col items-center justify-center gap-1 rounded-control text-xs font-semibold ring-1 ring-line aria-pressed:bg-ink aria-pressed:text-ink-inverse aria-pressed:ring-ink"
-            >
-              {CHART_ICONS[kind]}
-              {label}
-            </button>
-          ))}
-        </div>
-
-        <TextField
-          label="Title"
-          value={draft.title}
-          placeholder="No title"
-          onChange={(e) => setDraft((c) => ({ ...c, title: e.target.value }))}
+    <EditDialog
+      title="Edit chart"
+      className="w-[min(48rem,calc(100%-2rem))]"
+      dirty={changed(chart, draft)}
+      onSave={save}
+      onCancel={onDone}
+      preview={<ObjectPreview object={draft} height={170} />}
+      tabs={
+        <EditTabs
+          label="Chart editor"
+          value={tab}
+          options={[
+            ['data', 'Data'],
+            ['look', 'Look'],
+          ]}
+          onChange={setTab}
         />
+      }
+    >
+      {tab === 'data' ? (
+        <div className="grid gap-6">
+          <TextField
+            label="Title"
+            value={draft.title}
+            placeholder="No title"
+            onChange={(e) => setDraft((c) => ({ ...c, title: e.target.value }))}
+          />
 
-        <div className="grid gap-2">
-          <p className="text-sm font-semibold">Data</p>
-          <div className="overflow-x-auto pb-1">
-            <table className="border-separate border-spacing-1">
-              <thead>
-                <tr>
-                  <th />
-                  {shown.map((s, k) => (
-                    <th key={k} className="text-left align-bottom">
-                      <div className="flex items-center gap-1">
+          {round && draft.series.length > 1 ? (
+            <EditSection
+              title="Series shown"
+              hint="A pie or donut shows one series; the others are kept for other chart types."
+            >
+              <div role="group" aria-label="Series shown" className="flex flex-wrap gap-2">
+                {draft.series.map((s, k) => (
+                  <button
+                    key={k}
+                    type="button"
+                    aria-pressed={k === 0}
+                    data-choice
+                    onClick={() =>
+                      setDraft((c) => ({
+                        ...c,
+                        series: [c.series[k]!, ...c.series.filter((_, i) => i !== k)],
+                      }))
+                    }
+                    className="flex h-10 items-center gap-2 rounded-control px-3 text-sm ring-1 ring-line aria-pressed:font-semibold"
+                  >
+                    <span className="size-2.5 rounded-sm" style={{ background: s.color }} />
+                    {s.name}
+                  </button>
+                ))}
+              </div>
+            </EditSection>
+          ) : null}
+
+          <EditSection title="Values">
+            <div className="overflow-x-auto pb-1">
+              <table className="border-separate border-spacing-1">
+                <thead>
+                  <tr>
+                    <th className="px-1 text-left text-xs font-medium text-ink-muted">
+                      {round ? 'Slice' : 'Category'}
+                    </th>
+                    {shown.map((s, k) => (
+                      <th key={k}>
                         <input
                           aria-label={`Name of series ${k + 1}`}
                           value={s.name}
@@ -121,196 +160,208 @@ function ChartEditorContent({
                               ),
                             }))
                           }
-                          className="h-10 w-28 rounded-control bg-surface-raised px-2 text-sm font-semibold ring-1 ring-line ring-inset focus:ring-2 focus:ring-accent focus:outline-none"
+                          className={cn(field, 'bg-surface-raised font-semibold')}
                         />
-                        {!round && draft.series.length > 1 ? (
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {draft.labels.map((label, i) => (
+                    <tr key={i}>
+                      <td>
+                        <input
+                          aria-label={`Label ${i + 1}`}
+                          value={label}
+                          onChange={(e) =>
+                            setDraft((c) => ({
+                              ...c,
+                              labels: c.labels.map((l, j) => (j === i ? e.target.value : l)),
+                            }))
+                          }
+                          className={cn(field, 'bg-surface-sunken')}
+                        />
+                      </td>
+                      {shown.map((s, k) => (
+                        <td key={k}>
+                          <NumberField
+                            label={`${s.name}, ${label}`}
+                            value={s.values[i] ?? 0}
+                            onChange={(v) => setDraft((c) => setValue(c, k, i, v))}
+                          />
+                        </td>
+                      ))}
+                      <td>
+                        <IconButton
+                          label={`Remove ${label || `row ${i + 1}`}`}
+                          icon={<Minus size={16} />}
+                          disabled={draft.labels.length <= 1}
+                          onClick={() => setDraft((c) => removeCategory(c, i))}
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                  {!round && draft.series.length > 1 ? (
+                    <tr>
+                      <td />
+                      {shown.map((s, k) => (
+                        <td key={k} className="text-center">
                           <IconButton
                             label={`Remove ${s.name}`}
                             icon={<Minus size={16} />}
                             onClick={() => setDraft((c) => removeSeries(c, k))}
                           />
-                        ) : null}
-                      </div>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {draft.labels.map((label, i) => (
-                  <tr key={i}>
-                    <td>
-                      <input
-                        aria-label={`Label ${i + 1}`}
-                        value={label}
-                        onChange={(e) =>
+                        </td>
+                      ))}
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button icon={<Plus size={16} />} onClick={() => setDraft((c) => addCategory(c))}>
+                {round ? 'Slice' : 'Category'}
+              </Button>
+              {round ? null : (
+                <Button icon={<Plus size={16} />} onClick={() => setDraft((c) => addSeries(c))}>
+                  Series
+                </Button>
+              )}
+            </div>
+          </EditSection>
+
+          <EditSection
+            title="Arrange"
+            hint="Sorting goes by the first series. Transpose swaps categories and series."
+          >
+            <div className="flex flex-wrap gap-2">
+              <Button
+                icon={<ArrowDownAZ size={16} />}
+                onClick={() => setDraft((c) => sortChart(c, 'label'))}
+              >
+                A–Z
+              </Button>
+              <Button
+                icon={<ArrowUpNarrowWide size={16} />}
+                onClick={() => setDraft((c) => sortChart(c, 'ascending'))}
+              >
+                Smallest first
+              </Button>
+              <Button
+                icon={<ArrowDownWideNarrow size={16} />}
+                onClick={() => setDraft((c) => sortChart(c, 'descending'))}
+              >
+                Largest first
+              </Button>
+              {round ? null : (
+                <Button
+                  icon={<ArrowLeftRight size={16} />}
+                  onClick={() => setDraft((c) => transposeChart(c))}
+                >
+                  Transpose
+                </Button>
+              )}
+            </div>
+          </EditSection>
+
+          <Stats chart={draft} series={shown} />
+        </div>
+      ) : (
+        <div className="grid gap-6">
+          <EditSection title="Type">
+            <div role="group" aria-label="Chart type" className="grid grid-cols-4 gap-2">
+              {CHART_KINDS.map(({ kind, label }) => (
+                <button
+                  key={kind}
+                  type="button"
+                  aria-pressed={draft.kind === kind}
+                  onClick={() => setDraft((c) => ({ ...c, kind }))}
+                  className="flex min-h-14 flex-col items-center justify-center gap-1 rounded-control text-xs font-semibold ring-1 ring-line aria-pressed:bg-ink aria-pressed:text-ink-inverse aria-pressed:ring-ink"
+                >
+                  {CHART_ICONS[kind]}
+                  {label}
+                </button>
+              ))}
+            </div>
+          </EditSection>
+
+          {round ? null : (
+            <EditSection title="Colors">
+              <div className="grid gap-2">
+                {draft.series.map((s, k) => (
+                  <div key={k} className="flex flex-wrap items-center gap-2">
+                    <span className="w-24 truncate text-sm">{s.name}</span>
+                    {CHART_COLORS.map((color) => (
+                      <ColorSwatch
+                        key={color}
+                        size="sm"
+                        label={`${s.name}: ${color}`}
+                        fill={{ type: 'solid', color }}
+                        selected={s.color === color}
+                        onSelect={() =>
                           setDraft((c) => ({
                             ...c,
-                            labels: c.labels.map((l, j) => (j === i ? e.target.value : l)),
+                            series: c.series.map((x, i) => (i === k ? { ...x, color } : x)),
                           }))
                         }
-                        className="h-10 w-28 rounded-control bg-surface-sunken px-2 text-sm ring-1 ring-line ring-inset focus:ring-2 focus:ring-accent focus:outline-none"
                       />
-                    </td>
-                    {shown.map((s, k) => (
-                      <td key={k}>
-                        <NumberField
-                          label={`${s.name}, ${label}`}
-                          value={s.values[i] ?? 0}
-                          onChange={(v) => setDraft((c) => setValue(c, k, i, v))}
-                        />
-                      </td>
                     ))}
-                    <td>
-                      <IconButton
-                        label={`Remove ${label || `row ${i + 1}`}`}
-                        icon={<Minus size={16} />}
-                        disabled={draft.labels.length <= 1}
-                        onClick={() => setDraft((c) => removeCategory(c, i))}
-                      />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button icon={<Plus size={16} />} onClick={() => setDraft((c) => addCategory(c))}>
-              {round ? 'Slice' : 'Category'}
-            </Button>
-            {round ? null : (
-              <Button icon={<Plus size={16} />} onClick={() => setDraft((c) => addSeries(c))}>
-                Series
-              </Button>
-            )}
-          </div>
-        </div>
-
-        <div className="grid gap-2">
-          <p className="text-sm font-semibold">Arrange</p>
-          <div className="flex flex-wrap gap-2">
-            <Button
-              icon={<ArrowDownAZ size={16} />}
-              onClick={() => setDraft((c) => sortChart(c, 'label'))}
-            >
-              A–Z
-            </Button>
-            <Button
-              icon={<ArrowUpNarrowWide size={16} />}
-              onClick={() => setDraft((c) => sortChart(c, 'ascending'))}
-            >
-              Smallest first
-            </Button>
-            <Button
-              icon={<ArrowDownWideNarrow size={16} />}
-              onClick={() => setDraft((c) => sortChart(c, 'descending'))}
-            >
-              Largest first
-            </Button>
-            {round ? null : (
-              <Button
-                icon={<ArrowLeftRight size={16} />}
-                onClick={() => setDraft((c) => transposeChart(c))}
-              >
-                Transpose
-              </Button>
-            )}
-          </div>
-          <p className="text-xs text-ink-muted">
-            Sorting goes by the first series. Transpose swaps categories and series.
-          </p>
-        </div>
-
-        <Stats chart={draft} series={shown} />
-
-        {round ? null : (
-          <div className="grid gap-2">
-            <p className="text-sm font-semibold">Colors</p>
-            {draft.series.map((s, k) => (
-              <div key={k} className="flex flex-wrap items-center gap-2">
-                <span className="w-24 truncate text-sm">{s.name}</span>
-                {CHART_COLORS.map((color) => (
-                  <ColorSwatch
-                    key={color}
-                    size="sm"
-                    label={`${s.name}: ${color}`}
-                    fill={{ type: 'solid', color }}
-                    selected={s.color === color}
-                    onSelect={() =>
-                      setDraft((c) => ({
-                        ...c,
-                        series: c.series.map((x, i) => (i === k ? { ...x, color } : x)),
-                      }))
-                    }
-                  />
+                  </div>
                 ))}
               </div>
-            ))}
-          </div>
-        )}
+            </EditSection>
+          )}
 
-        <div className="grid gap-1 sm:grid-cols-2 sm:gap-x-6">
-          <Switch
-            label="Legend"
-            checked={draft.legend}
-            onChange={(legend) => setDraft((c) => ({ ...c, legend }))}
+          <EditSection title="Show">
+            <div className="grid gap-1 sm:grid-cols-2 sm:gap-x-6">
+              <Switch
+                label="Legend"
+                checked={draft.legend}
+                onChange={(legend) => setDraft((c) => ({ ...c, legend }))}
+              />
+              <Switch
+                label="Values"
+                hint={round ? 'Percent on each slice' : 'Numbers on bars and points'}
+                checked={draft.values}
+                onChange={(values) => setDraft((c) => ({ ...c, values }))}
+              />
+              {draft.kind === 'bar' && draft.series.length > 1 ? (
+                <Switch
+                  label="Stacked bars"
+                  hint="Series on top of each other"
+                  checked={Boolean(draft.stacked)}
+                  onChange={(stacked) => setDraft((c) => ({ ...c, stacked }))}
+                />
+              ) : null}
+              {round ? null : (
+                <Switch
+                  label="Average line"
+                  hint="A dashed line at each series' average"
+                  checked={Boolean(draft.average)}
+                  onChange={(average) => setDraft((c) => ({ ...c, average }))}
+                />
+              )}
+              {round ? null : (
+                <Switch
+                  label="Grid lines"
+                  checked={draft.grid}
+                  onChange={(grid) => setDraft((c) => ({ ...c, grid }))}
+                />
+              )}
+            </div>
+          </EditSection>
+
+          <Slider
+            label="Text size"
+            value={Math.round(draft.fontSize)}
+            min={6}
+            max={24}
+            onChange={(fontSize) => setDraft((c) => ({ ...c, fontSize }))}
+            format={(v) => `${v} pt`}
           />
-          <Switch
-            label="Values"
-            hint={round ? 'Percent on each slice' : 'Numbers on bars and points'}
-            checked={draft.values}
-            onChange={(values) => setDraft((c) => ({ ...c, values }))}
-          />
-          {draft.kind === 'bar' && draft.series.length > 1 ? (
-            <Switch
-              label="Stacked bars"
-              hint="Series on top of each other"
-              checked={Boolean(draft.stacked)}
-              onChange={(stacked) => setDraft((c) => ({ ...c, stacked }))}
-            />
-          ) : null}
-          {round ? null : (
-            <Switch
-              label="Average line"
-              hint="A dashed line at each series' average"
-              checked={Boolean(draft.average)}
-              onChange={(average) => setDraft((c) => ({ ...c, average }))}
-            />
-          )}
-          {round ? null : (
-            <Switch
-              label="Grid lines"
-              checked={draft.grid}
-              onChange={(grid) => setDraft((c) => ({ ...c, grid }))}
-            />
-          )}
-          <div className="py-2">
-            <Slider
-              label="Text size"
-              value={Math.round(draft.fontSize)}
-              min={6}
-              max={24}
-              onChange={(fontSize) => setDraft((c) => ({ ...c, fontSize }))}
-              format={(v) => `${v} pt`}
-            />
-          </div>
         </div>
-      </div>
-
-      <div className="mt-6 flex justify-end gap-2">
-        <Button variant="ghost" onClick={onDone}>
-          Cancel
-        </Button>
-        <Button
-          variant="primary"
-          onClick={() => {
-            editor.updateSelectedObject(draft, 'Edit chart')
-            onDone()
-          }}
-        >
-          Done
-        </Button>
-      </div>
-    </DialogContent>
+      )}
+    </EditDialog>
   )
 }
 
@@ -324,7 +375,7 @@ function Stats({ chart, series }: { chart: ChartObject; series: ChartObject['ser
   const cell = 'px-2 py-1.5 text-right tabular-nums'
   return (
     <div className="grid gap-2">
-      <p className="text-sm font-semibold">Calculations</p>
+      <h3 className="text-sm font-semibold">Calculations</h3>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="text-xs text-ink-muted">
@@ -382,7 +433,7 @@ function NumberField({
       }}
       onBlur={() => setText(null)}
       className={cn(
-        'h-10 w-24 rounded-control bg-surface-raised px-2 text-right text-sm tabular-nums',
+        'h-10 w-28 rounded-control bg-surface-raised px-2 text-right text-sm tabular-nums',
         'ring-1 ring-line ring-inset focus:ring-2 focus:ring-accent focus:outline-none',
       )}
     />

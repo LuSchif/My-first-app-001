@@ -12,15 +12,9 @@ import {
 } from '../../engine/model/table.ts'
 import type { TableObject } from '../../engine/model/types.ts'
 import { ObjectPreview } from './ObjectPreview.tsx'
-import {
-  Button,
-  ColorPicker,
-  Dialog,
-  DialogContent,
-  IconButton,
-  Slider,
-  Switch,
-} from '../../design/index.ts'
+import { EditDialog, EditSection, EditTabs } from './EditDialog.tsx'
+import { changed } from './changed.ts'
+import { Button, ColorPicker, Dialog, IconButton, Slider, Switch } from '../../design/index.ts'
 
 /**
  * Edits a table: the text of every cell, rows and columns, and how it looks. Changes are kept
@@ -61,26 +55,34 @@ function TableEditorContent({
   const setStyle = (patch: Partial<TableObject['style']>) =>
     setDraft((t) => ({ ...t, style: { ...t.style, ...patch } }))
 
-  return (
-    <DialogContent title="Edit table" className="w-[min(48rem,calc(100%-2rem))]">
-      <div className="mb-4">
-        <ObjectPreview object={draft} height={150} />
-      </div>
-      <div role="tablist" aria-label="Table editor" className="mb-4 flex gap-1">
-        {(['cells', 'style'] as const).map((name) => (
-          <button
-            key={name}
-            role="tab"
-            type="button"
-            aria-selected={tab === name}
-            onClick={() => setTab(name)}
-            className="h-10 rounded-control px-4 text-sm font-semibold ring-1 ring-line aria-selected:bg-ink aria-selected:text-ink-inverse aria-selected:ring-ink"
-          >
-            {name === 'cells' ? 'Cells' : 'Look'}
-          </button>
-        ))}
-      </div>
+  const save = () => {
+    editor.updateSelectedObject(
+      fitToPage(draft, editor.pageSize.width, editor.pageSize.height),
+      'Edit table',
+    )
+    onDone()
+  }
 
+  return (
+    <EditDialog
+      title="Edit table"
+      className="w-[min(48rem,calc(100%-2rem))]"
+      dirty={changed(table, draft)}
+      onSave={save}
+      onCancel={onDone}
+      preview={<ObjectPreview object={draft} height={150} />}
+      tabs={
+        <EditTabs
+          label="Table editor"
+          value={tab}
+          options={[
+            ['cells', 'Cells'],
+            ['style', 'Look'],
+          ]}
+          onChange={setTab}
+        />
+      }
+    >
       {tab === 'cells' ? (
         <div className="grid gap-3">
           <div className="overflow-x-auto pb-1">
@@ -176,47 +178,30 @@ function TableEditorContent({
               format={(v) => `${v.toFixed(1)} pt`}
             />
           </div>
-          <div className="grid content-start gap-4">
-            <p className="text-sm font-semibold">Lines</p>
-            <ColorPicker
-              value={style.lineColor}
-              onChange={(lineColor) => setStyle({ lineColor })}
-            />
-            <p className="text-sm font-semibold">Text</p>
-            <ColorPicker
-              value={style.textColor}
-              onChange={(textColor) => setStyle({ textColor })}
-            />
+          <div className="grid content-start gap-5">
+            <EditSection title="Line color">
+              <ColorPicker
+                value={style.lineColor}
+                onChange={(lineColor) => setStyle({ lineColor })}
+              />
+            </EditSection>
+            <EditSection title="Text color">
+              <ColorPicker
+                value={style.textColor}
+                onChange={(textColor) => setStyle({ textColor })}
+              />
+            </EditSection>
             {style.header ? (
-              <>
-                <p className="text-sm font-semibold">Header</p>
+              <EditSection title="Header fill">
                 <ColorPicker
                   value={style.headerFill}
                   onChange={(headerFill) => setStyle({ headerFill })}
                 />
-              </>
+              </EditSection>
             ) : null}
           </div>
         </div>
       )}
-
-      <div className="mt-6 flex justify-end gap-2">
-        <Button variant="ghost" onClick={onDone}>
-          Cancel
-        </Button>
-        <Button
-          variant="primary"
-          onClick={() => {
-            editor.updateSelectedObject(
-              fitToPage(draft, editor.pageSize.width, editor.pageSize.height),
-              'Edit table',
-            )
-            onDone()
-          }}
-        >
-          Done
-        </Button>
-      </div>
-    </DialogContent>
+    </EditDialog>
   )
 }

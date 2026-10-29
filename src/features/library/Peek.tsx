@@ -12,13 +12,20 @@ import { createPortal } from 'react-dom'
 import { useEffect, useState } from 'react'
 import { navigate } from '../../app/router.ts'
 import { fillToCss, prefersLightText } from '../../engine/model/fill.ts'
-import type { Folder, Notebook, Page } from '../../engine/model/types.ts'
+import type { Folder, Notebook, Page, PaperKind } from '../../engine/model/types.ts'
 import { pageSizeOf } from '../../engine/render/layout.ts'
 import { Button, IconButton } from '../../design/index.ts'
 import { cn } from '../../lib/cn.ts'
 import { formatEdited } from '../../lib/time.ts'
 import { createPage } from '../../engine/model/factory.ts'
-import { appendPage, deletePages, loadNotebook, saveStudy } from '../../storage/notebooks.ts'
+import {
+  appendPage,
+  deletePages,
+  loadNotebook,
+  saveStudy,
+  setNotebookPaper,
+} from '../../storage/notebooks.ts'
+import { PAPER_OPTIONS, paperPreviewStyle } from '../paper.ts'
 import { PageThumbnail } from '../editor/PageThumbnail.tsx'
 import { openNotebookAt } from '../editor/openAt.ts'
 import { FolderGraphic } from '../folders/FolderGraphic.tsx'
@@ -143,6 +150,22 @@ function NotebookPeek({
             {count === 1 ? '' : 's'}
           </p>
         </div>
+        {slides ? null : (
+          <PaperChoice
+            value={pages?.[0]?.paper ?? notebook.paper}
+            onChange={(paper) => {
+              setNotebookPaper(notebook.id, paper)
+                .then(() => {
+                  setPages((list) => list?.map((p) => ({ ...p, paper })) ?? null)
+                  reload()
+                })
+                .catch((err: unknown) => {
+                  console.error(err)
+                  showNotice('The paper could not be changed.')
+                })
+            }}
+          />
+        )}
         <Button
           variant="primary"
           onClick={() => {
@@ -182,11 +205,10 @@ function NotebookPeek({
                   moveToTrash(
                     [page.id],
                     `Deleted ${unit} ${i + 1} of “${notebook.title}”.`,
+                    { pageIds: [page.id] },
                     () => deletePages(notebook.id, [page.id]),
-                    () => {
-                      setPages((list) => list?.filter((p) => p.id !== page.id) ?? null)
-                      reload()
-                    },
+                    // The page stays in the list, hidden while it is trashed: Undo shows it again.
+                    reload,
                   )
                 }}
               />
@@ -211,6 +233,41 @@ function NotebookPeek({
         ) : null}
       </Contents>
     </>
+  )
+}
+
+/** The paper of every page of a notebook, chosen from small previews. */
+function PaperChoice({
+  value,
+  onChange,
+}: {
+  value: PaperKind
+  onChange: (paper: PaperKind) => void
+}) {
+  return (
+    <div className="grid gap-1.5">
+      <p className="text-xs font-semibold tracking-[0.14em] text-ink-muted uppercase">Paper</p>
+      <div role="group" aria-label="Paper" className="grid grid-cols-5 gap-2">
+        {PAPER_OPTIONS.map((option) => (
+          <button
+            key={option.kind}
+            type="button"
+            aria-pressed={value === option.kind}
+            data-choice
+            onClick={() => value !== option.kind && onChange(option.kind)}
+            className="group grid gap-1 rounded-lg p-0.5 text-xs"
+          >
+            <span
+              className="aspect-[3/4] w-full rounded-md shadow-soft ring-1 ring-line group-aria-pressed:ring-2 group-aria-pressed:ring-ink"
+              style={paperPreviewStyle(option.kind)}
+            />
+            <span className="truncate text-ink-muted group-aria-pressed:font-semibold group-aria-pressed:text-ink">
+              {option.label}
+            </span>
+          </button>
+        ))}
+      </div>
+    </div>
   )
 }
 
@@ -265,7 +322,7 @@ function DeckPeek({
   library: Library
   reload: () => void
 }) {
-  const [pages, setPages] = usePages(deck.id)
+  const [pages] = usePages(deck.id)
   const [studying, setStudying] = useState<number | null>(null)
   const trashed = useTrashed()
   const now = useNow()
@@ -331,11 +388,9 @@ function DeckPeek({
                   moveToTrash(
                     sides,
                     `Deleted card ${i + 1} of “${deck.title}”.`,
+                    { pageIds: sides },
                     () => deletePages(deck.id, sides, 2),
-                    () => {
-                      setPages((list) => list?.filter((p) => !sides.includes(p.id)) ?? null)
-                      reload()
-                    },
+                    reload,
                   )
                 }}
               />

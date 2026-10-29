@@ -104,7 +104,18 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
   the rest, open and close by their name, and take what is dropped on them
   (`data-drop="group"`) or picked with "Add to group…". A group's menu renames it, removes it
   (its items stay) or shows it as a page of its own right after its page. Groups only arrange
-  the home screen; folders are not changed. A pinned item shows only with the pins.
+  the home screen; folders are not changed. Pins on a page and inside a group are
+  independent (a group keeps its own `pins`); a group can be pinned too, which puts it first
+  among the groups. The pinned box is only as wide as what is pinned.
+- "Select" in a page's header chooses several items (`librarySelection.ts`): a tap then
+  marks an item, and a bar at the bottom moves them into a folder, puts them into a group or
+  deletes them; dragging one of the marked items carries all of them (`DragItem.many`).
+- Names are unique: a folder, notebook, presentation, deck, group or interface preset with a
+  name already taken gets the next number ("Mathe 2"), and the name field says so while
+  typing (`uniqueName.ts`, `NameHint.tsx`).
+- A notebook's peek also changes its paper, for every page and for new ones.
+- The appearance menu saves the current colors as named presets (kept on this device,
+  `themePresets.ts`).
   Both sides are as tall as the screen allows and scroll inside. Folders and notebooks have
   their own sort order (folders: own order, name, recently edited).
 - Folders and notebooks show as tiles or as a list (`libraryLayout.ts`, kept per device; the
@@ -127,9 +138,15 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
   carousel (`FolderDropStrip.tsx`); holding it near either end scrolls the row. Every move
   into or out of a folder shows a notice with Undo (`lib/notices.ts`).
 - Held near the bottom of the screen, anything (folder, notebook, presentation, or a page in a
-  notebook's peek) brings up the trash (`TrashZone.tsx`). Dropped there it disappears at once
-  but is deleted for good only after the notice's Undo has run out (`trash.ts`); a notebook
-  keeps its last page.
+  notebook's peek) brings up the trash (`TrashZone.tsx`). Dropped there it is deleted at once
+  ("Deleting…" shows meanwhile), after a copy was kept in memory (`storage/snapshot.ts`): the
+  notice's Undo restores that copy (`trash.ts`). Deleting later instead lost deletions when
+  iPadOS paused the app. A notebook keeps its last page.
+- The object editors (table, chart, graph, picture) share one frame (`EditDialog.tsx`): the
+  preview at the top, the settings scrolling under it, Cancel and Done always in view. Closing
+  with unsaved changes asks whether to save them. The chart editor has Data and Look tabs; a
+  pie or donut shows one series, chosen there. A table written across (one row of numbers
+  under names) becomes one series of those names (`tableChartData`).
 - Dialogs keep their main button in view (`DialogFooter`) and fold away long design options
   (`Fold`), as in the folder and notebook dialogs.
 - Dialogs close only by their close button or a tap on the dimmed backdrop: on iPad other

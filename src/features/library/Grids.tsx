@@ -1,8 +1,9 @@
 import { Plus } from 'lucide-react'
 import type { Folder, Notebook } from '../../engine/model/types.ts'
 import { FolderCard, FolderRow } from '../folders/FolderCard.tsx'
-import { useDrop } from './librarySort.ts'
+import { makeDrop } from './librarySort.ts'
 import { useOrganizer } from './organizer.ts'
+import { useLibrarySelection, type LibrarySelection } from './librarySelection.ts'
 import { openPeek } from './peek.ts'
 import type { LibraryLayout } from './libraryLayout.ts'
 import { NotebookCard, NotebookRow } from './NotebookCard.tsx'
@@ -18,6 +19,9 @@ const LIST =
 const TILES =
   'grid grid-cols-[repeat(auto-fill,minmax(var(--tile-w,9.5rem),var(--tile-max,1fr)))] items-start justify-between gap-x-5 gap-y-5'
 
+/** Tiles in a row that is only as wide as they are (e.g. the pinned ones), wrapping when full. */
+const COMPACT_TILES = 'flex flex-wrap items-start gap-x-5 gap-y-5 [&>li]:w-[var(--tile-w,9.5rem)]'
+
 /** The + first in a grid or list that makes one more, e.g. "New folder". */
 export interface AddAction {
   label: string
@@ -32,6 +36,7 @@ export function FolderGrid({
   reload,
   add,
   layout = 'tiles',
+  compact = false,
 }: {
   folders: Folder[]
   library: Library
@@ -39,42 +44,40 @@ export function FolderGrid({
   reload: () => void
   add?: AddAction
   layout?: LibraryLayout
+  /** Only as wide as its tiles. */
+  compact?: boolean
 }) {
-  const drop = useDrop(library, reload, useOrganizer())
+  const selection = useLibrarySelection()
+  const drop = makeDrop(library, reload, useOrganizer(), selection?.clear)
+  const props = (folder: Folder) => ({
+    folder,
+    folders: library.folders,
+    notebooks: library.notebooks,
+    onOpenFolder: selection
+      ? () => selection.toggle(folder.id)
+      : () => openPeek({ kind: 'folder', id: folder.id }),
+    onChanged: reload,
+    onDrop: drop({ kind: 'folder', id: folder.id, label: folder.name }),
+    sortable,
+    selected: selection ? selection.has(folder.id) : undefined,
+    many: carried(selection, folder.id, (id) => library.folders.find((f) => f.id === id)?.name),
+  })
   if (layout === 'list') {
     if (!folders.length && !add) return null
     return (
       <ul className={LIST}>
         {add ? <AddItem add={add} layout="list" /> : null}
         {folders.map((folder) => (
-          <FolderRow
-            key={folder.id}
-            folder={folder}
-            folders={library.folders}
-            notebooks={library.notebooks}
-            onOpenFolder={() => openPeek({ kind: 'folder', id: folder.id })}
-            onChanged={reload}
-            onDrop={drop({ kind: 'folder', id: folder.id, label: folder.name })}
-            sortable={sortable}
-          />
+          <FolderRow key={folder.id} {...props(folder)} />
         ))}
       </ul>
     )
   }
   return (
-    <ul className={TILES}>
+    <ul className={compact ? COMPACT_TILES : TILES}>
       {add ? <AddItem add={add} layout="tiles" /> : null}
       {folders.map((folder) => (
-        <FolderCard
-          key={folder.id}
-          folder={folder}
-          folders={library.folders}
-          notebooks={library.notebooks}
-          onOpenFolder={() => openPeek({ kind: 'folder', id: folder.id })}
-          onChanged={reload}
-          onDrop={drop({ kind: 'folder', id: folder.id, label: folder.name })}
-          sortable={sortable}
-        />
+        <FolderCard key={folder.id} {...props(folder)} />
       ))}
     </ul>
   )
@@ -122,6 +125,7 @@ export function NotebookGrid({
   add,
   showFolder = false,
   layout = 'tiles',
+  compact = false,
 }: {
   notebooks: Notebook[]
   library: Library
@@ -129,15 +133,26 @@ export function NotebookGrid({
   add?: AddAction
   showFolder?: boolean
   layout?: LibraryLayout
+  /** Only as wide as its tiles. */
+  compact?: boolean
 }) {
-  const drop = useDrop(library, reload, useOrganizer())
+  const selection = useLibrarySelection()
+  const drop = makeDrop(library, reload, useOrganizer(), selection?.clear)
   const props = (notebook: Notebook) => ({
     notebook,
     folders: library.folders,
-    onOpen: () => openPeek({ kind: 'notebook', id: notebook.id }),
+    onOpen: selection
+      ? () => selection.toggle(notebook.id)
+      : () => openPeek({ kind: 'notebook', id: notebook.id }),
     onChanged: reload,
     onDrop: drop({ kind: 'notebook', id: notebook.id, label: notebook.title }),
     showFolder,
+    selected: selection ? selection.has(notebook.id) : undefined,
+    many: carried(
+      selection,
+      notebook.id,
+      (id) => library.notebooks.find((n) => n.id === id)?.title,
+    ),
   })
   if (layout === 'list') {
     return (
@@ -150,11 +165,21 @@ export function NotebookGrid({
     )
   }
   return (
-    <ul className={TILES}>
+    <ul className={compact ? COMPACT_TILES : TILES}>
       {add ? <AddItem add={add} layout="tiles" /> : null}
       {notebooks.map((notebook) => (
         <NotebookCard key={notebook.id} {...props(notebook)} />
       ))}
     </ul>
   )
+}
+
+/** What dragging a selected item carries: every selected item, when there are several. */
+function carried(
+  selection: LibrarySelection | null,
+  id: string,
+  label: (id: string) => string | undefined,
+): { id: string; label: string }[] | undefined {
+  if (!selection?.has(id) || selection.ids.length < 2) return undefined
+  return selection.ids.map((i) => ({ id: i, label: label(i) ?? '' }))
 }

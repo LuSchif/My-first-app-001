@@ -21,6 +21,10 @@ export interface HomeGroup {
   collapsed: boolean
   /** Also shown as a page of its own in the carousel, after its page. */
   ownTab: boolean
+  /** Pinned inside the group: independent of the page's own pins. (Older groups have none.) */
+  pins?: Id[]
+  /** A pinned group comes first among the groups. */
+  pinned?: boolean
 }
 
 export interface HomeTab {
@@ -33,11 +37,28 @@ export function emptyTab(tab: HomeTabKey): HomeTab {
   return { tab, pins: [], groups: [] }
 }
 
-/** Pins an item (last), or unpins it. Returns null when the page already has its maximum. */
-export function togglePin(tab: HomeTab, id: Id): HomeTab | null {
-  if (tab.pins.includes(id)) return { ...tab, pins: tab.pins.filter((p) => p !== id) }
-  if (tab.pins.length >= MAX_PINS) return null
-  return { ...tab, pins: [...tab.pins, id] }
+/** The pins of the page, or of one of its groups. */
+export function pinsOf(tab: HomeTab, groupId: Id | null = null): Id[] {
+  if (groupId === null) return tab.pins
+  return tab.groups.find((g) => g.id === groupId)?.pins ?? []
+}
+
+/**
+ * Pins an item (last), or unpins it: on the page, or inside one of its groups; the two are
+ * independent. Returns null when that place already has its maximum.
+ */
+export function togglePin(tab: HomeTab, id: Id, groupId: Id | null = null): HomeTab | null {
+  const pins = pinsOf(tab, groupId)
+  let next: Id[]
+  if (pins.includes(id)) next = pins.filter((p) => p !== id)
+  else if (pins.length >= MAX_PINS) return null
+  else next = [...pins, id]
+  return groupId === null ? { ...tab, pins: next } : updateGroup(tab, groupId, { pins: next })
+}
+
+/** Groups in the order shown: pinned ones first, otherwise as made. */
+export function orderedGroups(tab: HomeTab): HomeGroup[] {
+  return [...tab.groups.filter((g) => g.pinned), ...tab.groups.filter((g) => !g.pinned)]
 }
 
 export function addGroup(tab: HomeTab, group: HomeGroup): HomeTab {
@@ -69,22 +90,29 @@ export function groupOf(tab: HomeTab, itemId: Id): HomeGroup | null {
 }
 
 /**
- * Splits a page's items (already sorted) into the pinned ones (in pinning order), each group's
- * (in the page's order) and the rest. A pinned item shows only with the pins.
+ * Splits a page's items (already sorted) into the page's pinned ones (in pinning order), each
+ * group's (its own pinned ones first) and the rest: what is neither pinned on the page nor in
+ * a group. Pins on the page and in a group are independent, so an item can show in both.
  */
 export function arrange<T extends { id: Id }>(
   tab: HomeTab,
   items: readonly T[],
-): { pinned: T[]; groups: { group: HomeGroup; items: T[] }[]; rest: T[] } {
+): {
+  pinned: T[]
+  groups: { group: HomeGroup; pinned: T[]; items: T[] }[]
+  rest: T[]
+} {
   const byId = new Map(items.map((item) => [item.id, item]))
   const pinned = tab.pins.flatMap((id) => byId.get(id) ?? [])
   const pinnedIds = new Set(pinned.map((item) => item.id))
   const grouped = new Set<Id>()
-  const groups = tab.groups.map((group) => {
+  const groups = orderedGroups(tab).map((group) => {
     const members = new Set(group.itemIds)
-    const list = items.filter((item) => members.has(item.id) && !pinnedIds.has(item.id))
-    for (const item of list) grouped.add(item.id)
-    return { group, items: list }
+    const inside = items.filter((item) => members.has(item.id))
+    for (const item of inside) grouped.add(item.id)
+    const own = (group.pins ?? []).flatMap((id) => (members.has(id) ? (byId.get(id) ?? []) : []))
+    const ownIds = new Set(own.map((item) => item.id))
+    return { group, pinned: own, items: inside.filter((item) => !ownIds.has(item.id)) }
   })
   const rest = items.filter((item) => !pinnedIds.has(item.id) && !grouped.has(item.id))
   return { pinned, groups, rest }

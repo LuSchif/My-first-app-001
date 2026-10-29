@@ -5,8 +5,10 @@ import {
   emptyTab,
   MAX_PINS,
   moveToGroup,
+  orderedGroups,
   removeGroup,
   togglePin,
+  updateGroup,
   type HomeTab,
 } from './homeTabs.ts'
 
@@ -43,15 +45,31 @@ describe('home tabs', () => {
     expect(moveToGroup(tab, 'a', null).groups.every((g) => g.itemIds.length === 0)).toBe(true)
   })
 
-  it('shows pinned items only with the pins, grouped ones only in their group', () => {
+  it('keeps pins on the page and in a group apart', () => {
     let tab = moveToGroup(withGroup(), 'b', 'school')
     tab = moveToGroup(tab, 'c', 'school')
     tab = togglePin(tab, 'c')!
     tab = togglePin(tab, 'e')!
+    tab = togglePin(tab, 'b', 'school')!
     const { pinned, groups, rest } = arrange(tab, items)
     expect(pinned.map((i) => i.id)).toEqual(['c', 'e'])
-    expect(groups[0]!.items.map((i) => i.id)).toEqual(['b'])
+    // In the group: its own pin first; the page's pin on "c" does not take it out.
+    expect(groups[0]!.pinned.map((i) => i.id)).toEqual(['b'])
+    expect(groups[0]!.items.map((i) => i.id)).toEqual(['c'])
     expect(rest.map((i) => i.id)).toEqual(['a', 'd', 'f', 'g'])
+    expect(tab.pins).toEqual(['c', 'e'])
+  })
+
+  it('puts pinned groups first', () => {
+    let tab = addGroup(withGroup(), {
+      id: 'work',
+      name: 'Work',
+      itemIds: [],
+      collapsed: false,
+      ownTab: false,
+    })
+    tab = updateGroup(tab, 'work', { pinned: true })
+    expect(orderedGroups(tab).map((g) => g.id)).toEqual(['work', 'school'])
   })
 
   it('ignores items that no longer exist, and frees items of a removed group', () => {

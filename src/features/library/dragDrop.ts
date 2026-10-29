@@ -13,7 +13,13 @@ import type { Id } from '../../engine/model/types.ts'
  */
 
 export type DragItem =
-  | { kind: 'folder' | 'notebook'; id: Id; label: string }
+  | {
+      kind: 'folder' | 'notebook'
+      id: Id
+      label: string
+      /** Several selected items carried together (this one among them). */
+      many?: { id: Id; label: string }[]
+    }
   /** A page of a notebook, held in its peek; it can only go to the trash. */
   | { kind: 'page'; id: Id; label: string; notebookId: Id }
 export type DropTarget =

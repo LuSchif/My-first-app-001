@@ -1,4 +1,13 @@
-import { ChevronDown, FolderKanban, MoreHorizontal, Pencil, Pin, Plus, Trash2 } from 'lucide-react'
+import {
+  ChevronDown,
+  FolderKanban,
+  MoreHorizontal,
+  Pencil,
+  Pin,
+  PinOff,
+  Plus,
+  Trash2,
+} from 'lucide-react'
 import { useState } from 'react'
 import {
   Button,
@@ -13,6 +22,8 @@ import { newId } from '../../engine/model/ids.ts'
 import { cn } from '../../lib/cn.ts'
 import { showNotice } from '../../lib/notices.ts'
 import { useDragState } from './dragDrop.ts'
+import { NameHint } from './NameHint.tsx'
+import { uniqueName } from './uniqueName.ts'
 import {
   addGroup,
   MAX_PINS,
@@ -22,12 +33,15 @@ import {
   type HomeTab,
 } from './homeTabs.ts'
 
-/** The pinned items of a page, apart from the rest and set off in the accent color. */
+/**
+ * The pinned items of a page or group, apart from the rest and set off in the accent color;
+ * only as wide as what is pinned.
+ */
 export function PinnedSection({ count, children }: { count: number; children: React.ReactNode }) {
   return (
     <section
       aria-label="Pinned"
-      className="grid gap-3 rounded-card bg-surface-sunken p-3 ring-2 ring-accent/60"
+      className="grid w-fit max-w-full min-w-[min(100%,14rem)] gap-3 justify-self-start rounded-card bg-surface-sunken p-3 ring-2 ring-accent/60 has-[ul.divide-y]:w-full"
     >
       <h3 className="flex items-center gap-1.5 text-xs font-semibold tracking-[0.14em] text-ink-muted uppercase">
         <Pin size={13} className="fill-current text-accent" /> Pinned
@@ -67,6 +81,7 @@ export function GroupSection({
       data-drop-id={group.id}
       className={cn(
         'grid gap-3 rounded-card p-2 ring-1 ring-line transition-colors',
+        group.pinned && 'ring-2 ring-accent/60',
         over && 'bg-hover ring-2 ring-accent',
       )}
     >
@@ -86,6 +101,9 @@ export function GroupSection({
           />
           <FolderKanban size={16} className="shrink-0 text-ink-muted" />
           <span className="truncate text-sm font-bold">{group.name}</span>
+          {group.pinned ? (
+            <Pin size={14} aria-label="Pinned" className="shrink-0 fill-current text-accent" />
+          ) : null}
           <span className="shrink-0 text-sm text-ink-muted">{count}</span>
         </button>
         <GroupMenu group={group} tab={tab} onChange={onChange} />
@@ -115,9 +133,9 @@ function GroupMenu({
   const [open, setOpen] = useState(false)
   const [view, setView] = useState<'menu' | 'rename'>('menu')
   const [name, setName] = useState(group.name)
+  const others = tab.groups.filter((g) => g.id !== group.id).map((g) => g.name)
   const rename = () => {
-    const trimmed = name.trim()
-    if (trimmed) onChange(updateGroup(tab, group.id, { name: trimmed }))
+    if (name.trim()) onChange(updateGroup(tab, group.id, { name: uniqueName(name, others) }))
     setOpen(false)
   }
   return (
@@ -137,6 +155,17 @@ function GroupMenu({
       <PopoverContent align="end" className="grid w-72 gap-1 p-2">
         {view === 'menu' ? (
           <>
+            <Button
+              variant="ghost"
+              className="justify-start"
+              icon={group.pinned ? <PinOff size={18} /> : <Pin size={18} />}
+              onClick={() => {
+                setOpen(false)
+                onChange(updateGroup(tab, group.id, { pinned: !group.pinned }))
+              }}
+            >
+              {group.pinned ? 'Unpin group' : 'Pin group'}
+            </Button>
             <Button
               variant="ghost"
               className="justify-start"
@@ -178,6 +207,7 @@ function GroupMenu({
             }}
           >
             <TextField label="Group name" value={name} onChange={(e) => setName(e.target.value)} />
+            <NameHint name={name} taken={others} noun="group" />
             <Button type="submit" variant="primary" disabled={!name.trim()}>
               Rename
             </Button>
@@ -198,11 +228,12 @@ export function NewGroupButton({
 }) {
   const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
+  const taken = tab.groups.map((g) => g.name)
   const create = () => {
-    const trimmed = name.trim()
-    if (!trimmed) return
+    if (!name.trim()) return
+    const unique = uniqueName(name, taken)
     onChange(
-      addGroup(tab, { id: newId(), name: trimmed, itemIds: [], collapsed: false, ownTab: false }),
+      addGroup(tab, { id: newId(), name: unique, itemIds: [], collapsed: false, ownTab: false }),
     )
     setName('')
     setOpen(false)
@@ -232,6 +263,7 @@ export function NewGroupButton({
             value={name}
             onChange={(e) => setName(e.target.value)}
           />
+          <NameHint name={name} taken={taken} noun="group" />
           <p className="text-xs text-ink-muted">
             Groups sit at the top of this page. Hold something and drop it onto a group to put it
             there.

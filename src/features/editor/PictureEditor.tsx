@@ -15,7 +15,9 @@ import {
 } from '../../engine/model/image.ts'
 import type { ImageObject, PictureShape } from '../../engine/model/types.ts'
 import { loadImage } from '../../engine/render/images.ts'
-import { Button, Dialog, DialogContent, Slider, Switch, TextField } from '../../design/index.ts'
+import { Button, Dialog, Slider, Switch, TextField } from '../../design/index.ts'
+import { EditDialog } from './EditDialog.tsx'
+import { changed } from './changed.ts'
 import { ObjectPreview } from './ObjectPreview.tsx'
 
 /** The smallest crop, as a share of the picture's side. */
@@ -74,6 +76,18 @@ function PictureEditorContent({
   const [radius, setRadius] = useState(Math.round(image.cornerRadius ?? 0))
   const [shapeOn, setShapeOn] = useState(Boolean(image.shape))
   const [shape, setShape] = useState<PictureShape>(image.shape ?? 'circle')
+  /** The settings as the editor opened, to tell whether anything changed. */
+  const [initial] = useState(() => [
+    imageCrop(image),
+    image.title ?? '',
+    image.caption ?? '',
+    !image.titleHidden,
+    !image.captionHidden,
+    Math.round(image.fontSize ?? DEFAULT_CAPTION_SIZE),
+    Math.round(image.cornerRadius ?? 0),
+    Boolean(image.shape),
+    image.shape ?? 'circle',
+  ])
   const canvas = useRef<HTMLCanvasElement>(null)
   const area = useRef<HTMLDivElement>(null)
   const drag = useRef<{ grip: Grip; id: number; x: number; y: number; start: Crop } | null>(null)
@@ -179,8 +193,20 @@ function PictureEditorContent({
     : null
   const maxRadius = result ? Math.max(1, Math.floor(Math.min(result.width, shown) / 2)) : 50
 
+  const settings = [crop, title, caption, titleOn, captionOn, fontSize, radius, shapeOn, shape]
   return (
-    <DialogContent title="Edit picture" className="w-[min(46rem,calc(100%-2rem))]">
+    <EditDialog
+      title="Edit picture"
+      className="w-[min(46rem,calc(100%-2rem))]"
+      dirty={changed(initial, settings)}
+      onSave={() => {
+        if (!result) return
+        // Never larger than a medium size on the page.
+        editor.updateObject(mediumPicture(result, editor.pageSize), 'Edit picture')
+        onDone()
+      }}
+      onCancel={onDone}
+    >
       <div className="grid gap-5">
         <div className="grid justify-items-center rounded-control bg-surface-sunken p-3">
           <div
@@ -352,23 +378,6 @@ function PictureEditorContent({
           </section>
         ) : null}
       </div>
-      <div className="mt-6 flex justify-end gap-2">
-        <Button variant="ghost" onClick={onDone}>
-          Cancel
-        </Button>
-        <Button
-          variant="primary"
-          disabled={!result}
-          onClick={() => {
-            if (!result) return
-            // Never larger than a medium size on the page.
-            editor.updateObject(mediumPicture(result, editor.pageSize), 'Edit picture')
-            onDone()
-          }}
-        >
-          Done
-        </Button>
-      </div>
-    </DialogContent>
+    </EditDialog>
   )
 }

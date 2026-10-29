@@ -102,6 +102,20 @@ describe('table numbers', () => {
     expect(data.series[0]!.name).toBe('Math')
   })
 
+  it('reads a table written across as one series', () => {
+    const t = createTable('t', 'l', frame, 2, 3)
+    const across = {
+      ...t,
+      cells: [
+        ['Mon', 'Tue', 'Wed'],
+        ['4', '7', '5'],
+      ],
+    }
+    const data = tableChartData(across)
+    expect(data.labels).toEqual(['Mon', 'Tue', 'Wed'])
+    expect(data.series).toEqual([{ name: 'Values', values: [4, 7, 5] }])
+  })
+
   it('shrinks a table that runs off the page', () => {
     const t = { ...createTable('t', 'l', { ...frame, x: 400 }, 2, 4), rotation: 0 }
     const fitted = fitToPage(t, 595, 842)

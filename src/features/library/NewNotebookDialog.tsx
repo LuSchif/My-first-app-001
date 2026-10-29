@@ -19,6 +19,9 @@ import { PAPER_OPTIONS, paperPreviewStyle } from '../paper.ts'
 import { loadCoverDesigns, removeCoverDesign, saveCoverDesign } from './coverDesigns.ts'
 import { NotebookPreview } from './NotebookPreview.tsx'
 import { FolderField } from './FolderField.tsx'
+import { NameHint } from './NameHint.tsx'
+import { useTakenNames } from './useTakenNames.ts'
+import { uniqueName } from './uniqueName.ts'
 
 const COVERS: { name: string; fill: Fill }[] = [
   { name: 'Mocha', fill: { type: 'solid', color: '#795a46' } },
@@ -43,6 +46,7 @@ export function NewNotebookDialog({
   onFoldersChanged?: () => void
 }) {
   const [title, setTitle] = useState('')
+  const taken = useTakenNames('notebook')
   const [paper, setPaper] = useState<PaperKind>('lined')
   const [cover, setCover] = useState<Fill>(COVERS[0]!.fill)
   const [customCover, setCustomCover] = useState(false)
@@ -61,7 +65,7 @@ export function NewNotebookDialog({
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
-    const name = title.trim()
+    const name = uniqueName(title, taken)
     if (!name || busy) return
     setBusy(true)
     setError(null)
@@ -100,6 +104,7 @@ export function NewNotebookDialog({
               maxLength={80}
               onChange={(e) => setTitle(e.target.value)}
             />
+            <NameHint name={title} taken={taken} noun="notebook" />
 
             <FolderField
               folders={allFolders}

@@ -1,13 +1,39 @@
-import { Trash2 } from 'lucide-react'
+import { LoaderCircle, Trash2 } from 'lucide-react'
 import { useEffect } from 'react'
 import { cn } from '../../lib/cn.ts'
 import { refreshDropTarget, TRASH_BAND_PX, useDragState } from './dragDrop.ts'
+import { useDeleting } from './trash.ts'
 
 /**
  * The trash: while something is held near the bottom of the screen, it comes up there. Dropped
  * on it, a folder, notebook, presentation or page is deleted (with Undo in a notice).
  */
 export function TrashZone() {
+  const deleting = useDeleting()
+  return (
+    <>
+      <DropZone />
+      {deleting ? <Deleting /> : null}
+    </>
+  )
+}
+
+/** While a deletion runs: a small card at the bottom, so it is clear something happens. */
+function Deleting() {
+  return (
+    <div
+      role="status"
+      className="pointer-events-none fixed inset-x-0 bottom-[calc(2rem+env(safe-area-inset-bottom))] z-[79] grid animate-fade-in place-items-center"
+    >
+      <span className="flex items-center gap-2 rounded-full bg-surface-raised px-5 py-3 font-semibold text-ink shadow-overlay">
+        <LoaderCircle size={20} className="animate-spin text-danger" />
+        Deleting…
+      </span>
+    </div>
+  )
+}
+
+function DropZone() {
   const drag = useDragState()
   const shown = drag !== null && drag.y > window.innerHeight - TRASH_BAND_PX
   const over = drag?.over?.kind === 'trash'

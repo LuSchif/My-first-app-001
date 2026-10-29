@@ -3,7 +3,9 @@ import { useState } from 'react'
 import type { Editor, EditorState } from '../../engine/editor/Editor.ts'
 import { fitGraphFrame, tickSize, type GraphAxis } from '../../engine/model/graph.ts'
 import type { GraphObject } from '../../engine/model/types.ts'
-import { Button, Dialog, DialogContent, Slider, Switch, TextField } from '../../design/index.ts'
+import { Dialog, Slider, Switch, TextField } from '../../design/index.ts'
+import { EditDialog } from './EditDialog.tsx'
+import { changed } from './changed.ts'
 import { ObjectPreview } from './ObjectPreview.tsx'
 
 const CHIP_HEIGHT = 48
@@ -55,7 +57,8 @@ function GraphEditorContent({
   graph: GraphObject
   onDone: () => void
 }) {
-  const [draft, setDraft] = useState(() => startingDraft(graph))
+  const [initial] = useState(() => startingDraft(graph))
+  const [draft, setDraft] = useState(initial)
   const shown = fitGraphFrame(draft)
   const depthLength = draft.depth ? Math.hypot(draft.depth.toX, draft.depth.toY) : 0
   const axes: { axis: GraphAxis; name: string; length: number }[] = [
@@ -74,9 +77,18 @@ function GraphEditorContent({
     })
 
   return (
-    <DialogContent title="Edit graph" className="w-[min(46rem,calc(100%-2rem))]">
+    <EditDialog
+      title="Edit graph"
+      className="w-[min(46rem,calc(100%-2rem))]"
+      dirty={changed(initial, draft)}
+      onSave={() => {
+        editor.updateObject(fitGraphFrame(draft), 'Edit graph')
+        onDone()
+      }}
+      onCancel={onDone}
+      preview={<ObjectPreview object={shown} height={220} />}
+    >
       <div className="grid gap-5">
-        <ObjectPreview object={shown} height={260} />
         <TextField
           label="Title"
           value={draft.title}
@@ -156,21 +168,7 @@ function GraphEditorContent({
           format={(v) => `${v} pt`}
         />
       </div>
-      <div className="mt-6 flex justify-end gap-2">
-        <Button variant="ghost" onClick={onDone}>
-          Cancel
-        </Button>
-        <Button
-          variant="primary"
-          onClick={() => {
-            editor.updateObject(fitGraphFrame(draft), 'Edit graph')
-            onDone()
-          }}
-        >
-          Done
-        </Button>
-      </div>
-    </DialogContent>
+    </EditDialog>
   )
 }
 

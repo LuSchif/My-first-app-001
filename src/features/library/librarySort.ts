@@ -48,17 +48,40 @@ export function sortNotebooks(list: Notebook[], sort: NotebookSort): Notebook[] 
 
 /**
  * Runs a drop, then reloads the library. Moving something into another folder (or out of all
- * folders) says so in a notice that can undo it.
+ * folders) says so in a notice that can undo it. A drag of several selected items moves (or
+ * deletes) them all; `after` runs once it is done, e.g. to end the selection.
  */
-export function useDrop(library: Library, reload: () => void, organizer?: Organizer | null) {
+export function makeDrop(
+  library: Library,
+  reload: () => void,
+  organizer?: Organizer | null,
+  after?: () => void,
+) {
   return (item: DragItem) => (target: DropTarget) => {
+    if (item.kind === 'page') return
+    const items = item.many?.length ? item.many : [{ id: item.id, label: item.label }]
+    const done = () => {
+      after?.()
+      reload()
+    }
     if (target.kind === 'trash') {
-      trashItem(item, library, reload)
+      trashItems(item.kind, items, library, done)
       return
     }
     // Groups only sort the home screen; nothing moves between folders.
     if (target.kind === 'group') {
-      organizer?.moveToGroup(item.id, target.id, item.label)
+      organizer?.moveManyToGroup(
+        items.map((i) => i.id),
+        target.id,
+        items.length === 1 ? `“${items[0]!.label}”` : `${items.length} items`,
+      )
+      after?.()
+      return
+    }
+    if (items.length > 1) {
+      // Several at once go into the folder (or out of all folders); none is sorted.
+      const into = target.kind === 'root' ? null : target.id
+      void moveMany(item.kind, items, into, library, done)
       return
     }
     const into = target.kind === 'root' ? null : target.place === 'inside' ? target.id : undefined
@@ -69,10 +92,7 @@ export function useDrop(library: Library, reload: () => void, organizer?: Organi
     applyDrop(item, target, library.folders)
       .then(() => {
         if (into === undefined || before === undefined || into === before) return
-        const where = into
-          ? `“${library.folders.find((f) => f.id === into)?.name ?? 'folder'}”`
-          : 'no folder'
-        showNotice(`Moved “${item.label}” to ${where}.`, {
+        showNotice(`Moved “${item.label}” to ${placeName(into, library)}.`, {
           label: 'Undo',
           run: () => {
             const back =
@@ -82,31 +102,109 @@ export function useDrop(library: Library, reload: () => void, organizer?: Organi
         })
       })
       .catch((err: unknown) => console.error(err))
-      .finally(reload)
+      .finally(done)
   }
 }
 
-/** Drops a folder (with everything in it), notebook or presentation on the trash. */
-function trashItem(item: DragItem, library: Library, reload: () => void): void {
-  if (item.kind === 'notebook') {
-    const notebook = library.notebooks.find((n) => n.id === item.id)
-    const what = notebook ? kindName(notebook) : 'notebook'
-    moveToTrash(
-      [item.id],
-      `Deleted ${what} “${item.label}”.`,
-      () => deleteNotebook(item.id),
-      reload,
-    )
-  } else if (item.kind === 'folder') {
-    const count = countNotebooks(library.folders, library.notebooks, item.id)
-    const contents = count
-      ? ` and the ${count} ${count === 1 ? 'notebook' : 'notebooks'} in it`
-      : ''
-    moveToTrash(
-      [item.id],
-      `Deleted folder “${item.label}”${contents}.`,
-      () => deleteFolder(item.id, false),
-      reload,
-    )
+function placeName(folderId: string | null, library: Library): string {
+  return folderId
+    ? `“${library.folders.find((f) => f.id === folderId)?.name ?? 'folder'}”`
+    : 'no folder'
+}
+
+/**
+ * Moves several folders or notebooks into a folder (or out of all folders), with one notice
+ * that undoes all of it. A folder never goes into itself or its own folders; it is skipped.
+ */
+export async function moveMany(
+  kind: 'folder' | 'notebook',
+  items: readonly { id: string; label: string }[],
+  into: string | null,
+  library: Library,
+  done: () => void,
+): Promise<void> {
+  const moved: { id: string; before: string | null }[] = []
+  for (const { id } of items) {
+    const before =
+      kind === 'notebook'
+        ? library.notebooks.find((n) => n.id === id)?.folderId
+        : library.folders.find((f) => f.id === id)?.parentId
+    if (before === undefined || before === into) continue
+    try {
+      await (kind === 'notebook' ? moveNotebook(id, into) : moveFolder(id, into))
+      moved.push({ id, before })
+    } catch (err) {
+      console.error(err)
+    }
   }
+  done()
+  if (!moved.length) return
+  showNotice(
+    `Moved ${moved.length} ${moved.length === 1 ? 'item' : 'items'} to ${placeName(into, library)}.`,
+    {
+      label: 'Undo',
+      run: () => {
+        void (async () => {
+          for (const { id, before } of moved) {
+            await (kind === 'notebook' ? moveNotebook(id, before) : moveFolder(id, before)).catch(
+              (err: unknown) => console.error(err),
+            )
+          }
+          done()
+        })()
+      },
+    },
+  )
+}
+
+/** Drops folders (with everything in them), notebooks, presentations or decks on the trash. */
+function trashItems(
+  kind: 'folder' | 'notebook',
+  items: readonly { id: string; label: string }[],
+  library: Library,
+  done: () => void,
+): void {
+  const ids = items.map((i) => i.id)
+  if (kind === 'notebook') {
+    const first = library.notebooks.find((n) => n.id === ids[0])
+    const what = first ? kindName(first) : 'notebook'
+    const text =
+      items.length === 1
+        ? `Deleted ${what} “${items[0]!.label}”.`
+        : `Deleted ${items.length} ${pluralKind(what)}.`
+    moveToTrash(
+      ids,
+      text,
+      { notebookIds: ids },
+      async () => {
+        for (const id of ids) await deleteNotebook(id)
+      },
+      done,
+    )
+    return
+  }
+  const count = ids.reduce(
+    (sum, id) => sum + countNotebooks(library.folders, library.notebooks, id),
+    0,
+  )
+  const contents = count
+    ? ` and the ${count} ${count === 1 ? 'notebook' : 'notebooks'} in them`
+    : ''
+  const text =
+    items.length === 1
+      ? `Deleted folder “${items[0]!.label}”${contents.replace('them', 'it')}.`
+      : `Deleted ${items.length} folders${contents}.`
+  moveToTrash(
+    ids,
+    text,
+    { folderIds: ids },
+    async () => {
+      for (const id of ids) await deleteFolder(id, false)
+    },
+    done,
+  )
+}
+
+function pluralKind(what: string): string {
+  return what === 'flashcards' ? 'decks of flashcards' : `${what}s`
 }

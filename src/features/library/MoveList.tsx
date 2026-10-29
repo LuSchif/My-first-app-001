@@ -16,8 +16,8 @@ export function MoveList({
   onPick,
 }: {
   folders: readonly Folder[]
-  /** The folder the item is in now (null: none). */
-  current: Id | null
+  /** The folder the item is in now (null: none; undefined: several items, none marked). */
+  current?: Id | null
   /** A folder being moved; it and its folders are left out. */
   moving?: Id
   onPick: (folderId: Id | null) => void

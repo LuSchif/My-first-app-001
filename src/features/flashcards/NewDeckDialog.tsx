@@ -5,6 +5,9 @@ import { Button, ColorSwatch, DialogContent, DialogFooter, TextField } from '../
 import { cn } from '../../lib/cn.ts'
 import { createNotebookRecord } from '../../storage/notebooks.ts'
 import { FolderField } from '../library/FolderField.tsx'
+import { NameHint } from '../library/NameHint.tsx'
+import { useTakenNames } from '../library/useTakenNames.ts'
+import { uniqueName } from '../library/uniqueName.ts'
 
 const CARD_COLORS = [
   ['White', '#ffffff'],
@@ -29,6 +32,7 @@ export function NewDeckDialog({
   onFoldersChanged?: () => void
 }) {
   const [title, setTitle] = useState('')
+  const taken = useTakenNames('deck')
   const [background, setBackground] = useState<string>(CARD_COLORS[0][1])
   const [folder, setFolder] = useState<Id | null>(folderId)
   const [extraFolders, setExtraFolders] = useState<Folder[]>([])
@@ -41,7 +45,7 @@ export function NewDeckDialog({
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
-    const name = title.trim()
+    const name = uniqueName(title, taken)
     if (!name || busy) return
     setBusy(true)
     setError(null)
@@ -77,6 +81,7 @@ export function NewDeckDialog({
           maxLength={80}
           onChange={(e) => setTitle(e.target.value)}
         />
+        <NameHint name={title} taken={taken} noun="deck of flashcards" />
         <FolderField
           folders={allFolders}
           value={folder}

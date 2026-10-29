@@ -5,6 +5,9 @@ import { Button, ColorSwatch, DialogContent, DialogFooter, TextField } from '../
 import { cn } from '../../lib/cn.ts'
 import { createNotebookRecord } from '../../storage/notebooks.ts'
 import { FolderField } from './FolderField.tsx'
+import { NameHint } from './NameHint.tsx'
+import { useTakenNames } from './useTakenNames.ts'
+import { uniqueName } from './uniqueName.ts'
 
 const BACKGROUNDS = [
   ['White', '#ffffff'],
@@ -34,6 +37,7 @@ export function NewPresentationDialog({
   onFoldersChanged?: () => void
 }) {
   const [title, setTitle] = useState('')
+  const taken = useTakenNames('presentation')
   const [format, setFormat] = useState<keyof typeof SLIDE_SIZES>('wide')
   const [background, setBackground] = useState<string>(BACKGROUNDS[0][1])
   const [folder, setFolder] = useState<Id | null>(folderId)
@@ -47,7 +51,7 @@ export function NewPresentationDialog({
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
-    const name = title.trim()
+    const name = uniqueName(title, taken)
     if (!name || busy) return
     setBusy(true)
     setError(null)
@@ -80,6 +84,7 @@ export function NewPresentationDialog({
           maxLength={80}
           onChange={(e) => setTitle(e.target.value)}
         />
+        <NameHint name={title} taken={taken} noun="presentation" />
         <FolderField
           folders={allFolders}
           value={folder}

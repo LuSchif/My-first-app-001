@@ -693,15 +693,6 @@ function HighlighterSettings({ editor, state }: { editor: Editor; state: EditorS
         onChange={(width) => editor.setHighlighter({ width })}
         format={(v) => `${v} pt`}
       />
-      <Slider
-        label="Opacity"
-        value={Math.round(highlighter.opacity * 100)}
-        min={15}
-        max={90}
-        step={5}
-        onChange={(v) => editor.setHighlighter({ opacity: v / 100 })}
-        format={(v) => `${v}%`}
-      />
       <div role="group" aria-label="Highlighter colors" className="flex flex-wrap">
         {HIGHLIGHTER_COLORS.map(([name, color]) => (
           <ColorSwatch

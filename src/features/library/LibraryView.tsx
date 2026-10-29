@@ -19,9 +19,11 @@ import { PeekLayer } from './Peek.tsx'
 import { NewDeckDialog } from '../flashcards/NewDeckDialog.tsx'
 import type { DocumentKind, Folder, Notebook } from '../../engine/model/types.ts'
 import { cn } from '../../lib/cn.ts'
-import { arrange, type HomeTabKey } from './homeTabs.ts'
+import { arrange, type HomeGroup, type HomeTab, type HomeTabKey } from './homeTabs.ts'
 import { makeOrganizer, OrganizerProvider, useHomeTabs } from './organizer.ts'
 import { GroupSection, NewGroupButton, PinnedSection } from './TabSections.tsx'
+import { SelectButton, SelectionBar } from './SelectionBar.tsx'
+import { SelectionProvider, type LibrarySelection } from './librarySelection.ts'
 import { FolderEditorDialog } from '../folders/FolderEditorDialog.tsx'
 import { CalendarHome } from '../calendar/CalendarHome.tsx'
 import { AppearanceMenu } from './AppearanceMenu.tsx'
@@ -30,6 +32,8 @@ import { FolderGrid, NotebookGrid, type AddAction } from './Grids.tsx'
 import {
   FOLDER_SORTS,
   NOTEBOOK_SORTS,
+  makeDrop,
+  moveMany,
   sortFolders,
   sortNotebooks,
   type FolderSort,
@@ -153,6 +157,39 @@ function Browser({
   const { tabs, change } = useHomeTabs()
   /** The page on screen, which may be a group's own page. */
   const [shown, setShown] = useState<string | null>(null)
+  /** Choosing several items on one page. */
+  const [selecting, setSelecting] = useState<{ page: string; ids: string[] } | null>(null)
+  /** What each page holds, for the selection bar. */
+  const pageItems = new Map<
+    string,
+    { kind: 'folder' | 'notebook'; tab: HomeTabKey; items: { id: string; label: string }[] }
+  >()
+  const clearSelection = () => setSelecting(null)
+  /** A page's content, choosable while selecting there. */
+  const selectable = (page: string, content: React.ReactNode) => {
+    if (selecting?.page !== page) return content
+    const value: LibrarySelection = {
+      ids: selecting.ids,
+      has: (id) => selecting.ids.includes(id),
+      toggle: (id) =>
+        setSelecting((cur) =>
+          cur && cur.page === page
+            ? {
+                page,
+                ids: cur.ids.includes(id) ? cur.ids.filter((i) => i !== id) : [...cur.ids, id],
+              }
+            : cur,
+        ),
+      clear: clearSelection,
+    }
+    return <SelectionProvider value={value}>{content}</SelectionProvider>
+  }
+  const selectButton = (page: string) => (
+    <SelectButton
+      active={selecting?.page === page}
+      onClick={() => setSelecting(selecting?.page === page ? null : { page, ids: [] })}
+    />
+  )
   const topFolders = sortFolders(
     library.folders.filter((f) => f.parentId === null),
     folderSort,
@@ -172,8 +209,9 @@ function Browser({
       onChange={setNotebookSort}
     />
   )
-  const folderGrid = (list: Folder[], add?: AddAction) => (
+  const folderGrid = (list: Folder[], add?: AddAction, compact?: boolean) => (
     <FolderGrid
+      compact={compact}
       folders={list}
       library={library}
       sortable={folderSort === 'custom'}
@@ -182,8 +220,9 @@ function Browser({
       add={add}
     />
   )
-  const notebookGrid = (list: Notebook[], add?: AddAction) => (
+  const notebookGrid = (list: Notebook[], add?: AddAction, compact?: boolean) => (
     <NotebookGrid
+      compact={compact}
       notebooks={list}
       library={library}
       reload={reload}
@@ -199,66 +238,90 @@ function Browser({
     title: string,
     actions: React.ReactNode,
     items: T[],
-    grid: (list: T[], add?: AddAction) => React.ReactNode,
+    grid: (list: T[], add?: AddAction, compact?: boolean) => React.ReactNode,
     add: AddAction,
     empty: string,
   ): CarouselPage[] => {
     const tab = tabs[key]
-    const organizer = makeOrganizer(tab, (next) => change(key, next))
+    const onChange = (next: HomeTab) => change(key, next)
+    const kind = key === 'folders' ? 'folder' : 'notebook'
+    const label = (item: T) =>
+      'name' in item ? String(item.name) : 'title' in item ? String(item.title) : ''
+    const organizer = makeOrganizer(tab, onChange)
     const { pinned, groups, rest } = arrange(tab, items)
+    /** A group's items, its own pinned ones apart; pins there belong to the group. */
+    const groupContent = (group: HomeGroup, own: T[], list: T[]) => (
+      <OrganizerProvider value={makeOrganizer(tab, onChange, group.id)}>
+        <div className="grid gap-3">
+          {own.length ? (
+            <PinnedSection count={own.length}>{grid(own, undefined, true)}</PinnedSection>
+          ) : null}
+          {list.length ? grid(list) : null}
+        </div>
+      </OrganizerProvider>
+    )
+    pageItems.set(key, {
+      kind,
+      tab: key,
+      items: items.map((item) => ({ id: item.id, label: label(item) })),
+    })
     const main: CarouselPage = {
       key,
       title,
       actions: (
         <>
-          <NewGroupButton tab={tab} onChange={(next) => change(key, next)} />
+          {selectButton(key)}
+          <NewGroupButton tab={tab} onChange={onChange} />
           {actions}
         </>
       ),
-      content: (
+      content: selectable(
+        key,
         <OrganizerProvider value={organizer}>
           <div className="grid gap-4">
             {pinned.length ? (
-              <PinnedSection count={pinned.length}>{grid(pinned)}</PinnedSection>
+              <PinnedSection count={pinned.length}>{grid(pinned, undefined, true)}</PinnedSection>
             ) : null}
-            {groups.map(({ group, items: list }) => (
+            {groups.map(({ group, pinned: own, items: list }) => (
               <GroupSection
                 key={group.id}
                 group={group}
-                count={list.length}
+                count={own.length + list.length}
                 tab={tab}
-                onChange={(next) => change(key, next)}
+                onChange={onChange}
               >
-                {grid(list)}
+                {groupContent(group, own, list)}
               </GroupSection>
             ))}
             {items.length === 0 ? <p className="text-sm text-ink-muted">{empty}</p> : null}
-            {grid(rest, add)}
+            {grid(rest, selecting?.page === key ? undefined : add)}
           </div>
-        </OrganizerProvider>
+        </OrganizerProvider>,
       ),
     }
-    const own = tab.groups
-      .filter((group) => group.ownTab)
-      .map((group): CarouselPage => {
-        const members = new Set(group.itemIds)
-        const list = items.filter((item) => members.has(item.id))
+    const own = groups
+      .filter(({ group }) => group.ownTab)
+      .map(({ group, pinned: ownPins, items: list }): CarouselPage => {
+        const page = `group:${group.id}`
+        pageItems.set(page, {
+          kind,
+          tab: key,
+          items: [...ownPins, ...list].map((item) => ({ id: item.id, label: label(item) })),
+        })
         return {
-          key: `group:${group.id}`,
+          key: page,
           title: group.name,
           group: true,
-          content: (
-            <OrganizerProvider value={organizer}>
-              {list.length ? (
-                grid(list)
-              ) : (
-                <p className="text-sm text-ink-muted">
-                  Nothing in “{group.name}” yet. On the {title} page, hold something and drop it
-                  onto this group.
-                </p>
-              )}
-            </OrganizerProvider>
-          ),
+          actions: selectButton(page),
+          content:
+            ownPins.length + list.length ? (
+              selectable(page, groupContent(group, ownPins, list))
+            ) : (
+              <p className="text-sm text-ink-muted">
+                Nothing in “{group.name}” yet. On the {title} page, hold something and drop it onto
+                this group.
+              </p>
+            ),
         }
       })
     return [main, ...own]
@@ -316,6 +379,53 @@ function Browser({
     0,
     pages.findIndex((p) => p.key === (shown ?? page)),
   )
+  const chosen = selecting ? pageItems.get(selecting.page) : undefined
+  const bar =
+    selecting && chosen ? (
+      <SelectionBar
+        kind={chosen.kind}
+        ids={selecting.ids}
+        total={chosen.items.length}
+        folders={library.folders}
+        tab={tabs[chosen.tab]}
+        onCancel={clearSelection}
+        onSelectAll={() =>
+          setSelecting({ page: selecting.page, ids: chosen.items.map((i) => i.id) })
+        }
+        onMove={(folderId) => {
+          const items = chosen.items.filter((i) => selecting.ids.includes(i.id))
+          void moveMany(chosen.kind, items, folderId, library, () => {
+            clearSelection()
+            reload()
+          })
+        }}
+        onGroup={(groupId) => {
+          const tab = tabs[chosen.tab]
+          makeOrganizer(tab, (next) => change(chosen.tab, next)).moveManyToGroup(
+            selecting.ids,
+            groupId,
+            `${selecting.ids.length} ${selecting.ids.length === 1 ? 'item' : 'items'}`,
+          )
+          clearSelection()
+        }}
+        onDelete={() => {
+          const items = chosen.items.filter((i) => selecting.ids.includes(i.id))
+          const first = items[0]
+          if (!first) return
+          makeDrop(
+            library,
+            reload,
+            null,
+            clearSelection,
+          )({
+            kind: chosen.kind,
+            id: first.id,
+            label: first.label,
+            many: items,
+          })({ kind: 'trash' })
+        }}
+      />
+    ) : null
   return (
     <>
       <Carousel
@@ -324,12 +434,18 @@ function Browser({
         onIndex={(i) => {
           const key = pages[i]?.key ?? 'create'
           setShown(key)
+          if (selecting && selecting.page !== key) setSelecting(null)
           // Only the main pages are remembered for the next visit.
           const main = PAGES.find((p) => p === key)
           if (main) setPage(main)
         }}
         // A held notebook, presentation or deck can be dropped into any folder from here.
-        overlay={<FolderDropStrip folders={library.folders} notebooks={library.notebooks} />}
+        overlay={
+          <>
+            <FolderDropStrip folders={library.folders} notebooks={library.notebooks} />
+            {bar}
+          </>
+        }
         className="min-h-[28rem] flex-1"
       />
       <Creator

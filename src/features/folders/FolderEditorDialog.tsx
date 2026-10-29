@@ -8,6 +8,9 @@ import { createFolderRecord, updateFolder } from '../../storage/folders.ts'
 import { FillEditor } from './FillEditor.tsx'
 import { FolderGraphic } from './FolderGraphic.tsx'
 import { DEFAULT_FOLDER_ICON, FOLDER_ICON_GROUPS, folderIcon } from './folderIcons.ts'
+import { NameHint } from '../library/NameHint.tsx'
+import { useTakenNames } from '../library/useTakenNames.ts'
+import { uniqueName } from '../library/uniqueName.ts'
 
 const DEFAULT_FILL: Fill = {
   type: 'linear',
@@ -34,6 +37,7 @@ export function FolderEditorDialog({
   onSaved: (folder: Folder) => void
 }) {
   const [name, setName] = useState(folder?.name ?? '')
+  const taken = useTakenNames('folder', folder?.id)
   const [fill, setFill] = useState<Fill>(folder?.fill ?? DEFAULT_FILL)
   const [icon, setIcon] = useState(folder?.icon ?? DEFAULT_FOLDER_ICON)
   // Both design options start folded, so the dialog fits without scrolling.
@@ -43,7 +47,7 @@ export function FolderEditorDialog({
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault()
-    const trimmed = name.trim()
+    const trimmed = uniqueName(name, taken)
     if (!trimmed || busy) return
     setBusy(true)
     setError(null)
@@ -82,6 +86,7 @@ export function FolderEditorDialog({
               maxLength={60}
               onChange={(e) => setName(e.target.value)}
             />
+            <NameHint name={name} taken={taken} noun="folder" />
             <Fold
               title="Color"
               open={tab === 'color'}

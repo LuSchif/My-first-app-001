@@ -8,6 +8,7 @@ import {
   HOME_TABS,
   MAX_PINS,
   moveToGroup,
+  pinsOf,
   togglePin,
   type HomeGroup,
   type HomeTab,
@@ -50,26 +51,47 @@ export function useHomeTabs(): {
 /** What a card on a home screen page can do with its page's pins and groups. */
 export interface Organizer {
   tab: HomeTab
+  /** Where pins go: the page (null) or the group the card is shown in. */
+  scope: Id | null
   isPinned: (id: Id) => boolean
   togglePin: (id: Id, label: string) => void
   groupOf: (id: Id) => HomeGroup | null
   moveToGroup: (id: Id, groupId: Id | null, label: string) => void
+  /** Several items at once; `what` names them in the notice, e.g. "3 items". */
+  moveManyToGroup: (ids: Id[], groupId: Id | null, what: string) => void
 }
 
-export function makeOrganizer(tab: HomeTab, change: (next: HomeTab) => void): Organizer {
+export function makeOrganizer(
+  tab: HomeTab,
+  change: (next: HomeTab) => void,
+  scope: Id | null = null,
+): Organizer {
+  const where = scope ? tab.groups.find((g) => g.id === scope)?.name : null
   return {
     tab,
-    isPinned: (id) => tab.pins.includes(id),
+    scope,
+    isPinned: (id) => pinsOf(tab, scope).includes(id),
     togglePin: (id, label) => {
-      const next = togglePin(tab, id)
+      const next = togglePin(tab, id, scope)
       if (!next) {
         showNotice(`Up to ${MAX_PINS} can be pinned here. Unpin one first.`)
         return
       }
       change(next)
-      if (next.pins.includes(id)) showNotice(`Pinned “${label}”.`)
+      if (pinsOf(next, scope).includes(id)) {
+        showNotice(where ? `Pinned “${label}” in “${where}”.` : `Pinned “${label}”.`)
+      }
     },
     groupOf: (id) => groupOf(tab, id),
+    moveManyToGroup: (ids, groupId, what) => {
+      const next = ids.reduce((t, id) => moveToGroup(t, id, groupId), tab)
+      change(next)
+      const group = tab.groups.find((g) => g.id === groupId)
+      showNotice(group ? `Added ${what} to “${group.name}”.` : `Took ${what} out of their group.`, {
+        label: 'Undo',
+        run: () => change(tab),
+      })
+    },
     moveToGroup: (id, groupId, label) => {
       const before = groupOf(tab, id)
       if ((before?.id ?? null) === groupId) return
