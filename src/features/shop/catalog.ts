@@ -18,6 +18,11 @@ export interface Product {
   status: 'available' | 'coming-soon'
   /** A design pack's look. */
   pack?: DesignPackId
+  /**
+   * The product's id in App Store Connect (a non-consumable in-app purchase), for paid items
+   * sold in the app.
+   */
+  appStoreId?: string
   /** What the item's card shows when it has no picture: an icon name and two colors. */
   art?: {
     icon: 'calendar' | 'notebook' | 'sticker' | 'tape' | 'target' | 'clock' | 'layout'
@@ -52,6 +57,7 @@ export const PRODUCTS: Product[] = [
     price: 499,
     status: 'available',
     pack: 'sakura-dusk',
+    appStoreId: 'com.luisschiffter.broomit.pack.sakuradusk',
   },
   {
     id: 'pack.golden-hour',
@@ -62,6 +68,7 @@ export const PRODUCTS: Product[] = [
     price: 499,
     status: 'available',
     pack: 'golden-hour',
+    appStoreId: 'com.luisschiffter.broomit.pack.goldenhour',
   },
   {
     id: 'pack.nebula-night',
@@ -72,6 +79,7 @@ export const PRODUCTS: Product[] = [
     price: 499,
     status: 'available',
     pack: 'nebula-night',
+    appStoreId: 'com.luisschiffter.broomit.pack.nebulanight',
   },
   {
     id: 'planner.weekly-2026',

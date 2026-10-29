@@ -1,47 +1,109 @@
+import { registerPlugin, type PluginListenerHandle } from '@capacitor/core'
 import { useEffect, useState } from 'react'
+import { designPack } from '../../design/packs.ts'
+import { applyTheme, loadTheme, saveTheme } from '../../design/theme.ts'
+import { isNativeApp } from '../../lib/install.ts'
 import { db } from '../../storage/db.ts'
-import type { Product, Purchase } from './catalog.ts'
+import { PRODUCTS, type Product, type Purchase } from './catalog.ts'
 
 /**
- * Buying in the shop. A payment provider (a checkout of a payment service, or the App Store
- * in a native wrapper) plugs in here with `setPaymentProvider`; everything else asks only
- * whether something is owned. Until one is connected, buying is a test purchase: the item is
- * unlocked on this device, marked as a test, and nothing is charged.
+ * Buying in the shop. In the App Store app, purchases go through Apple (StoreKit 2, in
+ * `ios/App/App/Store.swift`): Apple shows its purchase sheet, signs the transaction, and the
+ * app asks StoreKit what is owned. In a browser there is no App Store: buying is a test
+ * purchase, unlocked on that device, marked `test`, and nothing is charged. Test purchases
+ * never count in the app.
  */
 
-export interface PaymentProvider {
-  /** Takes the payment; resolves true once it went through. */
-  checkout: (product: Product) => Promise<boolean>
+interface StorePlugin {
+  products(options: { ids: string[] }): Promise<{
+    products: { id: string; title: string; price: string }[]
+  }>
+  buy(options: { id: string }): Promise<{ status: 'purchased' | 'pending' | 'cancelled' }>
+  owned(): Promise<{ ids: string[] }>
+  restore(): Promise<{ ids: string[] }>
+  addListener(event: 'changed', listener: () => void): Promise<PluginListenerHandle>
 }
 
-let provider: PaymentProvider | null = null
+const Store = registerPlugin<StorePlugin>('Store')
 
-export function setPaymentProvider(next: PaymentProvider | null): void {
-  provider = next
+/** Whether purchases are real (the App Store app) rather than tests (a browser). */
+export function realPayments(): boolean {
+  return isNativeApp()
 }
 
-/** Whether real payments are connected; without, the shop says purchases are tests. */
-export function paymentsConnected(): boolean {
-  return provider !== null
-}
+export type BuyResult = 'purchased' | 'pending' | 'cancelled'
 
 const listeners = new Set<() => void>()
+function changed(): void {
+  for (const listener of listeners) listener()
+}
 
-/** Buys (or, if free, takes) a product; resolves whether it is now owned. */
-export async function buy(product: Product): Promise<boolean> {
-  if (product.status !== 'available') return false
-  let test = false
-  if (product.price > 0) {
-    if (provider) {
-      if (!(await provider.checkout(product))) return false
-    } else {
-      test = true
+/** Buys (or, if free, takes) a product. */
+export async function buy(product: Product): Promise<BuyResult> {
+  if (product.status !== 'available') return 'cancelled'
+  if (product.price > 0 && realPayments()) {
+    if (!product.appStoreId) throw new Error('This item is not in the App Store yet.')
+    const { status } = await Store.buy({ id: product.appStoreId })
+    if (status === 'purchased') await syncWithStore()
+    return status
+  }
+  const purchase: Purchase = {
+    productId: product.id,
+    at: Date.now(),
+    test: product.price > 0,
+  }
+  await db.purchases.put(purchase)
+  changed()
+  return 'purchased'
+}
+
+/**
+ * Makes the stored purchases match what the App Store says is owned: new ones (bought on
+ * another iPad, restored, approved later) are added, refunded ones removed. A design pack in
+ * use that is no longer owned is taken off.
+ */
+export async function syncWithStore(restore = false): Promise<void> {
+  if (!realPayments()) return
+  const { ids } = restore ? await Store.restore() : await Store.owned()
+  const owned = new Set(ids)
+  const stored = new Map((await db.purchases.toArray()).map((p) => [p.productId, p]))
+  for (const product of PRODUCTS) {
+    if (!product.appStoreId) continue
+    const has = owned.has(product.appStoreId)
+    const record = stored.get(product.id)
+    if (has && (!record || record.test)) {
+      await db.purchases.put({ productId: product.id, at: Date.now(), test: false })
+    } else if (!has && record && !record.test) {
+      await db.purchases.delete(product.id)
     }
   }
-  const purchase: Purchase = { productId: product.id, at: Date.now(), test }
-  await db.purchases.put(purchase)
-  for (const listener of listeners) listener()
-  return true
+  const theme = loadTheme()
+  const pack = designPack(theme.pack)
+  if (pack && !owned.has(PRODUCTS.find((p) => p.pack === pack.id)?.appStoreId ?? '')) {
+    const next = { ...theme, pack: null }
+    applyTheme(next)
+    saveTheme(next)
+  }
+  changed()
+}
+
+/** "Restore purchases": asks the App Store again for everything bought with this Apple ID. */
+export function restorePurchases(): Promise<void> {
+  return syncWithStore(true)
+}
+
+/** Once at start in the app: catches up with the App Store, and follows later changes. */
+export function watchStore(): void {
+  if (!realPayments()) return
+  syncWithStore().catch((err: unknown) => console.error(err))
+  void Store.addListener('changed', () => {
+    syncWithStore().catch((err: unknown) => console.error(err))
+  })
+}
+
+/** Whether a purchase counts here: in the app, only real ones. */
+function counts(purchase: Purchase): boolean {
+  return !realPayments() || !purchase.test
 }
 
 /** What is owned, kept up to date. */
@@ -52,7 +114,7 @@ export function usePurchases(): Purchase[] {
     const load = () =>
       db.purchases
         .toArray()
-        .then((all) => alive && setList(all))
+        .then((all) => alive && setList(all.filter(counts)))
         .catch((err: unknown) => console.error(err))
     void load()
     listeners.add(load)
@@ -62,4 +124,32 @@ export function usePurchases(): Purchase[] {
     }
   }, [])
   return list
+}
+
+/** In the app, the App Store's prices (in the buyer's currency), by product id. */
+export function useStorePrices(): Map<string, string> {
+  const [prices, setPrices] = useState(new Map<string, string>())
+  useEffect(() => {
+    if (!realPayments()) return
+    let alive = true
+    const ids = PRODUCTS.flatMap((p) => (p.appStoreId ? [p.appStoreId] : []))
+    Store.products({ ids })
+      .then(({ products }) => {
+        if (!alive) return
+        const byStoreId = new Map(products.map((p) => [p.id, p.price]))
+        setPrices(
+          new Map(
+            PRODUCTS.flatMap((p) => {
+              const price = p.appStoreId && byStoreId.get(p.appStoreId)
+              return price ? [[p.id, price] as const] : []
+            }),
+          ),
+        )
+      })
+      .catch((err: unknown) => console.error(err))
+    return () => {
+      alive = false
+    }
+  }, [])
+  return prices
 }

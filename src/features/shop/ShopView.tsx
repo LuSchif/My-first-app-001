@@ -12,7 +12,7 @@ import {
   Target,
   Waypoints,
 } from 'lucide-react'
-import { useState } from 'react'
+import { createContext, useContext, useState } from 'react'
 import { navigate } from '../../app/router.ts'
 import { Button, Dialog, DialogContent } from '../../design/index.ts'
 import { designPack, packImage, type DesignPack } from '../../design/packs.ts'
@@ -20,7 +20,7 @@ import { applyTheme, loadTheme, saveTheme } from '../../design/theme.ts'
 import { cn } from '../../lib/cn.ts'
 import { showNotice } from '../../lib/notices.ts'
 import { CATEGORIES, PRODUCTS, priceLabel, type Product, type ProductKind } from './catalog.ts'
-import { buy, paymentsConnected, usePurchases } from './purchases.ts'
+import { buy, realPayments, restorePurchases, usePurchases, useStorePrices } from './purchases.ts'
 
 /**
  * The Broomit shop: design packs that restyle the whole app, and (coming soon) planners,
@@ -28,6 +28,8 @@ import { buy, paymentsConnected, usePurchases } from './purchases.ts'
  */
 export function ShopView() {
   const purchases = usePurchases()
+  const prices = useStorePrices()
+  const [restoring, setRestoring] = useState(false)
   const owned = new Set(purchases.map((p) => p.productId))
   const [category, setCategory] = useState<ProductKind | 'all'>('all')
   const [open, setOpen] = useState<Product | null>(null)
@@ -43,119 +45,150 @@ export function ShopView() {
   }
 
   return (
-    <div className="min-h-full px-4 pt-[calc(2rem+env(safe-area-inset-top))] pb-16 sm:px-8">
-      <div className="mx-auto grid max-w-6xl gap-8">
-        <header className="grid gap-4">
-          <button
-            type="button"
-            onClick={() => navigate({ name: 'library' })}
-            className="flex items-center gap-1 justify-self-start rounded-control py-1 pr-2 text-sm font-semibold text-ink-muted hover:bg-hover"
-          >
-            <ChevronLeft size={18} /> Library
-          </button>
-          <div className="flex flex-wrap items-end justify-between gap-3">
-            <div className="grid gap-1">
-              <h1 className="text-4xl font-bold tracking-tight">Shop</h1>
-              <p className="text-ink-muted">
-                Design packs, planners, templates and design elements. Some free, some paid.
-              </p>
+    <PricesContext.Provider value={prices}>
+      <div className="min-h-full px-4 pt-[calc(2rem+env(safe-area-inset-top))] pb-16 sm:px-8">
+        <div className="mx-auto grid max-w-6xl gap-8">
+          <header className="grid gap-4">
+            <button
+              type="button"
+              onClick={() => navigate({ name: 'library' })}
+              className="flex items-center gap-1 justify-self-start rounded-control py-1 pr-2 text-sm font-semibold text-ink-muted hover:bg-hover"
+            >
+              <ChevronLeft size={18} /> Library
+            </button>
+            <div className="flex flex-wrap items-end justify-between gap-3">
+              <div className="grid gap-1">
+                <h1 className="text-4xl font-bold tracking-tight">Shop</h1>
+                <p className="text-ink-muted">
+                  Design packs, planners, templates and design elements. Some free, some paid.
+                </p>
+              </div>
             </div>
-          </div>
-          {paymentsConnected() ? null : (
-            <p className="flex items-start gap-2 rounded-card bg-surface-raised p-3 text-sm text-ink-muted ring-1 ring-line">
-              <FlaskConical size={18} className="mt-0.5 shrink-0 text-accent" />
-              <span>
-                Test mode: payments are not connected yet. Buying unlocks an item on this device
-                without charging anything.
-              </span>
-            </p>
-          )}
-        </header>
+            {realPayments() ? (
+              <Button
+                className="justify-self-start"
+                disabled={restoring}
+                onClick={() => {
+                  setRestoring(true)
+                  restorePurchases()
+                    .then(() => showNotice('Your purchases are restored.'))
+                    .catch((err: unknown) => {
+                      console.error(err)
+                      showNotice('Purchases could not be restored. Check your connection.')
+                    })
+                    .finally(() => setRestoring(false))
+                }}
+              >
+                Restore purchases
+              </Button>
+            ) : (
+              <p className="flex items-start gap-2 rounded-card bg-surface-raised p-3 text-sm text-ink-muted ring-1 ring-line">
+                <FlaskConical size={18} className="mt-0.5 shrink-0 text-accent" />
+                <span>
+                  Test mode: in the browser, buying unlocks an item on this device without charging
+                  anything. Real purchases are made in the Broomit app from the App Store.
+                </span>
+              </p>
+            )}
+          </header>
 
-        <section className="grid gap-4" aria-label="Design packs">
-          <h2 className="text-xs font-semibold tracking-[0.14em] text-ink-muted uppercase">
-            Design packs
-          </h2>
-          <ul className="grid gap-4 md:grid-cols-3">
-            {packs.map((product) => {
-              const pack = designPack(product.pack)!
-              return (
+          <section className="grid gap-4" aria-label="Design packs">
+            <h2 className="text-xs font-semibold tracking-[0.14em] text-ink-muted uppercase">
+              Design packs
+            </h2>
+            <ul className="grid gap-4 md:grid-cols-3">
+              {packs.map((product) => {
+                const pack = designPack(product.pack)!
+                return (
+                  <li key={product.id}>
+                    <PackCard
+                      product={product}
+                      pack={pack}
+                      owned={owned.has(product.id)}
+                      inUse={inUse === pack.id}
+                      onOpen={() => setOpen(product)}
+                    />
+                  </li>
+                )
+              })}
+            </ul>
+          </section>
+
+          <section className="grid gap-4" aria-label="Everything">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-xs font-semibold tracking-[0.14em] text-ink-muted uppercase">
+                Everything
+              </h2>
+              <div role="tablist" aria-label="Categories" className="flex flex-wrap gap-1">
+                {CATEGORIES.map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    role="tab"
+                    aria-selected={category === value}
+                    onClick={() => setCategory(value)}
+                    className="h-9 rounded-full px-3 text-sm font-semibold text-ink-muted ring-1 ring-line hover:bg-hover aria-selected:bg-ink aria-selected:text-ink-inverse aria-selected:ring-ink"
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <ul className="grid grid-cols-[repeat(auto-fill,minmax(12rem,1fr))] gap-4">
+              {shown.map((product) => (
                 <li key={product.id}>
-                  <PackCard
+                  <ProductCard
                     product={product}
-                    pack={pack}
                     owned={owned.has(product.id)}
-                    inUse={inUse === pack.id}
                     onOpen={() => setOpen(product)}
                   />
                 </li>
-              )
-            })}
-          </ul>
-        </section>
-
-        <section className="grid gap-4" aria-label="Everything">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-xs font-semibold tracking-[0.14em] text-ink-muted uppercase">
-              Everything
-            </h2>
-            <div role="tablist" aria-label="Categories" className="flex flex-wrap gap-1">
-              {CATEGORIES.map(([value, label]) => (
-                <button
-                  key={value}
-                  type="button"
-                  role="tab"
-                  aria-selected={category === value}
-                  onClick={() => setCategory(value)}
-                  className="h-9 rounded-full px-3 text-sm font-semibold text-ink-muted ring-1 ring-line hover:bg-hover aria-selected:bg-ink aria-selected:text-ink-inverse aria-selected:ring-ink"
-                >
-                  {label}
-                </button>
               ))}
-            </div>
-          </div>
-          <ul className="grid grid-cols-[repeat(auto-fill,minmax(12rem,1fr))] gap-4">
-            {shown.map((product) => (
-              <li key={product.id}>
-                <ProductCard
-                  product={product}
-                  owned={owned.has(product.id)}
-                  onOpen={() => setOpen(product)}
-                />
-              </li>
-            ))}
-          </ul>
-        </section>
-      </div>
+            </ul>
+          </section>
+        </div>
 
-      <Dialog open={open !== null} onOpenChange={(o) => !o && setOpen(null)}>
-        {open ? (
-          <ProductDetails
-            product={open}
-            owned={owned.has(open.id)}
-            inUse={open.pack !== undefined && inUse === open.pack}
-            onBuy={async () => {
-              const ok = await buy(open).catch((err: unknown) => {
-                console.error(err)
-                return false
-              })
-              if (!ok) {
-                showNotice('The purchase did not go through.')
-                return
-              }
-              const pack = designPack(open.pack)
-              if (pack) applyPack(pack)
-              showNotice(pack ? `${pack.name} is yours, and now in use.` : `${open.name} is yours.`)
-            }}
-            onUse={(use) => applyPack(use ? (designPack(open.pack) ?? null) : null)}
-          />
-        ) : null}
-      </Dialog>
-    </div>
+        <Dialog open={open !== null} onOpenChange={(o) => !o && setOpen(null)}>
+          {open ? (
+            <ProductDetails
+              product={open}
+              owned={owned.has(open.id)}
+              inUse={open.pack !== undefined && inUse === open.pack}
+              onBuy={async () => {
+                const result = await buy(open).catch((err: unknown) => {
+                  console.error(err)
+                  showNotice('The purchase did not go through. Nothing was charged.')
+                  return 'failed' as const
+                })
+                if (result === 'pending') {
+                  showNotice(
+                    'The purchase waits for approval. It unlocks as soon as it is approved.',
+                  )
+                }
+                if (result !== 'purchased') return
+                const pack = designPack(open.pack)
+                if (pack) applyPack(pack)
+                showNotice(
+                  pack ? `${pack.name} is yours, and now in use.` : `${open.name} is yours.`,
+                )
+              }}
+              onUse={(use) => applyPack(use ? (designPack(open.pack) ?? null) : null)}
+            />
+          ) : null}
+        </Dialog>
+      </div>
+    </PricesContext.Provider>
   )
 }
 
 /** A design pack, large: its wallpaper, colors and what it costs (or that it is yours). */
+/** The App Store's prices in the app (in the buyer's currency); the catalog's elsewhere. */
+const PricesContext = createContext<Map<string, string>>(new Map())
+
+function usePrice(product: Product): string {
+  return useContext(PricesContext).get(product.id) ?? priceLabel(product.price)
+}
+
 function PackCard({
   product,
   pack,
@@ -169,11 +202,12 @@ function PackCard({
   inUse: boolean
   onOpen: () => void
 }) {
+  const price = usePrice(product)
   return (
     <button
       type="button"
       onClick={onOpen}
-      aria-label={`${product.name}, ${owned ? 'owned' : priceLabel(product.price)}`}
+      aria-label={`${product.name}, ${owned ? 'owned' : price}`}
       className="group grid w-full overflow-hidden rounded-card bg-surface-raised text-left shadow-soft ring-1 ring-line transition-transform duration-200 ease-gentle hover:-translate-y-0.5"
     >
       <span className="relative block aspect-[3/2] overflow-hidden">
@@ -224,6 +258,7 @@ function Palette6({ pack, large = false }: { pack: DesignPack; large?: boolean }
 }
 
 function PriceTag({ product, owned }: { product: Product; owned: boolean }) {
+  const price = usePrice(product)
   if (owned) {
     return (
       <span className="flex shrink-0 items-center gap-1 rounded-full bg-surface-sunken px-2.5 py-1 text-xs font-semibold">
@@ -233,7 +268,7 @@ function PriceTag({ product, owned }: { product: Product; owned: boolean }) {
   }
   return (
     <span className="shrink-0 rounded-full bg-ink px-2.5 py-1 text-xs font-semibold text-ink-inverse">
-      {priceLabel(product.price)}
+      {price}
     </span>
   )
 }
@@ -258,6 +293,7 @@ function ProductCard({
   owned: boolean
   onOpen: () => void
 }) {
+  const price = usePrice(product)
   const pack = designPack(product.pack)
   const soon = product.status === 'coming-soon'
   return (
@@ -274,9 +310,7 @@ function ProductCard({
         </span>
         <span className="line-clamp-2 text-sm text-ink-muted">{product.description}</span>
         {soon ? (
-          <span className="mt-1 text-xs font-semibold text-ink-subtle">
-            Coming soon · {priceLabel(product.price)}
-          </span>
+          <span className="mt-1 text-xs font-semibold text-ink-subtle">Coming soon · {price}</span>
         ) : null}
       </span>
     </button>
@@ -321,6 +355,7 @@ function ProductDetails({
   onBuy: () => Promise<void>
   onUse: (use: boolean) => void
 }) {
+  const price = usePrice(product)
   const [busy, setBusy] = useState(false)
   const pack = designPack(product.pack)
   const soon = product.status === 'coming-soon'
@@ -365,9 +400,7 @@ function ProductDetails({
         ) : null}
         <div className="flex flex-wrap items-center justify-end gap-2 border-t border-line pt-4">
           {soon ? (
-            <span className="text-sm font-semibold text-ink-muted">
-              Coming soon · {priceLabel(product.price)}
-            </span>
+            <span className="text-sm font-semibold text-ink-muted">Coming soon · {price}</span>
           ) : owned ? (
             pack ? (
               inUse ? (
@@ -394,7 +427,7 @@ function ProductDetails({
                 void onBuy().finally(() => setBusy(false))
               }}
             >
-              {product.price ? `Buy for ${priceLabel(product.price)}` : 'Get it free'}
+              {product.price ? `Buy for ${price}` : 'Get it free'}
             </Button>
           )}
         </div>

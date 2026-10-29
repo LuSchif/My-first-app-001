@@ -4,6 +4,7 @@ import { EditorView } from '../features/editor/EditorView.tsx'
 import { FolderView } from '../features/folders/FolderView.tsx'
 import { LibraryView } from '../features/library/LibraryView.tsx'
 import { ShopView } from '../features/shop/ShopView.tsx'
+import { watchStore } from '../features/shop/purchases.ts'
 import { requestPersistentStorage } from '../storage/db.ts'
 import { usePencilTaps } from '../lib/usePencilTaps.ts'
 import { useRequestedFocus } from '../lib/useRequestedFocus.ts'
@@ -25,6 +26,8 @@ export function App() {
 
   useEffect(() => {
     void requestPersistentStorage()
+    // In the App Store app: purchases follow what Apple says is owned.
+    watchStore()
   }, [])
 
   return (

@@ -507,8 +507,15 @@ The editor was moved ahead of the dashboard (packages 2–3) so the tools can be
   takes the accent. Packs: Sakura Dusk, Golden Hour, Nebula Night, 4,99 € each.
 - A pack is part of the theme setting (`ThemeSetting.pack`) and wins over the other theme
   choices. Bought packs show in the appearance menu with a switch each.
-- Buying (`purchases.ts`) goes through a payment provider plugged in with
-  `setPaymentProvider` (a payment service's checkout, or the App Store in a native wrapper).
-  The app has no server yet, so none is connected: buying is then a test purchase, unlocked
-  on the device, marked `test`, and the shop says so. Purchases are kept in the `purchases`
-  table and in backups.
+- Buying (`purchases.ts`): in the App Store app, through Apple with StoreKit 2. A small native
+  plugin of our own (`ios/App/App/Store.swift`, registered by `BroomitViewController` in
+  `SceneDelegate.swift`) loads the App Store's prices, shows Apple's purchase sheet, and says
+  what is owned (`Transaction.currentEntitlements`); StoreKit checks Apple's signature on the
+  device, so no server is needed. Each paid product has an `appStoreId` (a non-consumable in
+  App Store Connect, e.g. `com.luisschiffter.broomit.pack.sakuradusk`). At start and on every
+  transaction update the stored purchases follow the App Store (bought elsewhere, restored,
+  refunded); a refunded pack in use is taken off. The shop offers "Restore purchases", as
+  Apple requires.
+- In a browser there is no App Store: buying is a test purchase, unlocked on that device and
+  marked `test`; the shop says so. Test purchases never count in the app. Purchases are kept
+  in the `purchases` table and in backups.
