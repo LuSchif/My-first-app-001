@@ -5,16 +5,22 @@ import { useSyncExternalStore } from 'react'
  * and inside a future native wrapper, without server rewrites.
  */
 export type Route =
-  { name: 'library' } | { name: 'notebook'; id: string } | { name: 'folder'; id: string }
+  | { name: 'library' }
+  | { name: 'shop' }
+  | { name: 'notebook'; id: string }
+  | { name: 'folder'; id: string }
 
 export function parseRoute(hash: string): Route {
+  if (hash === '#/shop') return { name: 'shop' }
   const match = /^#\/(notebook|folder)\/([\w-]+)$/.exec(hash)
   if (match?.[1] && match[2]) return { name: match[1] as 'notebook' | 'folder', id: match[2] }
   return { name: 'library' }
 }
 
 export function routeToHash(route: Route): string {
-  return route.name === 'library' ? '#/' : `#/${route.name}/${route.id}`
+  if (route.name === 'library') return '#/'
+  if (route.name === 'shop') return '#/shop'
+  return `#/${route.name}/${route.id}`
 }
 
 export function navigate(route: Route): void {

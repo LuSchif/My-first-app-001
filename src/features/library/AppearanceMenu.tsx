@@ -1,4 +1,4 @@
-import { Moon, Palette, Plus, X } from 'lucide-react'
+import { Moon, Palette, Plus, Store, X } from 'lucide-react'
 import { useState } from 'react'
 import {
   Button,
@@ -19,6 +19,9 @@ import {
 } from '../../design/theme.ts'
 import { fillBaseColor, fillToCss, type Fill } from '../../engine/model/fill.ts'
 import { FillEditor } from '../folders/FillEditor.tsx'
+import { navigate } from '../../app/router.ts'
+import { DESIGN_PACKS, packImage, type DesignPackId } from '../../design/packs.ts'
+import { usePurchases } from '../shop/purchases.ts'
 import { NameHint } from './NameHint.tsx'
 import {
   loadThemePresets,
@@ -59,8 +62,54 @@ function isOwn(theme: ThemeSetting): boolean {
   )
 }
 
+/** The design packs bought in the shop, each with a switch; and the way to the shop. */
+function DesignPacks({
+  active,
+  onChange,
+}: {
+  active: DesignPackId | null
+  onChange: (pack: DesignPackId | null) => void
+}) {
+  const purchases = usePurchases()
+  const owned = DESIGN_PACKS.filter((pack) =>
+    purchases.some((p) => p.productId === `pack.${pack.id}`),
+  )
+  return (
+    <div className="grid gap-2">
+      <p className="text-sm font-semibold">Design packs</p>
+      {owned.map((pack) => (
+        <div
+          key={pack.id}
+          className="flex items-center gap-2 rounded-control bg-surface-sunken py-1 pr-1 pl-1.5"
+        >
+          <img
+            src={packImage(pack.thumb)}
+            alt=""
+            className="h-9 w-12 shrink-0 rounded-md object-cover"
+          />
+          <div className="min-w-0 flex-1">
+            <Switch
+              label={pack.name}
+              checked={active === pack.id}
+              onChange={(on) => onChange(on ? pack.id : null)}
+            />
+          </div>
+        </div>
+      ))}
+      <Button
+        variant="ghost"
+        className="justify-start"
+        icon={<Store size={18} />}
+        onClick={() => navigate({ name: 'shop' })}
+      >
+        {owned.length ? 'More in the shop' : 'Get design packs in the shop'}
+      </Button>
+    </div>
+  )
+}
+
 /**
- * Colors the interface: one of Broomit's looks, or your own color or color gradient (which can
+ * Colors the interface: a design pack, one of Broomit's looks, or your own color or color gradient (which can
  * be saved as named presets), light or dark.
  */
 export function AppearanceMenu() {
@@ -81,6 +130,13 @@ export function AppearanceMenu() {
         align="end"
         className="grid max-h-[min(48rem,calc(100dvh-8rem-var(--kb-height,0px)))] w-[22rem] gap-4 overflow-y-auto"
       >
+        <DesignPacks
+          active={theme.pack ?? null}
+          onChange={(pack) => {
+            if (pack) setCustom(false)
+            choose(pack ? { ...theme, pack } : { accent: null, dark: theme.dark, gradient: null })
+          }}
+        />
         <p className="text-sm font-semibold">Interface colors</p>
         <div role="group" aria-label="Themes" className="flex flex-wrap">
           {THEME_PRESETS.map(([name, color]) => (
@@ -88,7 +144,7 @@ export function AppearanceMenu() {
               key={name}
               label={name}
               fill={{ type: 'solid', color: color ?? '#b98b65' }}
-              selected={!custom && theme.accent === color}
+              selected={!custom && !theme.pack && theme.accent === color}
               onSelect={() => {
                 setCustom(false)
                 choose({ accent: color, dark: theme.dark, gradient: null })

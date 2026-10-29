@@ -1,6 +1,7 @@
 import type { Asset, Folder, Notebook, Page } from '../engine/model/types.ts'
 import type { CalendarSource, DayMark, OwnEvent } from '../features/calendar/model.ts'
 import type { HomeTab } from '../features/library/homeTabs.ts'
+import type { Purchase } from '../features/shop/catalog.ts'
 import { db, type BroomitDatabase } from './db.ts'
 
 /**
@@ -21,6 +22,8 @@ export interface Backup {
   calendar?: { events: OwnEvent[]; days: DayMark[]; sources: CalendarSource[] }
   /** What is pinned and grouped on the home screen. Older backups have none. */
   home?: HomeTab[]
+  /** What was bought in the shop. Older backups have none. */
+  purchases?: Purchase[]
 }
 
 export interface BackupAsset extends Omit<Asset, 'blob'> {
@@ -41,6 +44,7 @@ export async function createBackup(database: BroomitDatabase = db): Promise<Back
         database.calendarDays,
         database.calendarSources,
         database.homeTabs,
+        database.purchases,
       ],
       async () => ({
         format: 'broomit-backup' as const,
@@ -56,6 +60,7 @@ export async function createBackup(database: BroomitDatabase = db): Promise<Back
           sources: await database.calendarSources.toArray(),
         },
         home: await database.homeTabs.toArray(),
+        purchases: await database.purchases.toArray(),
       }),
     )
     .then(async ({ assets, ...rest }) => ({
@@ -150,9 +155,11 @@ export async function restoreBackup(
       database.calendarDays,
       database.calendarSources,
       database.homeTabs,
+      database.purchases,
     ],
     async () => {
       await database.assets.bulkPut(assets)
+      if (Array.isArray(backup.purchases)) await database.purchases.bulkPut(backup.purchases)
       if (Array.isArray(backup.home)) await database.homeTabs.bulkPut(backup.home)
       if (backup.calendar) {
         await database.calendarEvents.bulkPut(backup.calendar.events ?? [])

@@ -494,3 +494,21 @@ The editor was moved ahead of the dashboard (packages 2–3) so the tools can be
 | 4a–4c   | Engine: camera, pages, paper, fineliner, highlighter, undo, autosave    | Done     |
 | 5a–5d   | Broom, lasso and transforms, text boxes, layers, PWA, backup            | Done     |
 | 6–10    | Full layers, text, tables, charts, colour drag and drop, PDF, polish    | 6–7 done |
+
+## Shop
+
+- The shop (`#/shop`, `features/shop`) is the last entry of the Create page. It lists free and
+  paid products (`catalog.ts`): design packs, planners, templates and design elements. Only
+  the design packs can be bought so far; the rest show as "Coming soon".
+- A design pack (`design/packs.ts`) is a whole look: a wallpaper behind the app (in
+  `public/shop`, under a veil so text stays readable) and a full set of color tokens taken
+  from its design sheet, so buttons, panels, menus, dialogs, the calendar and the editor all
+  follow it. Panels blur the wallpaper behind them (`[data-pack]`), and the "it" of the logo
+  takes the accent. Packs: Sakura Dusk, Golden Hour, Nebula Night, 4,99 € each.
+- A pack is part of the theme setting (`ThemeSetting.pack`) and wins over the other theme
+  choices. Bought packs show in the appearance menu with a switch each.
+- Buying (`purchases.ts`) goes through a payment provider plugged in with
+  `setPaymentProvider` (a payment service's checkout, or the App Store in a native wrapper).
+  The app has no server yet, so none is connected: buying is then a test purchase, unlocked
+  on the device, marked `test`, and the shop says so. Purchases are kept in the `purchases`
+  table and in backups.

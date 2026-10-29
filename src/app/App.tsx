@@ -3,6 +3,7 @@ import { TooltipProvider } from '../design/index.ts'
 import { EditorView } from '../features/editor/EditorView.tsx'
 import { FolderView } from '../features/folders/FolderView.tsx'
 import { LibraryView } from '../features/library/LibraryView.tsx'
+import { ShopView } from '../features/shop/ShopView.tsx'
 import { requestPersistentStorage } from '../storage/db.ts'
 import { usePencilTaps } from '../lib/usePencilTaps.ts'
 import { useRequestedFocus } from '../lib/useRequestedFocus.ts'
@@ -32,6 +33,8 @@ export function App() {
         <EditorView key={route.id} id={route.id} />
       ) : route.name === 'folder' ? (
         <FolderView key={route.id} id={route.id} />
+      ) : route.name === 'shop' ? (
+        <ShopView />
       ) : (
         <LibraryView />
       )}

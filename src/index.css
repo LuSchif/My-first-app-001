@@ -18,10 +18,28 @@ html {
 
 body {
   @apply bg-surface font-sans text-ink antialiased;
-  /* A gradient theme shows its colors behind everything (see design/theme.ts). */
-  background-image: var(--app-backdrop, none);
-  background-attachment: fixed;
   -webkit-tap-highlight-color: transparent;
+}
+
+/*
+ * A gradient theme or a design pack's wallpaper shows behind everything (design/theme.ts), in
+ * a layer that stays put while the page scrolls (iPadOS ignores fixed backgrounds).
+ */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image: var(--app-backdrop, none);
+  background-size: cover;
+  background-position: center;
+}
+
+/* A design pack's wallpaper shows a little through raised panels. */
+[data-pack] .bg-surface-raised {
+  -webkit-backdrop-filter: blur(14px) saturate(1.1);
+  backdrop-filter: blur(14px) saturate(1.1);
 }
 
 /*
@@ -112,4 +130,9 @@ body {
   50% {
     opacity: 0;
   }
+}
+
+/* With a design pack, the "it" of the Broomit logo takes its accent, as in its design sheet. */
+[data-pack] .brand-it {
+  color: var(--color-accent);
 }

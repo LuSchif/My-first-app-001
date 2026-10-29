@@ -4,6 +4,8 @@
  * knowing about themes. The canvas reads the desk color from the same token.
  */
 
+import { designPack, packImage, type DesignPackId } from './packs.ts'
+
 export interface ThemeSetting {
   /** The color the theme is built from; null for Broomit's own look. */
   accent: string | null
@@ -13,6 +15,8 @@ export interface ThemeSetting {
    * readable) and `accent` is its first color.
    */
   gradient?: ThemeGradient | null
+  /** A design pack from the shop: its own colors and wallpaper, over everything else here. */
+  pack?: DesignPackId | null
 }
 
 export interface ThemeGradient {
@@ -63,6 +67,8 @@ function alpha(color: string, a: number): string {
 
 /** The color tokens of a theme, by token name without the `--color-` prefix. */
 export function themeColors(setting: ThemeSetting): Record<string, string> | null {
+  const pack = designPack(setting.pack)
+  if (pack) return pack.colors
   if (!setting.accent && !setting.dark) return null
   const accent = setting.accent ?? MOCHA
   const black = '#000000'
@@ -148,10 +154,16 @@ export function applyTheme(setting: ThemeSetting): void {
     root.style.setProperty(`--color-${name}`, value)
     applied.add(name)
   }
-  const backdrop = themeBackdrop(setting)
+  const pack = designPack(setting.pack)
+  const backdrop = pack
+    ? `${pack.veil}, url("${packImage(pack.wallpaper)}")`
+    : themeBackdrop(setting)
   if (backdrop) root.style.setProperty('--app-backdrop', backdrop)
   else root.style.removeProperty('--app-backdrop')
-  root.style.colorScheme = setting.dark ? 'dark' : 'light'
+  // With a wallpaper, panels let a little of it through (index.css).
+  if (pack) root.setAttribute('data-pack', pack.id)
+  else root.removeAttribute('data-pack')
+  root.style.colorScheme = (pack ? pack.dark : setting.dark) ? 'dark' : 'light'
   const surface = getComputedStyle(root).getPropertyValue('--color-surface').trim()
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', surface)
   window.dispatchEvent(new Event(THEME_EVENT))
@@ -161,11 +173,12 @@ export function loadTheme(): ThemeSetting {
   try {
     const value: unknown = JSON.parse(localStorage.getItem(KEY) ?? 'null')
     if (value && typeof value === 'object') {
-      const { accent, dark, gradient } = value as Record<string, unknown>
+      const { accent, dark, gradient, pack } = value as Record<string, unknown>
       return {
         accent: typeof accent === 'string' && /^#[0-9a-f]{6}$/i.test(accent) ? accent : null,
         dark: dark === true,
         gradient: isGradient(gradient) ? gradient : null,
+        pack: typeof pack === 'string' && designPack(pack) ? (pack as DesignPackId) : null,
       }
     }
   } catch {

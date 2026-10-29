@@ -7,7 +7,7 @@ import {
   Plus,
   Presentation,
   Search,
-  Sparkles,
+  Store,
   X,
 } from 'lucide-react'
 import { useState } from 'react'
@@ -64,7 +64,9 @@ export function LibraryView() {
     <div className="min-h-full px-4 pt-[calc(2rem+env(safe-area-inset-top))] pb-16 sm:px-8">
       <div className="mx-auto grid max-w-6xl gap-6">
         <header className="flex flex-wrap items-center gap-3">
-          <h1 className="mr-2 text-3xl font-bold tracking-tight">Broomit</h1>
+          <h1 className="mr-2 text-3xl font-bold tracking-tight">
+            Broom<span className="brand-it">it</span>
+          </h1>
           <div className="order-last w-full sm:order-none sm:w-auto sm:min-w-[14rem] sm:flex-1">
             <SearchField value={query} onChange={setQuery} />
           </div>
@@ -487,10 +489,7 @@ const CREATE_OPTIONS: [NonNullable<Creating>, string, string, React.ReactNode][]
   ],
 ]
 
-/**
- * The Create page, as a compact list or as tiles. Room for six: the last place is held for what
- * comes next ("Placeholder", as the owner asked; it does nothing yet).
- */
+/** The Create page, as a compact list or as tiles, with the shop last. Room for six. */
 function CreateOptions({
   layout,
   onPick,
@@ -499,23 +498,27 @@ function CreateOptions({
   onPick: (kind: NonNullable<Creating>) => void
 }) {
   const tiles = layout === 'tiles'
-  const placeholder = (
-    <li key="placeholder">
-      <div
-        aria-disabled="true"
+  const shop = (
+    <li key="shop" className="min-w-0">
+      <button
+        type="button"
+        onClick={() => navigate({ name: 'shop' })}
         className={cn(
-          'flex w-full rounded-card text-ink-subtle ring-2 ring-line ring-inset [border-style:dashed]',
+          'flex w-full rounded-card bg-surface text-left ring-1 ring-line transition-transform duration-150 ease-gentle hover:bg-surface-sunken active:scale-[0.99]',
           tiles ? 'h-full flex-col justify-center gap-2 p-4' : 'items-center gap-3 p-3',
         )}
       >
-        <span className="grid size-11 shrink-0 place-items-center rounded-control bg-surface-sunken">
-          <Sparkles size={22} />
+        <span className="grid size-11 shrink-0 place-items-center rounded-control bg-accent text-ink-inverse shadow-soft">
+          <Store size={22} />
         </span>
-        <span className="min-w-0">
-          <span className="block text-base font-bold">Placeholder</span>
-          <span className="block text-sm">Coming soon.</span>
+        <span className={cn('min-w-0', !tiles && 'flex-1')}>
+          <span className="block text-base font-bold">Shop</span>
+          <span className={cn('block text-sm text-ink-muted', tiles ? 'line-clamp-3' : 'truncate')}>
+            Design packs, planners and templates, free and paid.
+          </span>
         </span>
-      </div>
+        {tiles ? null : <ChevronRight size={20} className="shrink-0 text-ink-muted" />}
+      </button>
     </li>
   )
   return (
@@ -549,7 +552,7 @@ function CreateOptions({
           </button>
         </li>
       ))}
-      {placeholder}
+      {shop}
     </ul>
   )
 }
