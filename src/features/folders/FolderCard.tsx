@@ -14,6 +14,9 @@ import { deleteFolder, duplicateFolder, moveFolder } from '../../storage/folders
 import { useDraggable, useDragState, type DropTarget } from '../library/dragDrop.ts'
 import { countNotebooks } from '../library/libraryActions.ts'
 import { MoveList } from '../library/MoveList.tsx'
+import { useOrganizer } from '../library/organizer.ts'
+import { GroupList, OrganizeItems } from '../library/OrganizeMenu.tsx'
+import { PinMark, TILE_TEXT } from '../library/NotebookCard.tsx'
 import { FolderEditorDialog } from './FolderEditorDialog.tsx'
 import { FolderGraphic } from './FolderGraphic.tsx'
 
@@ -45,6 +48,7 @@ export function FolderCard({
   const dragging = drag?.item.kind === 'folder' && drag.item.id === folder.id
   const count = countNotebooks(folders, notebooks, folder.id)
   const subfolders = folders.filter((f) => f.parentId === folder.id).length
+  const pinned = useOrganizer()?.isPinned(folder.id) ?? false
 
   return (
     <li
@@ -52,7 +56,7 @@ export function FolderCard({
       data-drop-id={folder.id}
       {...(sortable ? { 'data-drop-sort': '' } : {})}
       className={cn(
-        'relative grid min-w-0 grid-cols-[minmax(0,1fr)] content-start gap-2 transition-opacity',
+        'relative grid min-w-0 grid-cols-[minmax(0,1fr)] content-start gap-2.5 transition-opacity',
         dragging && 'opacity-40',
       )}
     >
@@ -78,7 +82,8 @@ export function FolderCard({
       >
         <FolderGraphic fill={folder.fill} icon={folder.icon} open={over === 'inside'} />
       </button>
-      <div className="flex items-start justify-between gap-1">
+      {pinned ? <PinMark /> : null}
+      <div className={cn('flex items-start justify-between gap-1', TILE_TEXT)}>
         <div className="min-w-0 text-sm">
           <p className="truncate font-semibold">{folder.name}</p>
           <p className="text-ink-muted">
@@ -177,7 +182,7 @@ function FolderMenu({
   className?: string
 }) {
   const [open, setOpen] = useState(false)
-  const [view, setView] = useState<'menu' | 'move' | 'delete'>('menu')
+  const [view, setView] = useState<'menu' | 'move' | 'group' | 'delete'>('menu')
   const [editing, setEditing] = useState(false)
   const [busy, setBusy] = useState(false)
   const run = async (action: () => Promise<unknown>) => {
@@ -211,6 +216,12 @@ function FolderMenu({
         <PopoverContent align="end" className="grid w-72 gap-1 p-2">
           {view === 'menu' ? (
             <>
+              <OrganizeItems
+                id={folder.id}
+                label={folder.name}
+                onGroups={() => setView('group')}
+                onDone={() => setOpen(false)}
+              />
               <Button
                 variant="ghost"
                 className="justify-start"
@@ -248,6 +259,8 @@ function FolderMenu({
                 Delete…
               </Button>
             </>
+          ) : view === 'group' ? (
+            <GroupList id={folder.id} label={folder.name} onDone={() => setOpen(false)} />
           ) : view === 'move' ? (
             <MoveList
               folders={folders}

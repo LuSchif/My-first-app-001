@@ -1,7 +1,17 @@
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight, FolderKanban } from 'lucide-react'
 import { useEffect, useRef, type ReactNode } from 'react'
 import { IconButton } from '../../design/index.ts'
 import { cn } from '../../lib/cn.ts'
+
+/** Tile sizes, in px: a tile is 6:5, with its name and details under it (`TILE_TEXT`). */
+const TILE_TEXT_PX = 72 + 10
+const ROW_GAP = 20
+const COLUMN_GAP = 20
+const MIN_COLUMNS = 3
+const TILE_MIN = 112
+const TILE_MAX = 240
+/** Kept free below the second row, so it never touches the page's edge. */
+const SLACK = 6
 
 export interface CarouselPage {
   key: string
@@ -10,6 +20,8 @@ export interface CarouselPage {
   actions?: ReactNode
   /** Makes the page a place to drop notebooks and folders out of their folder. */
   drop?: 'root'
+  /** A group's own page: marked as one in the row of names. */
+  group?: boolean
   content: ReactNode
 }
 
@@ -32,16 +44,63 @@ export function Carousel({
   className?: string
 }) {
   const track = useRef<HTMLDivElement>(null)
+  const names = useRef<HTMLDivElement>(null)
   /** The page an arrow or name slides to; pages passed on the way do not count. */
   const aim = useRef<number | null>(null)
   const current = Math.max(0, Math.min(pages.length - 1, index))
   const first = useRef(current)
+
+  // Tiles get one size on every page: as big as fits two full rows of them in a page.
+  useEffect(() => {
+    const el = track.current
+    const body = el?.querySelector<HTMLElement>('[data-carousel-body]')
+    if (!el || !body) return
+    const fit = () => {
+      const style = getComputedStyle(body)
+      const h = body.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom)
+      const w = body.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight)
+      const tile = Math.floor(
+        Math.max(
+          TILE_MIN,
+          Math.min(
+            TILE_MAX,
+            (((h - ROW_GAP - SLACK) / 2 - TILE_TEXT_PX) * 6) / 5,
+            (w - (MIN_COLUMNS - 1) * COLUMN_GAP) / MIN_COLUMNS,
+          ),
+        ),
+      )
+      el.style.setProperty('--tile-w', `${tile}px`)
+      el.style.setProperty('--tile-max', `${tile}px`)
+    }
+    fit()
+    const observer = new ResizeObserver(fit)
+    observer.observe(body)
+    return () => observer.disconnect()
+  }, [])
 
   // The page chosen last time is shown again, without sliding there.
   useEffect(() => {
     const el = track.current
     if (el) el.scrollLeft = first.current * el.clientWidth
   }, [])
+
+  // Pages added or removed before the one shown (a group's own page) keep it in view.
+  const keys = pages.map((p) => p.key).join('|')
+  const shownKey = pages[current]?.key
+  const knownKeys = useRef(keys)
+  useEffect(() => {
+    const el = track.current
+    // Only when the pages change, not on every swipe.
+    if (!el || knownKeys.current === keys) return
+    knownKeys.current = keys
+    if (aim.current === null) el.scrollLeft = current * el.clientWidth
+  }, [keys, current])
+  // The name of the page shown stays visible in the row of names.
+  useEffect(() => {
+    names.current
+      ?.querySelector<HTMLElement>('[aria-current="true"]')
+      ?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' })
+  }, [shownKey])
 
   const go = (next: number) => {
     const el = track.current
@@ -87,7 +146,10 @@ export function Carousel({
                 </h2>
                 {page.actions ? <div className="flex flex-wrap gap-1">{page.actions}</div> : null}
               </div>
-              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4">
+              <div
+                data-carousel-body=""
+                className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4"
+              >
                 {page.content}
               </div>
             </section>
@@ -102,17 +164,23 @@ export function Carousel({
           disabled={current === 0}
           onClick={() => go(current - 1)}
         />
-        {pages.map((page, i) => (
-          <button
-            key={page.key}
-            type="button"
-            aria-current={i === current}
-            onClick={() => go(i)}
-            className="h-9 rounded-full px-3 text-sm font-semibold text-ink-muted hover:bg-hover aria-current:bg-ink aria-current:text-ink-inverse"
-          >
-            {page.title}
-          </button>
-        ))}
+        <div
+          ref={names}
+          className="flex min-w-0 items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
+          {pages.map((page, i) => (
+            <button
+              key={page.key}
+              type="button"
+              aria-current={i === current}
+              onClick={() => go(i)}
+              className="flex h-9 shrink-0 items-center gap-1.5 rounded-full px-3 text-sm font-semibold whitespace-nowrap text-ink-muted hover:bg-hover aria-current:bg-ink aria-current:text-ink-inverse"
+            >
+              {page.group ? <FolderKanban size={14} aria-label="Group" /> : null}
+              {page.title}
+            </button>
+          ))}
+        </div>
         <IconButton
           label="Next"
           icon={<ChevronRight size={20} />}

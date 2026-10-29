@@ -77,7 +77,9 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
   area covers the gaps around it, and touches on the keyboard are cancelled, so iPadOS cannot
   take fast taps as a double-tap zoom or a selection.
 - Return confirms a one-line field and closes the keyboard; it never submits a form. Tapping
-  anywhere else closes the keyboard once the tap is complete. Fields that save on blur get a
+  anywhere else closes the keyboard once the tap is complete, and only after the tap's click
+  (iPadOS sends it a moment later; closing earlier moves the button away from under it, so
+  "Create notebook" needed a second tap). Fields that save on blur get a
   blur when typing ends.
 - The keyboard's height (`lib/keyboardInset.ts`, CSS `--kb-height`) shrinks the visible area,
   so dialogs and the canvas keep the field in view.
@@ -88,7 +90,21 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
   it, today's calendar on the left (about two fifths of the width); on the right a carousel
   (`Carousel.tsx`): a Create page first, then one page each for the top-level folders, every
   notebook, every presentation and every deck of flashcards on the device, wherever it is
-  filed (a chip shows its folder). Each page ends with a + to make one more. Swipe or use the arrows and names below it; the page shown is remembered.
+  filed (a chip shows its folder). Each page starts with a + to make one more. Swipe or use the
+  arrows and names below it (the row of names scrolls when there are many); the page shown is
+  remembered.
+- Tiles have one size on every page: the carousel works out the largest tile width that fits
+  two full rows in a page (at least three columns) and sets it as `--tile-w`. Every tile is
+  6:5 with a name block of fixed height under it (`TILE_TEXT`), so folders, notebooks,
+  presentations and flashcards line up. Presentations show their first slide with a chart
+  badge in the middle, flashcards their stacked cards, both without a box around them.
+- Pins and groups (`homeTabs.ts`, stored in the `homeTabs` table and in backups): each page
+  except Create can pin up to five items (card menu "Pin"), shown at the top in a highlighted
+  "Pinned" box, and can have groups ("New group" at the top, e.g. "School"). Groups sit above
+  the rest, open and close by their name, and take what is dropped on them
+  (`data-drop="group"`) or picked with "Add to group…". A group's menu renames it, removes it
+  (its items stay) or shows it as a page of its own right after its page. Groups only arrange
+  the home screen; folders are not changed. A pinned item shows only with the pins.
   Both sides are as tall as the screen allows and scroll inside. Folders and notebooks have
   their own sort order (folders: own order, name, recently edited).
 - Folders and notebooks show as tiles or as a list (`libraryLayout.ts`, kept per device; the
@@ -103,8 +119,10 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
   notebook there (`editor/openAt.ts`); "Open" opens it from the start, "Open folder" shows the
   folder's own page (`#/folder/<id>`). The last tile of a notebook's pages, "Add page" ("Add
   slide"), adds an empty page on the notebook's paper at the end (`appendPage`).
-- The carousel's first page, Create, lists what can be made (notebook, folder, presentation);
-  it is the page shown on first start. While a
+- The carousel's first page, Create, lists what can be made (notebook, folder, presentation,
+  flashcards), as a compact list or as tiles, with room for six. The last place is a
+  "Placeholder" for a feature that comes next, at the owner's request; it does nothing yet.
+  It is the page shown on first start. While a
   notebook or presentation is held, every folder slides up in a row at the bottom of the
   carousel (`FolderDropStrip.tsx`); holding it near either end scrolls the row. Every move
   into or out of a folder shows a notice with Undo (`lib/notices.ts`).

@@ -2,6 +2,7 @@ import { Plus } from 'lucide-react'
 import type { Folder, Notebook } from '../../engine/model/types.ts'
 import { FolderCard, FolderRow } from '../folders/FolderCard.tsx'
 import { useDrop } from './librarySort.ts'
+import { useOrganizer } from './organizer.ts'
 import { openPeek } from './peek.ts'
 import type { LibraryLayout } from './libraryLayout.ts'
 import { NotebookCard, NotebookRow } from './NotebookCard.tsx'
@@ -10,9 +11,14 @@ import type { Library } from './useLibrary.ts'
 /** The list view's frame: rows on one card, divided by lines. */
 const LIST =
   'grid divide-y divide-line overflow-hidden rounded-card bg-surface-raised ring-1 ring-line'
-const TILES = 'grid grid-cols-[repeat(auto-fill,minmax(9.5rem,1fr))] items-start gap-x-5 gap-y-7'
+/**
+ * Tiles: on the home screen every tile has the one width the carousel sets (`--tile-w`, so two
+ * rows fit), spread across the row; elsewhere they fill their columns.
+ */
+const TILES =
+  'grid grid-cols-[repeat(auto-fill,minmax(var(--tile-w,9.5rem),var(--tile-max,1fr)))] items-start justify-between gap-x-5 gap-y-5'
 
-/** The + at the end of a grid or list that makes one more, e.g. "New folder". */
+/** The + first in a grid or list that makes one more, e.g. "New folder". */
 export interface AddAction {
   label: string
   onAdd: () => void
@@ -34,11 +40,12 @@ export function FolderGrid({
   add?: AddAction
   layout?: LibraryLayout
 }) {
-  const drop = useDrop(library, reload)
+  const drop = useDrop(library, reload, useOrganizer())
   if (layout === 'list') {
     if (!folders.length && !add) return null
     return (
       <ul className={LIST}>
+        {add ? <AddItem add={add} layout="list" /> : null}
         {folders.map((folder) => (
           <FolderRow
             key={folder.id}
@@ -51,12 +58,12 @@ export function FolderGrid({
             sortable={sortable}
           />
         ))}
-        {add ? <AddItem add={add} layout="list" /> : null}
       </ul>
     )
   }
   return (
     <ul className={TILES}>
+      {add ? <AddItem add={add} layout="tiles" /> : null}
       {folders.map((folder) => (
         <FolderCard
           key={folder.id}
@@ -69,12 +76,11 @@ export function FolderGrid({
           sortable={sortable}
         />
       ))}
-      {add ? <AddItem add={add} layout="tiles" /> : null}
     </ul>
   )
 }
 
-/** A big + tile after the last tile, or a "+ New …" row at the end of the list. */
+/** A big + tile before the first tile, or a "+ New …" row at the top of the list. */
 function AddItem({ add, layout }: { add: AddAction; layout: LibraryLayout }) {
   return (
     <li className="grid min-w-0">
@@ -124,7 +130,7 @@ export function NotebookGrid({
   showFolder?: boolean
   layout?: LibraryLayout
 }) {
-  const drop = useDrop(library, reload)
+  const drop = useDrop(library, reload, useOrganizer())
   const props = (notebook: Notebook) => ({
     notebook,
     folders: library.folders,
@@ -136,19 +142,19 @@ export function NotebookGrid({
   if (layout === 'list') {
     return (
       <ul className={LIST}>
+        {add ? <AddItem add={add} layout="list" /> : null}
         {notebooks.map((notebook) => (
           <NotebookRow key={notebook.id} {...props(notebook)} />
         ))}
-        {add ? <AddItem add={add} layout="list" /> : null}
       </ul>
     )
   }
   return (
     <ul className={TILES}>
+      {add ? <AddItem add={add} layout="tiles" /> : null}
       {notebooks.map((notebook) => (
         <NotebookCard key={notebook.id} {...props(notebook)} />
       ))}
-      {add ? <AddItem add={add} layout="tiles" /> : null}
     </ul>
   )
 }

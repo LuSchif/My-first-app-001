@@ -7,6 +7,7 @@ import {
   Plus,
   Presentation,
   Search,
+  Sparkles,
   X,
 } from 'lucide-react'
 import { useState } from 'react'
@@ -16,12 +17,16 @@ import { Carousel, type CarouselPage } from './Carousel.tsx'
 import { FolderDropStrip } from './FolderDropStrip.tsx'
 import { PeekLayer } from './Peek.tsx'
 import { NewDeckDialog } from '../flashcards/NewDeckDialog.tsx'
-import type { DocumentKind } from '../../engine/model/types.ts'
+import type { DocumentKind, Folder, Notebook } from '../../engine/model/types.ts'
+import { cn } from '../../lib/cn.ts'
+import { arrange, type HomeTabKey } from './homeTabs.ts'
+import { makeOrganizer, OrganizerProvider, useHomeTabs } from './organizer.ts'
+import { GroupSection, NewGroupButton, PinnedSection } from './TabSections.tsx'
 import { FolderEditorDialog } from '../folders/FolderEditorDialog.tsx'
 import { CalendarHome } from '../calendar/CalendarHome.tsx'
 import { AppearanceMenu } from './AppearanceMenu.tsx'
 import { DragGhost } from './DragGhost.tsx'
-import { FolderGrid, NotebookGrid } from './Grids.tsx'
+import { FolderGrid, NotebookGrid, type AddAction } from './Grids.tsx'
 import {
   FOLDER_SORTS,
   NOTEBOOK_SORTS,
@@ -112,7 +117,11 @@ export function LibraryView() {
 
 const PAGES = ['create', 'folders', 'notebooks', 'presentations', 'flashcards'] as const
 
-/** The folders, the notebooks and the presentations, one page of the carousel each. */
+/**
+ * The carousel: Create, then folders, notebooks, presentations and flashcards. Each of those
+ * pages has its pinned items and its groups at the top; a group can also be a page of its own,
+ * right after its page.
+ */
 function Browser({
   library,
   reload,
@@ -141,6 +150,9 @@ function Browser({
     'recent',
     NOTEBOOK_SORTS.map(([v]) => v),
   )
+  const { tabs, change } = useHomeTabs()
+  /** The page on screen, which may be a group's own page. */
+  const [shown, setShown] = useState<string | null>(null)
   const topFolders = sortFolders(
     library.folders.filter((f) => f.parentId === null),
     folderSort,
@@ -160,108 +172,162 @@ function Browser({
       onChange={setNotebookSort}
     />
   )
-  const documents = (kind: DocumentKind, add: string, empty: string): React.ReactNode => {
-    const list = ofKind(kind)
-    return (
-      <>
-        {list.length === 0 ? <p className="mb-4 text-sm text-ink-muted">{empty}</p> : null}
-        <NotebookGrid
-          notebooks={list}
-          library={library}
-          reload={reload}
-          layout={layout}
-          showFolder
-          add={{ label: add, onAdd: () => setCreating(kind) }}
-        />
-      </>
-    )
+  const folderGrid = (list: Folder[], add?: AddAction) => (
+    <FolderGrid
+      folders={list}
+      library={library}
+      sortable={folderSort === 'custom'}
+      reload={reload}
+      layout={layout}
+      add={add}
+    />
+  )
+  const notebookGrid = (list: Notebook[], add?: AddAction) => (
+    <NotebookGrid
+      notebooks={list}
+      library={library}
+      reload={reload}
+      layout={layout}
+      showFolder
+      add={add}
+    />
+  )
+
+  /** A page of the carousel, and a page for each of its groups shown on their own. */
+  const tabPages = <T extends { id: string }>(
+    key: HomeTabKey,
+    title: string,
+    actions: React.ReactNode,
+    items: T[],
+    grid: (list: T[], add?: AddAction) => React.ReactNode,
+    add: AddAction,
+    empty: string,
+  ): CarouselPage[] => {
+    const tab = tabs[key]
+    const organizer = makeOrganizer(tab, (next) => change(key, next))
+    const { pinned, groups, rest } = arrange(tab, items)
+    const main: CarouselPage = {
+      key,
+      title,
+      actions: (
+        <>
+          <NewGroupButton tab={tab} onChange={(next) => change(key, next)} />
+          {actions}
+        </>
+      ),
+      content: (
+        <OrganizerProvider value={organizer}>
+          <div className="grid gap-4">
+            {pinned.length ? (
+              <PinnedSection count={pinned.length}>{grid(pinned)}</PinnedSection>
+            ) : null}
+            {groups.map(({ group, items: list }) => (
+              <GroupSection
+                key={group.id}
+                group={group}
+                count={list.length}
+                tab={tab}
+                onChange={(next) => change(key, next)}
+              >
+                {grid(list)}
+              </GroupSection>
+            ))}
+            {items.length === 0 ? <p className="text-sm text-ink-muted">{empty}</p> : null}
+            {grid(rest, add)}
+          </div>
+        </OrganizerProvider>
+      ),
+    }
+    const own = tab.groups
+      .filter((group) => group.ownTab)
+      .map((group): CarouselPage => {
+        const members = new Set(group.itemIds)
+        const list = items.filter((item) => members.has(item.id))
+        return {
+          key: `group:${group.id}`,
+          title: group.name,
+          group: true,
+          content: (
+            <OrganizerProvider value={organizer}>
+              {list.length ? (
+                grid(list)
+              ) : (
+                <p className="text-sm text-ink-muted">
+                  Nothing in “{group.name}” yet. On the {title} page, hold something and drop it
+                  onto this group.
+                </p>
+              )}
+            </OrganizerProvider>
+          ),
+        }
+      })
+    return [main, ...own]
   }
 
   const pages: CarouselPage[] = [
     {
       key: 'create',
       title: 'Create',
-      content: (
-        <ul className="grid gap-3">
-          {CREATE_OPTIONS.map(([kind, title, text, icon]) => (
-            <li key={kind}>
-              <button
-                type="button"
-                onClick={() => setCreating(kind)}
-                className="flex w-full items-center gap-4 rounded-card bg-surface p-4 text-left ring-1 ring-line transition-transform duration-150 ease-gentle hover:bg-surface-sunken active:scale-[0.99]"
-              >
-                <span className="grid size-14 shrink-0 place-items-center rounded-control bg-ink text-ink-inverse shadow-soft">
-                  {icon}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block text-base font-bold">{title}</span>
-                  <span className="block text-sm text-ink-muted">{text}</span>
-                </span>
-                <ChevronRight size={20} className="shrink-0 text-ink-muted" />
-              </button>
-            </li>
-          ))}
-        </ul>
-      ),
+      content: <CreateOptions layout={layout} onPick={setCreating} />,
     },
-    {
-      key: 'folders',
-      title: 'Folders',
-      actions: (
-        <SortMenu
-          label="Sort folders"
-          value={folderSort}
-          options={FOLDER_SORTS}
-          onChange={setFolderSort}
-        />
-      ),
-      content: (
-        <>
-          {topFolders.length === 0 ? (
-            <p className="mb-4 text-sm text-ink-muted">
-              No folders yet. Make one for each subject.
-            </p>
-          ) : null}
-          <FolderGrid
-            folders={topFolders}
-            library={library}
-            sortable={folderSort === 'custom'}
-            reload={reload}
-            layout={layout}
-            add={{ label: 'New folder', onAdd: () => setCreating('folder') }}
-          />
-        </>
-      ),
-    },
-    {
-      key: 'notebooks',
-      title: 'Notebooks',
-      actions: sortMenu('Sort notebooks'),
-      content: documents('notebook', 'New notebook', 'No notebooks yet.'),
-    },
-    {
-      key: 'presentations',
-      title: 'Presentations',
-      actions: sortMenu('Sort presentations'),
-      content: documents('presentation', 'New presentation', 'No presentations yet.'),
-    },
-    {
-      key: 'flashcards',
-      title: 'Flashcards',
-      actions: sortMenu('Sort flashcards'),
-      content: documents(
-        'deck',
-        'New flashcards',
-        'No flashcards yet. Make a deck, write on its cards with your pencil, then study it.',
-      ),
-    },
+    ...tabPages(
+      'folders',
+      'Folders',
+      <SortMenu
+        label="Sort folders"
+        value={folderSort}
+        options={FOLDER_SORTS}
+        onChange={setFolderSort}
+      />,
+      topFolders,
+      folderGrid,
+      { label: 'New folder', onAdd: () => setCreating('folder') },
+      'No folders yet. Make one for each subject.',
+    ),
+    ...tabPages(
+      'notebooks',
+      'Notebooks',
+      sortMenu('Sort notebooks'),
+      ofKind('notebook'),
+      notebookGrid,
+      { label: 'New notebook', onAdd: () => setCreating('notebook') },
+      'No notebooks yet.',
+    ),
+    ...tabPages(
+      'presentations',
+      'Presentations',
+      sortMenu('Sort presentations'),
+      ofKind('presentation'),
+      notebookGrid,
+      { label: 'New presentation', onAdd: () => setCreating('presentation') },
+      'No presentations yet.',
+    ),
+    ...tabPages(
+      'flashcards',
+      'Flashcards',
+      sortMenu('Sort flashcards'),
+      ofKind('deck'),
+      notebookGrid,
+      { label: 'New flashcards', onAdd: () => setCreating('deck') },
+      'No flashcards yet. Make a deck, write on its cards with your pencil, then study it.',
+    ),
   ]
+  const index = Math.max(
+    0,
+    pages.findIndex((p) => p.key === (shown ?? page)),
+  )
   return (
     <>
       <Carousel
         pages={pages}
-        index={PAGES.indexOf(page)}
-        onIndex={(i) => setPage(PAGES[i] ?? 'create')}
+        index={index}
+        onIndex={(i) => {
+          const key = pages[i]?.key ?? 'create'
+          setShown(key)
+          // Only the main pages are remembered for the next visit.
+          const main = PAGES.find((p) => p === key)
+          if (main) setPage(main)
+        }}
         // A held notebook, presentation or deck can be dropped into any folder from here.
         overlay={<FolderDropStrip folders={library.folders} notebooks={library.notebooks} />}
         className="min-h-[28rem] flex-1"
@@ -283,27 +349,94 @@ const CREATE_OPTIONS: [NonNullable<Creating>, string, string, React.ReactNode][]
     'notebook',
     'Notebook',
     'Pages to write and draw on with your pencil, on the paper you choose.',
-    <NotebookPen key="n" size={26} />,
+    <NotebookPen key="n" size={22} />,
   ],
   [
     'folder',
     'Folder',
-    'Keep notebooks, presentations and flashcards together, e.g. one folder per subject.',
-    <FolderPlus key="f" size={26} />,
+    'Keep notebooks, presentations and flashcards together, e.g. one per subject.',
+    <FolderPlus key="f" size={22} />,
   ],
   [
     'presentation',
     'Presentation',
-    'Slides made with the same pens and tools, with animations, presented full screen.',
-    <Presentation key="p" size={26} />,
+    'Slides made with the same pens and tools, presented full screen.',
+    <Presentation key="p" size={22} />,
   ],
   [
     'deck',
     'Flashcards',
-    'Cards with a front and a back. Study them: what you know comes back later, what you don’t comes again soon.',
-    <Layers key="d" size={26} />,
+    'Cards with a front and a back; what you don’t know comes again soon.',
+    <Layers key="d" size={22} />,
   ],
 ]
+
+/**
+ * The Create page, as a compact list or as tiles. Room for six: the last place is held for what
+ * comes next ("Placeholder", as the owner asked; it does nothing yet).
+ */
+function CreateOptions({
+  layout,
+  onPick,
+}: {
+  layout: LibraryLayout
+  onPick: (kind: NonNullable<Creating>) => void
+}) {
+  const tiles = layout === 'tiles'
+  const placeholder = (
+    <li key="placeholder">
+      <div
+        aria-disabled="true"
+        className={cn(
+          'flex w-full rounded-card text-ink-subtle ring-2 ring-line ring-inset [border-style:dashed]',
+          tiles ? 'h-full flex-col justify-center gap-2 p-4' : 'items-center gap-3 p-3',
+        )}
+      >
+        <span className="grid size-11 shrink-0 place-items-center rounded-control bg-surface-sunken">
+          <Sparkles size={22} />
+        </span>
+        <span className="min-w-0">
+          <span className="block text-base font-bold">Placeholder</span>
+          <span className="block text-sm">Coming soon.</span>
+        </span>
+      </div>
+    </li>
+  )
+  return (
+    <ul
+      className={cn(
+        tiles ? 'grid h-full min-h-[20rem] grid-cols-3 grid-rows-2 gap-3' : 'grid gap-2',
+      )}
+    >
+      {CREATE_OPTIONS.map(([kind, title, text, icon]) => (
+        <li key={kind} className="min-w-0">
+          <button
+            type="button"
+            onClick={() => onPick(kind)}
+            className={cn(
+              'flex w-full rounded-card bg-surface text-left ring-1 ring-line transition-transform duration-150 ease-gentle hover:bg-surface-sunken active:scale-[0.99]',
+              tiles ? 'h-full flex-col justify-center gap-2 p-4' : 'items-center gap-3 p-3',
+            )}
+          >
+            <span className="grid size-11 shrink-0 place-items-center rounded-control bg-ink text-ink-inverse shadow-soft">
+              {icon}
+            </span>
+            <span className={cn('min-w-0', !tiles && 'flex-1')}>
+              <span className="block text-base font-bold">{title}</span>
+              <span
+                className={cn('block text-sm text-ink-muted', tiles ? 'line-clamp-3' : 'truncate')}
+              >
+                {text}
+              </span>
+            </span>
+            {tiles ? null : <ChevronRight size={20} className="shrink-0 text-ink-muted" />}
+          </button>
+        </li>
+      ))}
+      {placeholder}
+    </ul>
+  )
+}
 
 type Creating = DocumentKind | 'folder' | null
 

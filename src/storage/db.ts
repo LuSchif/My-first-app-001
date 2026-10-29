@@ -1,6 +1,7 @@
 import Dexie, { type Table } from 'dexie'
 import type { Asset, Folder, Notebook, Page } from '../engine/model/types.ts'
 import type { CalendarSource, DayMark, OwnEvent } from '../features/calendar/model.ts'
+import type { HomeTab } from '../features/library/homeTabs.ts'
 
 /**
  * Local storage for everything the user creates. Each page is its own record, so a stroke on one
@@ -15,6 +16,7 @@ export class BroomitDatabase extends Dexie {
   calendarEvents!: Table<OwnEvent, string>
   calendarDays!: Table<DayMark, string>
   calendarSources!: Table<CalendarSource, string>
+  homeTabs!: Table<HomeTab, string>
 
   constructor(name = 'broomit') {
     super(name)
@@ -31,6 +33,8 @@ export class BroomitDatabase extends Dexie {
       calendarDays: 'date',
       calendarSources: 'id',
     })
+    // What is pinned and grouped on each page of the home screen.
+    this.version(4).stores({ homeTabs: 'tab' })
   }
 }
 

@@ -2,7 +2,9 @@ import {
   FolderClosed,
   FolderInput,
   Layers,
+  BarChart3,
   MoreHorizontal,
+  Pin,
   Presentation,
   Trash2,
 } from 'lucide-react'
@@ -21,6 +23,29 @@ import { MoveList } from './MoveList.tsx'
 import { NotebookThumbnail } from './NotebookThumbnail.tsx'
 import { openPeek } from './peek.ts'
 import { kindName } from './kinds.ts'
+import { useOrganizer } from './organizer.ts'
+import { GroupList, OrganizeItems } from './OrganizeMenu.tsx'
+
+/**
+ * The name and details under a tile. Always this tall (room for a folder chip), so every tile on
+ * the home screen, of every kind, has the same size.
+ */
+export const TILE_TEXT = 'min-h-[4.5rem]'
+
+/** Marks a pinned tile, in its top right corner (`inset`: inside a notebook's cover). */
+export function PinMark({ inset = false }: { inset?: boolean }) {
+  return (
+    <span
+      aria-label="Pinned"
+      className={cn(
+        'absolute grid size-7 place-items-center rounded-full bg-accent text-ink-inverse shadow-soft',
+        inset ? 'top-2 right-2' : 'top-0 right-0',
+      )}
+    >
+      <Pin size={14} className="fill-current" />
+    </span>
+  )
+}
 
 const tilePress =
   'touch-manipulation select-none [-webkit-touch-callout:none] transition-transform duration-200 ease-gentle hover:-translate-y-0.5 active:scale-[0.98]'
@@ -53,6 +78,7 @@ export function NotebookCard({
     onDrop,
   )
   const open = { type: 'button' as const, onClick: onOpen, 'aria-label': `Open ${notebook.title}` }
+  const pinned = useOrganizer()?.isPinned(notebook.id) ?? false
   return (
     // min-w-0: a long title must not widen its column; every card has the column's width.
     <li
@@ -61,39 +87,35 @@ export function NotebookCard({
         dragging && 'opacity-40',
       )}
     >
-      {notebook.kind === 'presentation' ? (
-        <button
-          {...open}
-          {...draggable}
-          className={cn(
-            // As big as a folder tile.
-            'relative grid aspect-[6/5] w-full min-w-0 content-end overflow-hidden rounded-card bg-surface-sunken p-2.5',
-            tilePress,
-          )}
-        >
-          <SlideThumbnail notebook={notebook} />
-          <KindChip icon={<Presentation size={12} />} label="Presentation" />
-        </button>
-      ) : notebook.kind === 'deck' ? (
-        <button
-          {...open}
-          {...draggable}
-          className={cn(
-            'relative grid aspect-[6/5] w-full min-w-0 place-items-center overflow-hidden rounded-card bg-surface-sunken p-3 pt-8',
-            tilePress,
-          )}
-        >
-          <DeckStack notebook={notebook} />
-          <KindChip icon={<Layers size={12} />} label="Flashcards" />
-        </button>
-      ) : (
-        // As tall as a folder tile, standing upright in it.
-        <div className="grid aspect-[6/5] w-full place-items-center p-1">
+      {/* Every kind is as big as a folder tile, with nothing drawn around it. */}
+      <div className="relative grid aspect-[6/5] w-full place-items-center p-1">
+        {notebook.kind === 'presentation' ? (
+          <button
+            {...open}
+            {...draggable}
+            className={cn('relative grid w-full min-w-0 place-items-center', tilePress)}
+          >
+            <SlideThumbnail notebook={notebook} />
+            {/* A chart in the middle says "presentation" at a glance. */}
+            <span className="absolute grid size-12 place-items-center rounded-full bg-ink/80 text-ink-inverse shadow-raised">
+              <BarChart3 size={24} />
+            </span>
+          </button>
+        ) : notebook.kind === 'deck' ? (
+          <button
+            {...open}
+            {...draggable}
+            className={cn('grid size-full min-w-0 place-items-center pt-[8%]', tilePress)}
+          >
+            <DeckStack notebook={notebook} />
+          </button>
+        ) : (
+          // Standing upright in the tile.
           <button
             {...open}
             {...draggable}
             className={cn(
-              'flex aspect-[3/4] h-full min-w-0 flex-col justify-end overflow-hidden rounded-r-card rounded-l-md p-2.5 text-left shadow-raised',
+              'relative flex aspect-[3/4] h-full min-w-0 flex-col justify-end overflow-hidden rounded-r-card rounded-l-md p-2.5 text-left shadow-raised',
               tilePress,
               light ? 'text-ink-inverse' : 'text-ink',
             )}
@@ -102,10 +124,14 @@ export function NotebookCard({
             <span className="line-clamp-3 text-sm leading-tight font-bold [overflow-wrap:anywhere]">
               {notebook.title}
             </span>
+            {pinned ? <PinMark inset /> : null}
           </button>
-        </div>
-      )}
-      <div className="flex items-start justify-between gap-1">
+        )}
+        {pinned && (notebook.kind === 'presentation' || notebook.kind === 'deck') ? (
+          <PinMark />
+        ) : null}
+      </div>
+      <div className={cn('flex items-start justify-between gap-1', TILE_TEXT)}>
         <div className="min-w-0 text-sm">
           <p className="truncate font-semibold">{notebook.title}</p>
           <Details notebook={notebook} />
@@ -114,14 +140,6 @@ export function NotebookCard({
         <NotebookMenu notebook={notebook} folders={folders} onChanged={onChanged} />
       </div>
     </li>
-  )
-}
-
-function KindChip({ icon, label }: { icon: React.ReactNode; label: string }) {
-  return (
-    <span className="absolute top-2.5 left-2.5 flex items-center gap-1 rounded-full bg-surface-raised/90 px-2 py-0.5 text-xs font-semibold text-ink-muted shadow-soft">
-      {icon} {label}
-    </span>
   )
 }
 
@@ -283,7 +301,7 @@ function NotebookMenu({
   className?: string
 }) {
   const [open, setOpen] = useState(false)
-  const [view, setView] = useState<'menu' | 'move' | 'delete'>('menu')
+  const [view, setView] = useState<'menu' | 'move' | 'group' | 'delete'>('menu')
   return (
     <Popover
       open={open}
@@ -302,6 +320,12 @@ function NotebookMenu({
       <PopoverContent align="end" className="grid w-72 gap-1 p-2">
         {view === 'menu' ? (
           <>
+            <OrganizeItems
+              id={notebook.id}
+              label={notebook.title}
+              onGroups={() => setView('group')}
+              onDone={() => setOpen(false)}
+            />
             <Button
               variant="ghost"
               className="justify-start"
@@ -319,6 +343,8 @@ function NotebookMenu({
               Delete…
             </Button>
           </>
+        ) : view === 'group' ? (
+          <GroupList id={notebook.id} label={notebook.title} onDone={() => setOpen(false)} />
         ) : view === 'move' ? (
           <MoveList
             folders={folders}

@@ -6,6 +6,7 @@ import { deleteNotebook } from '../../storage/notebooks.ts'
 import { moveToTrash } from './trash.ts'
 import { kindName } from './kinds.ts'
 import { applyDrop, countNotebooks } from './libraryActions.ts'
+import type { Organizer } from './organizer.ts'
 import type { Library } from './useLibrary.ts'
 
 export type FolderSort = 'custom' | 'name' | 'recent'
@@ -49,10 +50,15 @@ export function sortNotebooks(list: Notebook[], sort: NotebookSort): Notebook[] 
  * Runs a drop, then reloads the library. Moving something into another folder (or out of all
  * folders) says so in a notice that can undo it.
  */
-export function useDrop(library: Library, reload: () => void) {
+export function useDrop(library: Library, reload: () => void, organizer?: Organizer | null) {
   return (item: DragItem) => (target: DropTarget) => {
     if (target.kind === 'trash') {
       trashItem(item, library, reload)
+      return
+    }
+    // Groups only sort the home screen; nothing moves between folders.
+    if (target.kind === 'group') {
+      organizer?.moveToGroup(item.id, target.id, item.label)
       return
     }
     const into = target.kind === 'root' ? null : target.place === 'inside' ? target.id : undefined

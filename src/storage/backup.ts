@@ -1,5 +1,6 @@
 import type { Asset, Folder, Notebook, Page } from '../engine/model/types.ts'
 import type { CalendarSource, DayMark, OwnEvent } from '../features/calendar/model.ts'
+import type { HomeTab } from '../features/library/homeTabs.ts'
 import { db, type BroomitDatabase } from './db.ts'
 
 /**
@@ -18,6 +19,8 @@ export interface Backup {
   assets?: BackupAsset[]
   /** The calendar. Older backups have none. */
   calendar?: { events: OwnEvent[]; days: DayMark[]; sources: CalendarSource[] }
+  /** What is pinned and grouped on the home screen. Older backups have none. */
+  home?: HomeTab[]
 }
 
 export interface BackupAsset extends Omit<Asset, 'blob'> {
@@ -37,6 +40,7 @@ export async function createBackup(database: BroomitDatabase = db): Promise<Back
         database.calendarEvents,
         database.calendarDays,
         database.calendarSources,
+        database.homeTabs,
       ],
       async () => ({
         format: 'broomit-backup' as const,
@@ -51,6 +55,7 @@ export async function createBackup(database: BroomitDatabase = db): Promise<Back
           days: await database.calendarDays.toArray(),
           sources: await database.calendarSources.toArray(),
         },
+        home: await database.homeTabs.toArray(),
       }),
     )
     .then(async ({ assets, ...rest }) => ({
@@ -144,9 +149,11 @@ export async function restoreBackup(
       database.calendarEvents,
       database.calendarDays,
       database.calendarSources,
+      database.homeTabs,
     ],
     async () => {
       await database.assets.bulkPut(assets)
+      if (Array.isArray(backup.home)) await database.homeTabs.bulkPut(backup.home)
       if (backup.calendar) {
         await database.calendarEvents.bulkPut(backup.calendar.events ?? [])
         await database.calendarDays.bulkPut(backup.calendar.days ?? [])

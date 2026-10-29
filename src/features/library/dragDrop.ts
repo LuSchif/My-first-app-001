@@ -8,6 +8,7 @@ import type { Id } from '../../engine/model/types.ts'
  *   data-drop="folder" data-drop-id="<id>"   a folder
  *   data-drop="root"                          the top level (no folder)
  *   data-drop="trash"                         the trash, at the bottom while dragging
+ *   data-drop="group" data-drop-id="<id>"     a group on a home screen page (`homeTabs.ts`)
  *   data-drop-sort, data-drop-axis="y"        sorts beside the folder (above or below)
  */
 
@@ -19,6 +20,7 @@ export type DropTarget =
   | { kind: 'folder'; id: Id; place: 'inside' | 'before' | 'after' }
   | { kind: 'root' }
   | { kind: 'trash' }
+  | { kind: 'group'; id: Id }
 
 interface DragState {
   item: DragItem
@@ -69,6 +71,7 @@ function targetAt(x: number, y: number, item: DragItem): DropTarget | null {
   if (item.kind === 'page') return null
   if (el.dataset.drop === 'root') return { kind: 'root' }
   const id = el.dataset.dropId
+  if (el.dataset.drop === 'group') return id ? { kind: 'group', id } : null
   if (!id || (item.kind === 'folder' && id === item.id)) return null
   if (item.kind === 'notebook' || el.dataset.dropSort === undefined) {
     return { kind: 'folder', id, place: 'inside' }

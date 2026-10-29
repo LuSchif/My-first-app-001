@@ -25,6 +25,8 @@ const DOUBLE_TAP_MS = 350
 const DOUBLE_TAP_PX = 24
 /** Moving further than this while pressing selects text instead of placing the caret. */
 const DRAG_PX = 8
+/** How long after a tap its click may still come. */
+const CLICK_WAIT_MS = 450
 
 interface Press {
   field: Field
@@ -131,9 +133,21 @@ export function useVirtualKeyboard(): boolean {
         const { field } = closeAfter
         closeAfter = null
         // After the tap's click; unless the tap gave the keyboard another field meanwhile.
-        setTimeout(() => {
-          if (keyboardState().field === field) close()
-        }, 0)
+        // iPadOS sends the click a moment after the touch ends: closing earlier moves what is
+        // under the finger, and the click would miss its button (e.g. "Create notebook").
+        let waiting = true
+        const finish = () => {
+          if (!waiting) return
+          waiting = false
+          window.removeEventListener('click', finish, true)
+          clearTimeout(timer)
+          setTimeout(() => {
+            if (keyboardState().field === field) close()
+          }, 0)
+        }
+        // A tap on something that is not clickable may get no click at all.
+        const timer = setTimeout(finish, CLICK_WAIT_MS)
+        window.addEventListener('click', finish, true)
       }
       const p = press
       if (!p || p.pointerId !== e.pointerId) return
