@@ -13,6 +13,7 @@ public class StorePlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "buy", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "owned", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "restore", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "manage", returnType: CAPPluginReturnPromise),
     ]
 
     private var updates: Task<Void, Never>?
@@ -97,6 +98,22 @@ public class StorePlugin: CAPPlugin, CAPBridgedPlugin {
             do {
                 try await AppStore.sync()
                 call.resolve(["ids": await Self.entitlements()])
+            } catch {
+                call.reject(error.localizedDescription)
+            }
+        }
+    }
+
+    /// Apple's sheet to change or cancel the yearly plan.
+    @objc func manage(_ call: CAPPluginCall) {
+        Task { @MainActor in
+            guard let scene = self.bridge?.viewController?.view.window?.windowScene else {
+                call.reject("No window to show the sheet in")
+                return
+            }
+            do {
+                try await AppStore.showManageSubscriptions(in: scene)
+                call.resolve()
             } catch {
                 call.reject(error.localizedDescription)
             }

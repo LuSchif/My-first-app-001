@@ -538,3 +538,20 @@ The editor was moved ahead of the dashboard (packages 2–3) so the tools can be
   worth up to 1000 points, falling to 500 as time runs out (`pointsFor`). Puzzle items come
   shuffled and are tapped in order. The end shows the score and every question; the last
   runs are kept with the quiz (best score on its tile).
+- Playing with other Broomit accounts (inviting friends, a shared game) needs a server for
+  accounts and is not built yet; see Profile.
+
+## Profile
+
+- The profile (`#/profile`, `features/profile`), opened from the avatar at the right of the
+  library header: your name and picture (a 320 px square JPEG), your Broomit plan, and
+  settings (interface colors, backup, shop, version). Kept in the `profile` table (one row,
+  id `me`) and in backups.
+- The Broomit plan is sold two ways: Broomit Lifetime, 19,99 € once (a non-consumable,
+  `com.luisschiffter.broomit.lifetime`), or Broomit Yearly, 6,99 € a year (an auto-renewable
+  subscription, `com.luisschiffter.broomit.yearly`). Both are products in `shop/catalog.ts`
+  (kind `plan`, not shown in the shop grid) and are bought like the packs; an active yearly
+  plan can be changed or cancelled with Apple's own sheet (`Store.manage`). Nothing is locked
+  behind the plan yet.
+- A Broomit ID, friends and inviting friends to play a quiz need accounts on a server; they
+  wait for the choice of server and of play mode (live, at one's own time, or both).

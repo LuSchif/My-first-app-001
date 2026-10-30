@@ -3,6 +3,7 @@ import type { Asset, Folder, Notebook, Page } from '../engine/model/types.ts'
 import type { CalendarSource, DayMark, OwnEvent } from '../features/calendar/model.ts'
 import type { HomeTab } from '../features/library/homeTabs.ts'
 import type { Purchase } from '../features/shop/catalog.ts'
+import type { Profile } from '../features/profile/profile.ts'
 
 /**
  * Local storage for everything the user creates. Each page is its own record, so a stroke on one
@@ -19,6 +20,7 @@ export class BroomitDatabase extends Dexie {
   calendarSources!: Table<CalendarSource, string>
   homeTabs!: Table<HomeTab, string>
   purchases!: Table<Purchase, string>
+  profile!: Table<Profile, string>
 
   constructor(name = 'broomit') {
     super(name)
@@ -39,6 +41,8 @@ export class BroomitDatabase extends Dexie {
     this.version(4).stores({ homeTabs: 'tab' })
     // What was bought in the shop.
     this.version(5).stores({ purchases: 'productId' })
+    // The person's name and picture.
+    this.version(6).stores({ profile: 'id' })
   }
 }
 

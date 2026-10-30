@@ -4,6 +4,7 @@ import { EditorView } from '../features/editor/EditorView.tsx'
 import { FolderView } from '../features/folders/FolderView.tsx'
 import { LibraryView } from '../features/library/LibraryView.tsx'
 import { ShopView } from '../features/shop/ShopView.tsx'
+import { ProfileView } from '../features/profile/ProfileView.tsx'
 import { QuizEditor } from '../features/quiz/QuizEditor.tsx'
 import { QuizPlay } from '../features/quiz/QuizPlay.tsx'
 import { watchStore } from '../features/shop/purchases.ts'
@@ -40,6 +41,8 @@ export function App() {
         <FolderView key={route.id} id={route.id} />
       ) : route.name === 'shop' ? (
         <ShopView />
+      ) : route.name === 'profile' ? (
+        <ProfileView />
       ) : route.name === 'quiz' ? (
         <QuizEditor key={route.id} id={route.id} />
       ) : route.name === 'play' ? (

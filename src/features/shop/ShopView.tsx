@@ -35,7 +35,9 @@ export function ShopView() {
   const [open, setOpen] = useState<Product | null>(null)
   const [inUse, setInUse] = useState(() => loadTheme().pack ?? null)
   const packs = PRODUCTS.filter((p) => p.kind === 'design-pack')
-  const shown = PRODUCTS.filter((p) => category === 'all' || p.kind === category)
+  const shown = PRODUCTS.filter(
+    (p) => p.kind !== 'plan' && (category === 'all' || p.kind === category),
+  )
 
   const applyPack = (pack: DesignPack | null) => {
     const theme = { ...loadTheme(), pack: pack?.id ?? null }

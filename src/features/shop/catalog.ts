@@ -6,7 +6,8 @@ import type { DesignPackId } from '../../design/packs.ts'
  * "Coming soon" and cannot be bought.
  */
 
-export type ProductKind = 'design-pack' | 'planner' | 'template' | 'elements'
+/** `plan`: the Broomit plan (bought once, or yearly), shown in the profile, not the shop. */
+export type ProductKind = 'design-pack' | 'planner' | 'template' | 'elements' | 'plan'
 
 export interface Product {
   id: string
@@ -23,6 +24,8 @@ export interface Product {
    * sold in the app.
    */
   appStoreId?: string
+  /** An auto-renewing subscription, renewed every year. */
+  yearly?: boolean
   /** What the item's card shows when it has no picture: an icon name and two colors. */
   art?: {
     icon: 'calendar' | 'notebook' | 'sticker' | 'tape' | 'target' | 'clock' | 'layout'
@@ -48,6 +51,25 @@ export const CATEGORIES: [ProductKind | 'all', string][] = [
 ]
 
 export const PRODUCTS: Product[] = [
+  {
+    id: 'plan.lifetime',
+    kind: 'plan',
+    name: 'Broomit Lifetime',
+    description: 'Bought once, yours for good, with every update.',
+    price: 1999,
+    status: 'available',
+    appStoreId: 'com.luisschiffter.broomit.lifetime',
+  },
+  {
+    id: 'plan.yearly',
+    kind: 'plan',
+    name: 'Broomit Yearly',
+    description: 'Renews every year; cancel any time in your Apple ID settings.',
+    price: 699,
+    status: 'available',
+    appStoreId: 'com.luisschiffter.broomit.yearly',
+    yearly: true,
+  },
   {
     id: 'pack.sakura-dusk',
     kind: 'design-pack',

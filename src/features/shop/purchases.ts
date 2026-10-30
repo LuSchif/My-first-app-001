@@ -21,6 +21,7 @@ interface StorePlugin {
   buy(options: { id: string }): Promise<{ status: 'purchased' | 'pending' | 'cancelled' }>
   owned(): Promise<{ ids: string[] }>
   restore(): Promise<{ ids: string[] }>
+  manage(): Promise<void>
   addListener(event: 'changed', listener: () => void): Promise<PluginListenerHandle>
 }
 
@@ -85,6 +86,11 @@ export async function syncWithStore(restore = false): Promise<void> {
     saveTheme(next)
   }
   changed()
+}
+
+/** Apple's own sheet to change or cancel a subscription (in the app). */
+export function manageSubscription(): Promise<void> {
+  return Store.manage()
 }
 
 /** "Restore purchases": asks the App Store again for everything bought with this Apple ID. */

@@ -29,6 +29,7 @@ import { SelectionProvider, type LibrarySelection } from './librarySelection.ts'
 import { FolderEditorDialog } from '../folders/FolderEditorDialog.tsx'
 import { CalendarHome } from '../calendar/CalendarHome.tsx'
 import { AppearanceMenu } from './AppearanceMenu.tsx'
+import { ProfileButton } from '../profile/ProfileButton.tsx'
 import { DragGhost } from './DragGhost.tsx'
 import { FolderGrid, NotebookGrid, type AddAction } from './Grids.tsx'
 import {
@@ -76,6 +77,7 @@ export function LibraryView() {
             <LayoutToggle value={layout} onChange={setLayout} />
             <AppearanceMenu />
             <BackupMenu onRestored={reload} />
+            <ProfileButton />
           </div>
         </header>
 
