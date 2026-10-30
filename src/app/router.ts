@@ -11,14 +11,15 @@ export type Route =
   | { name: 'folder'; id: string }
   | { name: 'quiz'; id: string }
   | { name: 'play'; id: string }
+  | { name: 'game'; id: string }
   | { name: 'profile' }
 
 export function parseRoute(hash: string): Route {
   if (hash === '#/shop') return { name: 'shop' }
   if (hash === '#/profile') return { name: 'profile' }
-  const match = /^#\/(notebook|folder|quiz|play)\/([\w-]+)$/.exec(hash)
+  const match = /^#\/(notebook|folder|quiz|play|game)\/([\w-]+)$/.exec(hash)
   if (match?.[1] && match[2]) {
-    return { name: match[1] as 'notebook' | 'folder' | 'quiz' | 'play', id: match[2] }
+    return { name: match[1] as 'notebook' | 'folder' | 'quiz' | 'play' | 'game', id: match[2] }
   }
   return { name: 'library' }
 }

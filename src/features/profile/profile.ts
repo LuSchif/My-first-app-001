@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { accountNow, shareProfile, useAccount } from '../../storage/cloud/account.ts'
 import { db } from '../../storage/db.ts'
 
 /** The person using Broomit on this device: a name and a picture, kept in backups. */
@@ -18,7 +19,35 @@ export async function saveProfile(patch: Partial<Omit<Profile, 'id'>>): Promise<
   if (!next.picture) delete next.picture
   await db.profile.put(next)
   for (const listener of listeners) listener(next)
+  // Friends see the name and picture of the account.
+  shareProfile(next.name, next.picture).catch((err: unknown) => console.error(err))
   return next
+}
+
+/**
+ * After signing in, the account and this iPad agree on name and picture: the iPad's, or the
+ * account's when this iPad has none yet (a new iPad).
+ */
+export function useProfileSync(): void {
+  const account = useAccount()
+  const userId = account.status === 'signedIn' ? account.profile.id : null
+  useEffect(() => {
+    if (!userId) return
+    void (async () => {
+      const local = await db.profile.get('me')
+      const remote = accountNow()
+      if (remote.status !== 'signedIn') return
+      if (!local?.name && !local?.picture) {
+        if (remote.profile.name || remote.profile.picture) {
+          await saveProfile({ name: remote.profile.name, picture: remote.profile.picture })
+        }
+        return
+      }
+      if (local.name !== remote.profile.name || local.picture !== remote.profile.picture) {
+        await shareProfile(local.name, local.picture)
+      }
+    })().catch((err: unknown) => console.error(err))
+  }, [userId])
 }
 
 /** The profile, kept up to date. */

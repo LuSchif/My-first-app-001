@@ -7,6 +7,8 @@ import { ShopView } from '../features/shop/ShopView.tsx'
 import { ProfileView } from '../features/profile/ProfileView.tsx'
 import { QuizEditor } from '../features/quiz/QuizEditor.tsx'
 import { QuizPlay } from '../features/quiz/QuizPlay.tsx'
+import { GameView } from '../features/quiz/together/GameView.tsx'
+import { useProfileSync } from '../features/profile/profile.ts'
 import { watchStore } from '../features/shop/purchases.ts'
 import { requestPersistentStorage } from '../storage/db.ts'
 import { usePencilTaps } from '../lib/usePencilTaps.ts'
@@ -26,6 +28,8 @@ export function App() {
   // when tapped.
   const ownKeyboard = useVirtualKeyboard()
   useRequestedFocus(!ownKeyboard)
+  // Signed in: the account shows this iPad's name and picture.
+  useProfileSync()
 
   useEffect(() => {
     void requestPersistentStorage()
@@ -47,6 +51,8 @@ export function App() {
         <QuizEditor key={route.id} id={route.id} />
       ) : route.name === 'play' ? (
         <QuizPlay key={route.id} id={route.id} />
+      ) : route.name === 'game' ? (
+        <GameView key={route.id} id={route.id} />
       ) : (
         <LibraryView />
       )}

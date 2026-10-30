@@ -9,7 +9,7 @@ import { NameHint } from '../library/NameHint.tsx'
 import { uniqueName } from '../library/uniqueName.ts'
 import { useTakenNames } from '../library/useTakenNames.ts'
 import { QuizCover } from './QuizCover.tsx'
-import { QUIZ_COLORS } from './answerColors.ts'
+import { QUIZ_COLORS } from './quizLook.ts'
 
 /** Creating a quiz: title, folder and color. It starts with one question to fill in. */
 export function NewQuizDialog({

@@ -16,7 +16,11 @@ import {
   usePurchases,
   useStorePrices,
 } from '../shop/purchases.ts'
+import { AccountCard } from './AccountCard.tsx'
 import { Avatar } from './Avatar.tsx'
+import { FriendsCard } from './FriendsCard.tsx'
+import { GamesCard } from './GamesCard.tsx'
+import { ProfileCard } from './ProfileCard.tsx'
 import { avatarPicture } from './avatarPicture.ts'
 import { saveProfile, useProfile } from './profile.ts'
 
@@ -34,19 +38,13 @@ export function ProfileView() {
         </button>
         <h1 className="text-4xl font-bold tracking-tight">Profile</h1>
         <You />
+        <AccountCard />
+        <FriendsCard />
+        <GamesCard />
         <Plan />
         <Settings />
       </div>
     </div>
-  )
-}
-
-function Card({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <section className="grid gap-4 rounded-panel bg-surface-raised p-5 shadow-soft ring-1 ring-line sm:p-6">
-      <h2 className="text-xs font-semibold tracking-[0.14em] text-ink-muted uppercase">{title}</h2>
-      {children}
-    </section>
   )
 }
 
@@ -57,7 +55,7 @@ function You() {
   const file = useRef<HTMLInputElement>(null)
   const shown = name ?? profile.name
   return (
-    <Card title="You">
+    <ProfileCard title="You">
       <div className="flex flex-wrap items-center gap-5">
         <button
           type="button"
@@ -124,7 +122,7 @@ function You() {
           </div>
         </form>
       </div>
-    </Card>
+    </ProfileCard>
   )
 }
 
@@ -153,7 +151,7 @@ function Plan() {
       .finally(() => setBusy(null))
   }
   return (
-    <Card title="Your plan">
+    <ProfileCard title="Your plan">
       <div className="flex items-center gap-3">
         <span
           className={cn(
@@ -245,13 +243,13 @@ function Plan() {
           Broomit app from the App Store.
         </p>
       )}
-    </Card>
+    </ProfileCard>
   )
 }
 
 function Settings() {
   return (
-    <Card title="Settings">
+    <ProfileCard title="Settings">
       <ul className="grid divide-y divide-line">
         <Row label="Interface colors" hint="Colors, your own presets and design packs">
           <AppearanceMenu />
@@ -268,7 +266,7 @@ function Settings() {
           <span className="text-sm font-semibold">{releaseLabel()}</span>
         </Row>
       </ul>
-    </Card>
+    </ProfileCard>
   )
 }
 

@@ -526,32 +526,65 @@ The editor was moved ahead of the dashboard (packages 2–3) so the tools can be
   (`Notebook.quiz`, `engine/model/quiz.ts`), so folders, pins, groups, search, selection,
   trash and backups work for it as for notebooks. It has its own tab, Create entry, tile
   (`QuizCover`) and peek (`QuizPeek`).
-- Question kinds, as in Kahoot: Quiz (one right answer of up to six), Multi-select, True or
-  false, Puzzle (put in order), Type answer (accepted spellings; case, accents and spaces do
-  not matter), Slider (a value with a tolerance) and Poll (no right answer). Each has a time
-  limit, standard, double or no points, and an optional picture (a small JPEG kept with it).
-- The editor (`#/quiz/<id>`, `QuizEditor.tsx`) is laid out like the presentation editor:
-  questions on the left, the question as players see it in the middle (answers on colored
-  tiles with shapes, `--color-answer-*`), its settings on the right. It saves itself a moment
-  after each change and says what keeps a question from being played.
-- Playing (`#/play/<id>`, `QuizPlay.tsx`): each question against the clock; a right answer is
-  worth up to 1000 points, falling to 500 as time runs out (`pointsFor`). Puzzle items come
-  shuffled and are tapped in order. The end shows the score and every question; the last
-  runs are kept with the quiz (best score on its tile).
-- Playing with other Broomit accounts (inviting friends, a shared game) needs a server for
-  accounts and is not built yet; see Profile.
+- Question kinds: One answer (one right card of up to six), Several answers, True or false,
+  Sort (put cards in order), Write it (accepted spellings; case, accents and spaces do not
+  matter), Estimate (a number with a tolerance) and Opinion (no right answer). Each has a
+  time limit (10 s to 3 min), Normal, × 2 or For fun points, and an optional picture.
+- Broomit's own look, deliberately unlike other quiz apps: the question is written on a ruled
+  sheet with a margin line, answers are paper cards marked A to F, the accent shows what is
+  chosen, time runs out as a thin line (`features/quiz/cards.tsx`). Play happens on the app's
+  own background. Points: 100 for a right answer plus up to 50 for a quick one (`pointsFor`).
+- The editor (`#/quiz/<id>`, `QuizEditor.tsx`): questions on the left, the question as players
+  see it in the middle, its settings on the right. It saves itself a moment after each change
+  and says what keeps a question from being played.
+- Playing alone (`#/play/<id>`, `QuizPlay.tsx`): each question against the clock, the verdict,
+  and at the end the score and every question; the last runs are kept with the quiz. The
+  parts of a run (`playParts.tsx`, `QuizSummary.tsx`) are shared with games with friends.
+
+## Accounts and friends (Supabase)
+
+- Decision: accounts, friends and games with friends run on Supabase (Postgres, sign-in,
+  live updates). Notebooks stay on the device; only what friends need goes to the server.
+- The schema is in `supabase/migrations` (run it in the Supabase SQL editor, or with
+  `supabase db push`). Clients only read, and only what concerns them (row level security);
+  every change goes through checked database functions (`add_friend`, `create_game`,
+  `submit_answer`, …). `supabase/config.toml` and `supabase/templates` are for a local server
+  (`supabase start`) and hold the sign-in email.
+- The app finds the server through `VITE_SUPABASE_URL` and `VITE_SUPABASE_KEY` (the public
+  key) at build time (`storage/cloud/client.ts`). Without them every account feature stays
+  hidden; the client library is only loaded when needed.
+- Signing in: an email gets a 6-digit code (no password, no link to follow, which works the
+  same in the browser, the installed web app and the App Store app). A new email makes a new
+  account. Each account gets a Broomit ID (`K7Q3-XM2P`, no look-alike characters) that never
+  changes. The profile's name and picture follow the account. Accounts can be deleted in the
+  profile (Apple requires it); notebooks stay.
+- Friends: add by Broomit ID; the other person accepts in their profile (asking each other
+  makes you friends at once). Only friends see each other's profile.
+
+## Quizzes with friends
+
+- From a quiz's peek, "Play with friends" invites friends, live or as a challenge. The game
+  keeps a copy of the playable questions, so later edits don't change a running game.
+- Live (`#/game/<id>`): a lobby shows who joined; the host starts and moves on; everyone
+  answers on their own iPad; when all have answered (or the host says so) everyone sees the
+  verdict and the standings, then the next question; at the end the final standings.
+- Challenge: each friend plays in their own time (and can continue later); the standings
+  show who finished with which score; the host can close it.
+- Invitations and challenges still to play show at the top of the home screen; the profile
+  lists games with friends. Points are counted on the device that answers (friends' games
+  need no referee); the server keeps each answer once and adds it to the score.
+- Live updates come through Supabase Realtime; every view also checks again every few seconds
+  and when the app comes back, so a missed update (sleeping iPad) never leaves it stuck.
 
 ## Profile
 
 - The profile (`#/profile`, `features/profile`), opened from the avatar at the right of the
-  library header: your name and picture (a 320 px square JPEG), your Broomit plan, and
-  settings (interface colors, backup, shop, version). Kept in the `profile` table (one row,
-  id `me`) and in backups.
+  library header: your name and picture (a 320 px square JPEG), the Broomit account, friends,
+  games with friends, your Broomit plan, and settings (interface colors, backup, shop,
+  version). Name and picture are kept in the `profile` table (one row, id `me`) and in backups.
 - The Broomit plan is sold two ways: Broomit Lifetime, 19,99 € once (a non-consumable,
   `com.luisschiffter.broomit.lifetime`), or Broomit Yearly, 6,99 € a year (an auto-renewable
   subscription, `com.luisschiffter.broomit.yearly`). Both are products in `shop/catalog.ts`
   (kind `plan`, not shown in the shop grid) and are bought like the packs; an active yearly
   plan can be changed or cancelled with Apple's own sheet (`Store.manage`). Nothing is locked
   behind the plan yet.
-- A Broomit ID, friends and inviting friends to play a quiz need accounts on a server; they
-  wait for the choice of server and of play mode (live, at one's own time, or both).

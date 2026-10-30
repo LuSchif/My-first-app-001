@@ -1,6 +1,8 @@
-import { Pencil, Play } from 'lucide-react'
+import { Pencil, Play, Users } from 'lucide-react'
+import { useState } from 'react'
 import { navigate } from '../../app/router.ts'
-import { Button } from '../../design/index.ts'
+import { Button, Dialog } from '../../design/index.ts'
+import { cloudAvailable } from '../../storage/cloud/client.ts'
 import { fillToCss } from '../../engine/model/fill.ts'
 import { playable, QUESTION_KINDS, questionProblem } from '../../engine/model/quiz.ts'
 import type { Notebook } from '../../engine/model/types.ts'
@@ -8,8 +10,9 @@ import { formatEdited } from '../../lib/time.ts'
 import { openPeek } from '../library/peek.ts'
 import { BackToFolder, Contents, Side } from '../library/PeekParts.tsx'
 import type { Library } from '../library/useLibrary.ts'
-import { KIND_ICONS } from './answerColors.ts'
+import { KIND_ICONS } from './quizLook.ts'
 import { QuizCover } from './QuizCover.tsx'
+import { PlayWithFriendsDialog } from './together/PlayWithFriendsDialog.tsx'
 
 /** A quiz in its peek: the cover, its questions and the best runs; play or edit it. */
 export function QuizPeek({ quiz, library }: { quiz: Notebook; library: Library }) {
@@ -18,6 +21,7 @@ export function QuizPeek({ quiz, library }: { quiz: Notebook; library: Library }
   const results = data.results ?? []
   const best = results.length ? Math.max(...results.map((r) => r.score)) : null
   const parent = library.folders.find((f) => f.id === quiz.folderId)
+  const [friends, setFriends] = useState(false)
   const go = (name: 'quiz' | 'play') => {
     openPeek(null)
     navigate({ name, id: quiz.id })
@@ -54,6 +58,26 @@ export function QuizPeek({ quiz, library }: { quiz: Notebook; library: Library }
           >
             Play
           </Button>
+          {cloudAvailable() ? (
+            <Button
+              icon={<Users size={18} />}
+              disabled={ready === 0}
+              onClick={() => setFriends(true)}
+            >
+              Play with friends
+            </Button>
+          ) : null}
+          <Dialog open={friends} onOpenChange={setFriends}>
+            {friends ? (
+              <PlayWithFriendsDialog
+                quiz={quiz}
+                onDone={() => {
+                  setFriends(false)
+                  openPeek(null)
+                }}
+              />
+            ) : null}
+          </Dialog>
         </div>
       </Side>
       <Contents title="Questions">

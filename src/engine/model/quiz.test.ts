@@ -65,9 +65,10 @@ describe('quiz questions', () => {
     const base = filled('single')
     const q = toggleCorrect(base, base.answers[0]!.id)
     const right = { kind: 'choice' as const, ids: [q.answers.find((a) => a.correct)!.id] }
-    expect(pointsFor(q, right, 0)).toBe(1000)
-    expect(pointsFor(q, right, q.time)).toBe(500)
-    expect(pointsFor({ ...q, points: 'double' }, right, 0)).toBe(2000)
+    expect(pointsFor(q, right, 0)).toBe(150)
+    expect(pointsFor(q, right, q.time)).toBe(100)
+    expect(pointsFor({ ...q, points: 'double' }, right, 0)).toBe(300)
+    expect(pointsFor(q, right, q.time / 2)).toBe(125)
     expect(pointsFor(q, { kind: 'none' }, 1)).toBe(0)
   })
 

@@ -2,8 +2,8 @@ import { newId } from './ids.ts'
 import type { Id } from './types.ts'
 
 /**
- * Quizzes, in the spirit of Kahoot: questions with a time limit, answered on colored tiles;
- * the faster a right answer, the more points.
+ * Broomit quizzes: questions on cards, each with a time limit; a right answer earns points,
+ * and a quick one a little more.
  */
 
 export type QuestionKind =
@@ -56,16 +56,19 @@ export interface QuizData {
 }
 
 export const QUESTION_KINDS: { kind: QuestionKind; label: string; hint: string }[] = [
-  { kind: 'single', label: 'Quiz', hint: 'One right answer of up to six' },
-  { kind: 'multiple', label: 'Multi-select', hint: 'Several right answers' },
+  { kind: 'single', label: 'One answer', hint: 'Pick the right card of up to six' },
+  { kind: 'multiple', label: 'Several answers', hint: 'More than one card is right' },
   { kind: 'truefalse', label: 'True or false', hint: 'Is the statement true?' },
-  { kind: 'order', label: 'Puzzle', hint: 'Put the answers in the right order' },
-  { kind: 'typed', label: 'Type answer', hint: 'Players type the answer' },
-  { kind: 'slider', label: 'Slider', hint: 'Pick a number on a scale' },
-  { kind: 'poll', label: 'Poll', hint: 'Ask for opinions; no right answer' },
+  { kind: 'order', label: 'Sort', hint: 'Bring the cards into the right order' },
+  { kind: 'typed', label: 'Write it', hint: 'Players write the answer' },
+  { kind: 'slider', label: 'Estimate', hint: 'Guess a number; close enough counts' },
+  { kind: 'poll', label: 'Opinion', hint: 'Ask what everyone thinks; no right answer' },
 ]
 
-export const TIME_LIMITS = [5, 10, 20, 30, 45, 60, 90, 120, 240]
+export const TIME_LIMITS = [10, 15, 30, 45, 60, 90, 120, 180]
+/** Points for a right answer, and the most a quick one adds. */
+export const POINTS_RIGHT = 100
+export const POINTS_QUICK = 50
 export const MAX_ANSWERS = 6
 export const RESULTS_KEPT = 20
 
@@ -75,7 +78,7 @@ function answer(text = '', correct = false): QuizAnswer {
 
 /** A new question of a kind, with empty answers ready to fill in. */
 export function createQuestion(kind: QuestionKind = 'single'): QuizQuestion {
-  return { id: newId(), kind, text: '', time: 20, points: 'standard', ...answersFor(kind, []) }
+  return { id: newId(), kind, text: '', time: 30, points: 'standard', ...answersFor(kind, []) }
 }
 
 /** The answers (and slider) a question gets as `kind`, keeping what fits from `old`. */
@@ -211,13 +214,14 @@ export function isCorrect(q: QuizQuestion, response: Response): boolean | null {
 }
 
 /**
- * Points for an answer, as in Kahoot: a right answer is worth up to 1000 points, falling to
- * 500 as the time runs out; double points double that; no points, none.
+ * Points for an answer: 100 for a right one, plus up to 50 for answering quickly (the bonus
+ * shrinks in steps of 5 as the time runs); twice that for a ×2 question, none for one just
+ * for fun.
  */
 export function pointsFor(q: QuizQuestion, response: Response, secondsUsed: number): number {
   if (q.points === 'none' || isCorrect(q, response) !== true) return 0
-  const share = Math.min(1, Math.max(0, secondsUsed / q.time))
-  const points = Math.round(1000 * (1 - share / 2))
+  const left = 1 - Math.min(1, Math.max(0, secondsUsed / q.time))
+  const points = POINTS_RIGHT + Math.round((POINTS_QUICK * left) / 5) * 5
   return q.points === 'double' ? points * 2 : points
 }
 
@@ -232,6 +236,22 @@ export function shuffled<T>(items: readonly T[], random = Math.random): T[] {
     }
   } while (out.every((item, i) => item === items[i]))
   return out
+}
+
+/** The right answer of a question, as text; null for an opinion. */
+export function solutionOf(question: QuizQuestion): string | null {
+  const answers = question.answers.filter((a) => a.text.trim())
+  if (question.kind === 'slider' && question.slider) {
+    const s = question.slider
+    return `${s.correct}${s.unit}${s.tolerance ? ` (±${s.tolerance})` : ''}`
+  }
+  if (question.kind === 'order') return answers.map((a, i) => `${i + 1}. ${a.text}`).join('   ')
+  if (question.kind === 'typed') return answers[0]?.text ?? null
+  if (question.kind === 'poll') return null
+  return answers
+    .filter((a) => a.correct)
+    .map((a) => a.text)
+    .join(', ')
 }
 
 export function createQuiz(): QuizData {

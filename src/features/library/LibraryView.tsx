@@ -30,6 +30,7 @@ import { FolderEditorDialog } from '../folders/FolderEditorDialog.tsx'
 import { CalendarHome } from '../calendar/CalendarHome.tsx'
 import { AppearanceMenu } from './AppearanceMenu.tsx'
 import { ProfileButton } from '../profile/ProfileButton.tsx'
+import { GameInvites } from '../quiz/together/GameInvites.tsx'
 import { DragGhost } from './DragGhost.tsx'
 import { FolderGrid, NotebookGrid, type AddAction } from './Grids.tsx'
 import {
@@ -82,6 +83,7 @@ export function LibraryView() {
         </header>
 
         <InstallHint />
+        <GameInvites />
 
         {/* Today on the left; creating and browsing beside it, both as tall as the screen allows. */}
         <div className="grid gap-6 md:h-[clamp(30rem,calc(100dvh-12rem),64rem)] md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">

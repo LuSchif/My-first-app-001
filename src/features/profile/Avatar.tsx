@@ -1,8 +1,14 @@
 import { User } from 'lucide-react'
-import { initials, type Profile } from './profile.ts'
+import { initials } from './profile.ts'
 
 /** The profile picture, or the name's initials, or a person outline, in a circle. */
-export function Avatar({ profile, size = 40 }: { profile: Profile; size?: number }) {
+export function Avatar({
+  profile,
+  size = 40,
+}: {
+  profile: { name: string; picture?: string | undefined }
+  size?: number
+}) {
   const letters = initials(profile.name)
   return (
     <span

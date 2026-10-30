@@ -27,6 +27,8 @@ import {
   changeKind,
   createQuestion,
   MAX_ANSWERS,
+  POINTS_QUICK,
+  POINTS_RIGHT,
   playable,
   QUESTION_KINDS,
   questionProblem,
@@ -40,8 +42,8 @@ import type { Notebook } from '../../engine/model/types.ts'
 import { cn } from '../../lib/cn.ts'
 import { showNotice } from '../../lib/notices.ts'
 import { loadNotebook, saveQuiz } from '../../storage/notebooks.ts'
-import { answerColor, KIND_ICONS } from './answerColors.ts'
-import { AnswerShape } from './answerStyle.tsx'
+import { answerCard, KIND_ICONS } from './quizLook.ts'
+import { AnswerLetter, QuestionSheet } from './cards.tsx'
 import { pictureDataUrl } from './quizImages.ts'
 
 /** Edits are written this long after the last change. */
@@ -337,15 +339,17 @@ function QuestionCard({
         <label className="text-xs font-semibold tracking-[0.14em] text-ink-muted uppercase">
           Question {number}
         </label>
-        <textarea
-          aria-label="Question"
-          placeholder="Type your question"
-          value={question.text}
-          maxLength={240}
-          rows={2}
-          onChange={(e) => onChange({ ...question, text: e.target.value })}
-          className="w-full resize-none rounded-card bg-surface-raised px-5 py-4 text-center text-2xl font-bold shadow-soft ring-1 ring-line placeholder:text-ink-subtle focus:ring-2 focus:ring-accent focus:outline-none"
-        />
+        <QuestionSheet compact className="focus-within:ring-2 focus-within:ring-accent">
+          <textarea
+            aria-label="Question"
+            placeholder="Write your question"
+            value={question.text}
+            maxLength={240}
+            rows={2}
+            onChange={(e) => onChange({ ...question, text: e.target.value })}
+            className="block w-full resize-none bg-transparent text-2xl leading-8 font-bold placeholder:text-ink-subtle focus:outline-none"
+          />
+        </QuestionSheet>
       </div>
 
       <div className="grid place-items-center">
@@ -477,17 +481,13 @@ function Answers({
       ) : null}
       <div className={cn('grid gap-3', order ? 'grid-cols-1' : 'sm:grid-cols-2')}>
         {question.answers.map((a, i) => (
-          <div
-            key={a.id}
-            className="flex min-h-16 items-center gap-3 rounded-card px-4 py-2 text-ink-inverse shadow-soft"
-            style={{ background: answerColor(i) }}
-          >
+          <div key={a.id} className={answerCard(false, true)}>
             {order ? (
-              <span className="grid size-8 shrink-0 place-items-center rounded-full bg-ink-inverse/25 font-bold">
+              <span className="grid size-9 shrink-0 place-items-center rounded-control bg-surface-sunken font-bold text-ink-muted">
                 {i + 1}
               </span>
             ) : (
-              <AnswerShape index={i} />
+              <AnswerLetter index={i} state={a.correct && pickCorrect ? 'right' : 'idle'} />
             )}
             <input
               aria-label={`Answer ${i + 1}`}
@@ -496,14 +496,14 @@ function Answers({
               readOnly={question.kind === 'truefalse'}
               maxLength={90}
               onChange={(e) => setText(a.id, e.target.value)}
-              className="h-11 min-w-0 flex-1 bg-transparent text-lg font-semibold text-ink-inverse placeholder:text-ink-inverse/70 focus:outline-none"
+              className="h-11 min-w-0 flex-1 bg-transparent text-lg font-semibold placeholder:text-ink-subtle focus:outline-none"
             />
             {question.answers.length > minimum && question.kind !== 'truefalse' ? (
               <button
                 type="button"
                 aria-label={`Remove answer ${i + 1}`}
                 onClick={() => removeAnswer(a.id)}
-                className="grid size-9 shrink-0 place-items-center rounded-full hover:bg-ink-inverse/20"
+                className="grid size-9 shrink-0 place-items-center rounded-full text-ink-muted hover:bg-hover"
               >
                 <Minus size={18} />
               </button>
@@ -516,13 +516,14 @@ function Answers({
                 aria-label={`Answer ${i + 1} is right`}
                 onClick={() => onChange(toggleCorrect(question, a.id))}
                 className={cn(
-                  'grid size-10 shrink-0 place-items-center rounded-full ring-2 ring-ink-inverse transition-colors',
+                  'flex h-9 shrink-0 items-center gap-1 rounded-full px-3 text-sm font-semibold ring-1 transition-colors',
                   a.correct
-                    ? 'bg-correct text-ink-inverse'
-                    : 'text-transparent hover:bg-ink-inverse/20',
+                    ? 'bg-correct text-ink-inverse ring-correct'
+                    : 'text-ink-muted ring-line hover:bg-hover',
                 )}
               >
-                <Check size={22} strokeWidth={3} />
+                <Check size={16} strokeWidth={3} />
+                {a.correct ? 'Right' : 'Mark right'}
               </button>
             ) : null}
           </div>
@@ -653,10 +654,10 @@ function QuestionSettings({
   onMove: (direction: -1 | 1) => void
 }) {
   return (
-    <div className="grid gap-6">
-      <section className="grid gap-2">
+    <div className="grid grid-cols-1 gap-6">
+      <section className="grid grid-cols-1 gap-2">
         <h3 className="text-sm font-semibold">Question type</h3>
-        <div role="radiogroup" aria-label="Question type" className="grid gap-1">
+        <div role="radiogroup" aria-label="Question type" className="grid grid-cols-1 gap-1">
           {QUESTION_KINDS.map(({ kind, label, hint }) => {
             const Icon = KIND_ICONS[kind]
             return (
@@ -679,7 +680,7 @@ function QuestionSettings({
         </div>
       </section>
 
-      <section className="grid gap-2">
+      <section className="grid grid-cols-1 gap-2">
         <h3 className="text-sm font-semibold">Time limit</h3>
         <div role="radiogroup" aria-label="Time limit" className="flex flex-wrap gap-1.5">
           {TIME_LIMITS.map((t) => (
@@ -697,14 +698,14 @@ function QuestionSettings({
         </div>
       </section>
 
-      <section className="grid gap-2">
+      <section className="grid grid-cols-1 gap-2">
         <h3 className="text-sm font-semibold">Points</h3>
         <div role="radiogroup" aria-label="Points" className="grid grid-cols-3 gap-1.5">
           {(
             [
-              ['standard', 'Standard'],
-              ['double', 'Double'],
-              ['none', 'None'],
+              ['standard', 'Normal'],
+              ['double', '× 2'],
+              ['none', 'For fun'],
             ] as const
           ).map(([value, label]) => (
             <button
@@ -722,8 +723,8 @@ function QuestionSettings({
         </div>
         <p className="text-xs text-ink-muted">
           {question.kind === 'poll'
-            ? 'A poll has no right answer, so it gives no points.'
-            : 'Up to 1000 points for a right answer; the faster, the more.'}
+            ? 'An opinion has no right answer, so it gives no points.'
+            : `${POINTS_RIGHT} points for a right answer, up to ${POINTS_QUICK} more for a quick one.`}
         </p>
       </section>
 
