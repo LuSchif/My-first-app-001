@@ -9,17 +9,24 @@ export type Route =
   | { name: 'shop' }
   | { name: 'notebook'; id: string }
   | { name: 'folder'; id: string }
+  | { name: 'quiz'; id: string }
+  | { name: 'play'; id: string }
+  | { name: 'profile' }
 
 export function parseRoute(hash: string): Route {
   if (hash === '#/shop') return { name: 'shop' }
-  const match = /^#\/(notebook|folder)\/([\w-]+)$/.exec(hash)
-  if (match?.[1] && match[2]) return { name: match[1] as 'notebook' | 'folder', id: match[2] }
+  if (hash === '#/profile') return { name: 'profile' }
+  const match = /^#\/(notebook|folder|quiz|play)\/([\w-]+)$/.exec(hash)
+  if (match?.[1] && match[2]) {
+    return { name: match[1] as 'notebook' | 'folder' | 'quiz' | 'play', id: match[2] }
+  }
   return { name: 'library' }
 }
 
 export function routeToHash(route: Route): string {
   if (route.name === 'library') return '#/'
   if (route.name === 'shop') return '#/shop'
+  if (route.name === 'profile') return '#/profile'
   return `#/${route.name}/${route.id}`
 }
 

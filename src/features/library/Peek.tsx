@@ -37,6 +37,9 @@ import { PAPER_OPTIONS, paperPreviewStyle } from '../paper.ts'
 import { PageThumbnail } from '../editor/PageThumbnail.tsx'
 import { openNotebookAt } from '../editor/openAt.ts'
 import { FolderGraphic } from '../folders/FolderGraphic.tsx'
+import { QuizCover } from '../quiz/QuizCover.tsx'
+import { QuizPeek } from '../quiz/QuizPeek.tsx'
+import { BackToFolder, Contents, Side } from './PeekParts.tsx'
 import { FolderEditorDialog } from '../folders/FolderEditorDialog.tsx'
 import { countNotebooks, notebooksIn } from './libraryActions.ts'
 import { NotebookThumbnail } from './NotebookThumbnail.tsx'
@@ -109,7 +112,9 @@ export function PeekLayer({ library, reload }: { library: Library; reload: () =>
           onClick={close}
           className="absolute top-3 right-3 z-10"
         />
-        {notebook?.kind === 'deck' ? (
+        {notebook?.kind === 'quiz' ? (
+          <QuizPeek key={notebook.id} quiz={notebook} library={library} />
+        ) : notebook?.kind === 'deck' ? (
           <DeckPeek key={notebook.id} deck={notebook} library={library} reload={reload} />
         ) : notebook ? (
           <NotebookPeek key={notebook.id} notebook={notebook} library={library} reload={reload} />
@@ -298,20 +303,6 @@ function usePages(
     }
   }, [notebookId])
   return [pages, setPages]
-}
-
-/** Back to the folder this is in, as a peek. */
-function BackToFolder({ folder }: { folder: Folder | undefined }) {
-  if (!folder) return null
-  return (
-    <button
-      type="button"
-      onClick={() => openPeek({ kind: 'folder', id: folder.id })}
-      className="flex items-center gap-1 self-start rounded-control py-1 pr-2 text-sm font-semibold text-ink-muted hover:bg-hover"
-    >
-      <ChevronLeft size={16} /> {folder.name}
-    </button>
-  )
 }
 
 /** A deck of flashcards: its cards fan out, each with front and back; study or edit them. */
@@ -884,7 +875,14 @@ function FolderPeek({
                   className="grid w-full justify-items-center gap-1.5"
                 >
                   <span className="grid aspect-[6/5] w-full place-items-center">
-                    {n.kind === 'presentation' || n.kind === 'deck' ? (
+                    {n.kind === 'quiz' ? (
+                      <QuizCover
+                        color={fillToCss(n.cover)}
+                        title={n.title}
+                        count={n.quiz?.questions.length ?? 0}
+                        className="w-full"
+                      />
+                    ) : n.kind === 'presentation' || n.kind === 'deck' ? (
                       <NotebookThumbnail notebook={n} width={120} className="!w-full shadow-soft" />
                     ) : (
                       <span
@@ -903,26 +901,5 @@ function FolderPeek({
         )}
       </Contents>
     </>
-  )
-}
-
-/** The left part: the item itself, its name and the button to open it. */
-function Side({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="flex shrink-0 flex-col gap-4 border-line bg-surface p-5 max-md:border-b md:w-[22rem] md:border-r">
-      {children}
-    </div>
-  )
-}
-
-/** The right part: what is inside, scrolling on its own. */
-function Contents({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-      <h2 className="px-5 pt-5 pb-3 text-xs font-semibold tracking-[0.14em] text-ink-muted uppercase">
-        {title}
-      </h2>
-      <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-5">{children}</div>
-    </div>
   )
 }

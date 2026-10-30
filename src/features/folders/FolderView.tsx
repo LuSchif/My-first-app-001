@@ -19,6 +19,7 @@ import {
   NewFolderButton,
   NewNotebookButton,
   NewDeckButton,
+  NewQuizButton,
   NewPresentationButton,
   Section,
 } from '../library/LibraryView.tsx'
@@ -133,6 +134,7 @@ export function FolderView({ id }: { id: string }) {
               ) : null}
             </Dialog>
             <NewFolderButton reload={reload} parentId={folder.id} label="New folder" />
+            <NewQuizButton library={library} reload={reload} folderId={folder.id} />
             <NewDeckButton
               library={library}
               reload={reload}

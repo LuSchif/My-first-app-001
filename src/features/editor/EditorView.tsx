@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
-import { navigate } from '../../app/router.ts'
+import { navigate, routeToHash } from '../../app/router.ts'
 import { History } from '../../engine/commands/History.ts'
 import { NotebookDocument } from '../../engine/document/NotebookDocument.ts'
 import { Editor } from '../../engine/editor/Editor.ts'
@@ -31,6 +31,11 @@ export function EditorView({ id }: { id: string }) {
         if (cancelled) return
         if (!data) {
           setLoaded('missing')
+          return
+        }
+        // A quiz has its own editor.
+        if (data.notebook.kind === 'quiz') {
+          window.location.replace(routeToHash({ name: 'quiz', id }))
           return
         }
         const doc = new NotebookDocument(data.notebook, data.pages)

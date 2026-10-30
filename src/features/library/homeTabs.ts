@@ -7,7 +7,7 @@ import type { Id } from '../../engine/model/types.ts'
  * own in the carousel. This is only how the home screen shows things; folders are untouched.
  */
 
-export const HOME_TABS = ['folders', 'notebooks', 'presentations', 'flashcards'] as const
+export const HOME_TABS = ['folders', 'notebooks', 'presentations', 'flashcards', 'quizzes'] as const
 export type HomeTabKey = (typeof HOME_TABS)[number]
 
 /** At most this many items are pinned on one page. */

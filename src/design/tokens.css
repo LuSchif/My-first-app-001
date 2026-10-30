@@ -41,6 +41,16 @@
   --color-danger: #a8432f;
   --color-scrim: rgb(40 28 22 / 0.32);
 
+  /* Quiz answers: each has its own color and shape, as in Kahoot, in every theme. */
+  --color-answer-1: #d64545;
+  --color-answer-2: #3b6fc9;
+  --color-answer-3: #d49a1e;
+  --color-answer-4: #3f8f3a;
+  --color-answer-5: #8a5cc2;
+  --color-answer-6: #1f9a9a;
+  --color-correct: #2f8a3c;
+  --color-incorrect: #c4413a;
+
   --font-sans:
     'Plus Jakarta Sans Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
 

@@ -137,3 +137,12 @@ export async function saveStudy(
 ): Promise<void> {
   await database.notebooks.update(notebookId, { study })
 }
+
+/** Saves a quiz's questions (and its title), and when it was edited. */
+export async function saveQuiz(
+  id: string,
+  patch: Partial<Pick<Notebook, 'quiz' | 'title'>>,
+  database: BroomitDatabase = db,
+): Promise<void> {
+  await database.notebooks.update(id, { ...patch, updatedAt: Date.now() })
+}

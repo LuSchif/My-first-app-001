@@ -2,6 +2,7 @@ import { releaseLabel } from '../../release.ts'
 import {
   ChevronRight,
   FolderPlus,
+  Gamepad2,
   Layers,
   NotebookPen,
   Plus,
@@ -17,6 +18,7 @@ import { Carousel, type CarouselPage } from './Carousel.tsx'
 import { FolderDropStrip } from './FolderDropStrip.tsx'
 import { PeekLayer } from './Peek.tsx'
 import { NewDeckDialog } from '../flashcards/NewDeckDialog.tsx'
+import { NewQuizDialog } from '../quiz/NewQuizDialog.tsx'
 import type { DocumentKind, Folder, Notebook } from '../../engine/model/types.ts'
 import { cn } from '../../lib/cn.ts'
 import { arrange, type HomeGroup, type HomeTab, type HomeTabKey } from './homeTabs.ts'
@@ -121,7 +123,7 @@ export function LibraryView() {
   )
 }
 
-const PAGES = ['create', 'folders', 'notebooks', 'presentations', 'flashcards'] as const
+const PAGES = ['create', 'folders', 'notebooks', 'presentations', 'flashcards', 'quizzes'] as const
 
 /**
  * The carousel: Create, then folders, notebooks, presentations and flashcards. Each of those
@@ -376,6 +378,15 @@ function Browser({
       { label: 'New flashcards', onAdd: () => setCreating('deck') },
       'No flashcards yet. Make a deck, write on its cards with your pencil, then study it.',
     ),
+    ...tabPages(
+      'quizzes',
+      'Quizzes',
+      sortMenu('Sort quizzes'),
+      ofKind('quiz'),
+      notebookGrid,
+      { label: 'New quiz', onAdd: () => setCreating('quiz') },
+      'No quizzes yet. Make one with true or false, multiple choice, puzzles and more, then play it.',
+    ),
   ]
   const index = Math.max(
     0,
@@ -487,6 +498,12 @@ const CREATE_OPTIONS: [NonNullable<Creating>, string, string, React.ReactNode][]
     'Cards with a front and a back; what you don’t know comes again soon.',
     <Layers key="d" size={22} />,
   ],
+  [
+    'quiz',
+    'Quiz',
+    'Questions against the clock: multiple choice, true or false, puzzles and more.',
+    <Gamepad2 key="q" size={22} />,
+  ],
 ]
 
 /** The Create page, as a compact list or as tiles, with the shop last. Room for six. */
@@ -589,6 +606,13 @@ function Creator({
           onFoldersChanged={reload}
           onCreated={onCreated}
         />
+      ) : creating === 'quiz' ? (
+        <NewQuizDialog
+          folders={library.folders}
+          folderId={null}
+          onFoldersChanged={reload}
+          onCreated={(id) => navigate({ name: 'quiz', id })}
+        />
       ) : creating === 'deck' ? (
         <NewDeckDialog
           folders={library.folders}
@@ -632,6 +656,7 @@ function SearchResults({
       ['notebook', 'Notebooks'],
       ['presentation', 'Presentations'],
       ['deck', 'Flashcards'],
+      ['quiz', 'Quizzes'],
     ] as const
   )
     .map(([kind, title]) => ({
@@ -836,6 +861,33 @@ export function NewDeckButton({
           folderId={folderId}
           onFoldersChanged={reload}
           onCreated={onCreated}
+        />
+      ) : null}
+    </Dialog>
+  )
+}
+
+export function NewQuizButton({
+  library,
+  reload,
+  folderId = null,
+}: {
+  library: Library | null
+  reload: () => void
+  folderId?: string | null
+}) {
+  const [open, setOpen] = useState(false)
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button icon={<Gamepad2 size={18} />}>New quiz</Button>
+      </DialogTrigger>
+      {open ? (
+        <NewQuizDialog
+          folders={library?.folders ?? []}
+          folderId={folderId}
+          onFoldersChanged={reload}
+          onCreated={(id) => navigate({ name: 'quiz', id })}
         />
       ) : null}
     </Dialog>

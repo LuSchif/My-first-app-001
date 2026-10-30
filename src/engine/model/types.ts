@@ -47,6 +47,8 @@ export interface Notebook {
   kind?: DocumentKind
   /** Flashcards: how well each card is known, by the id of its front page. */
   study?: Record<Id, CardStudy>
+  /** Quizzes: the questions (a quiz has no pages). */
+  quiz?: QuizData
   /** The size of every page; A4 (PAGE_SIZE) when absent. */
   pageSize?: PageSize
   title: string
@@ -424,7 +426,9 @@ export const SLIDE_SIZES = {
  * What a document is: a notebook of pages, a presentation of slides, or a deck of flashcards
  * (pages in pairs: each card's front, then its back).
  */
-export type DocumentKind = 'notebook' | 'presentation' | 'deck'
+import type { QuizData } from './quiz.ts'
+
+export type DocumentKind = 'notebook' | 'presentation' | 'deck' | 'quiz'
 
 /** A flashcard's size: a landscape index card. */
 export const CARD_SIZE: PageSize = { width: 640, height: 400 }

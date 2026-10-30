@@ -1,5 +1,6 @@
 import {
   FolderClosed,
+  Gamepad2,
   FolderInput,
   Layers,
   BarChart3,
@@ -24,6 +25,7 @@ import { MoveList } from './MoveList.tsx'
 import { NotebookThumbnail } from './NotebookThumbnail.tsx'
 import { openPeek } from './peek.ts'
 import { kindName } from './kinds.ts'
+import { QuizCover } from '../quiz/QuizCover.tsx'
 import { useOrganizer } from './organizer.ts'
 import { GroupList, OrganizeItems } from './OrganizeMenu.tsx'
 
@@ -150,6 +152,19 @@ export function NotebookCard({
           >
             <DeckStack notebook={notebook} />
           </button>
+        ) : notebook.kind === 'quiz' ? (
+          <button
+            {...open}
+            {...draggable}
+            className={cn('grid w-[86%] min-w-0 place-items-center', tilePress)}
+          >
+            <QuizCover
+              color={fillToCss(notebook.cover)}
+              title={notebook.title}
+              count={notebook.quiz?.questions.length ?? 0}
+              className="w-full"
+            />
+          </button>
         ) : (
           // Standing upright in the tile.
           <button
@@ -169,11 +184,8 @@ export function NotebookCard({
             {selected !== undefined ? <SelectMark selected={selected} inset /> : null}
           </button>
         )}
-        {pinned && (notebook.kind === 'presentation' || notebook.kind === 'deck') ? (
-          <PinMark />
-        ) : null}
-        {selected !== undefined &&
-        (notebook.kind === 'presentation' || notebook.kind === 'deck') ? (
+        {pinned && notebook.kind !== undefined && notebook.kind !== 'notebook' ? <PinMark /> : null}
+        {selected !== undefined && notebook.kind !== undefined && notebook.kind !== 'notebook' ? (
           <SelectMark selected={selected} />
         ) : null}
       </div>
@@ -204,6 +216,16 @@ function Details({ notebook }: { notebook: Notebook }) {
         ) : (
           ' · all learned for now'
         )}
+      </p>
+    )
+  }
+  if (notebook.kind === 'quiz') {
+    const count = notebook.quiz?.questions.length ?? 0
+    const best = Math.max(0, ...(notebook.quiz?.results ?? []).map((r) => r.score))
+    return (
+      <p className="truncate text-ink-muted">
+        {count} {count === 1 ? 'question' : 'questions'}
+        {best ? ` · best ${best}` : ` · ${formatEdited(notebook.updatedAt)}`}
       </p>
     )
   }
@@ -309,6 +331,13 @@ export function NotebookRow({
             <NotebookThumbnail notebook={notebook} width={48} className="!w-12 shadow-soft" />
           ) : notebook.kind === 'deck' ? (
             <DeckStack notebook={notebook} small />
+          ) : notebook.kind === 'quiz' ? (
+            <QuizCover
+              color={fillToCss(notebook.cover)}
+              title=""
+              count={notebook.quiz?.questions.length ?? 0}
+              className="w-12 !p-1 [&>span:first-child]:hidden [&>span:last-child]:hidden"
+            />
           ) : (
             <span
               className="block aspect-[3/4] w-9 rounded-r-md rounded-l-sm shadow-soft"
@@ -327,6 +356,8 @@ export function NotebookRow({
               />
             ) : notebook.kind === 'deck' ? (
               <Layers size={14} aria-label="Flashcards" className="shrink-0 text-ink-muted" />
+            ) : notebook.kind === 'quiz' ? (
+              <Gamepad2 size={14} aria-label="Quiz" className="shrink-0 text-ink-muted" />
             ) : null}
           </span>
           <Details notebook={notebook} />

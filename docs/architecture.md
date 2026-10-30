@@ -519,3 +519,22 @@ The editor was moved ahead of the dashboard (packages 2–3) so the tools can be
 - In a browser there is no App Store: buying is a test purchase, unlocked on that device and
   marked `test`; the shop says so. Test purchases never count in the app. Purchases are kept
   in the `purchases` table and in backups.
+
+## Quizzes
+
+- A quiz is a document of its own kind (`kind: 'quiz'`) with questions instead of pages
+  (`Notebook.quiz`, `engine/model/quiz.ts`), so folders, pins, groups, search, selection,
+  trash and backups work for it as for notebooks. It has its own tab, Create entry, tile
+  (`QuizCover`) and peek (`QuizPeek`).
+- Question kinds, as in Kahoot: Quiz (one right answer of up to six), Multi-select, True or
+  false, Puzzle (put in order), Type answer (accepted spellings; case, accents and spaces do
+  not matter), Slider (a value with a tolerance) and Poll (no right answer). Each has a time
+  limit, standard, double or no points, and an optional picture (a small JPEG kept with it).
+- The editor (`#/quiz/<id>`, `QuizEditor.tsx`) is laid out like the presentation editor:
+  questions on the left, the question as players see it in the middle (answers on colored
+  tiles with shapes, `--color-answer-*`), its settings on the right. It saves itself a moment
+  after each change and says what keeps a question from being played.
+- Playing (`#/play/<id>`, `QuizPlay.tsx`): each question against the clock; a right answer is
+  worth up to 1000 points, falling to 500 as time runs out (`pointsFor`). Puzzle items come
+  shuffled and are tapped in order. The end shows the score and every question; the last
+  runs are kept with the quiz (best score on its tile).

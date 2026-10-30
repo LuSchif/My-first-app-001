@@ -4,6 +4,8 @@ import { EditorView } from '../features/editor/EditorView.tsx'
 import { FolderView } from '../features/folders/FolderView.tsx'
 import { LibraryView } from '../features/library/LibraryView.tsx'
 import { ShopView } from '../features/shop/ShopView.tsx'
+import { QuizEditor } from '../features/quiz/QuizEditor.tsx'
+import { QuizPlay } from '../features/quiz/QuizPlay.tsx'
 import { watchStore } from '../features/shop/purchases.ts'
 import { requestPersistentStorage } from '../storage/db.ts'
 import { usePencilTaps } from '../lib/usePencilTaps.ts'
@@ -38,6 +40,10 @@ export function App() {
         <FolderView key={route.id} id={route.id} />
       ) : route.name === 'shop' ? (
         <ShopView />
+      ) : route.name === 'quiz' ? (
+        <QuizEditor key={route.id} id={route.id} />
+      ) : route.name === 'play' ? (
+        <QuizPlay key={route.id} id={route.id} />
       ) : (
         <LibraryView />
       )}
