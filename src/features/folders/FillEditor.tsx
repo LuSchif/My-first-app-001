@@ -1,4 +1,4 @@
-import { ArrowUp, Minus, Plus } from 'lucide-react'
+import { ArrowUp, Minus, Plus } from '../../design/icons/icons.tsx'
 import { useRef, useState } from 'react'
 import { fillToCss, parseHex, type Fill, type GradientStop } from '../../engine/model/fill.ts'
 import {

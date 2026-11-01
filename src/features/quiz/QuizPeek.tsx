@@ -1,5 +1,5 @@
 import { BroomitIcon } from '../../design/index.ts'
-import { Play, Users } from 'lucide-react'
+import { Play, Users } from '../../design/icons/icons.tsx'
 import { useState } from 'react'
 import { navigate } from '../../app/router.ts'
 import { Button, Dialog } from '../../design/index.ts'

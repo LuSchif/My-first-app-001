@@ -1,4 +1,4 @@
-import { Info } from 'lucide-react'
+import { Info } from '../../design/icons/icons.tsx'
 import { uniqueName } from './uniqueName.ts'
 
 /** Under a name field: says that the name is taken and what it will be saved as. */

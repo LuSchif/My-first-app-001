@@ -1,4 +1,4 @@
-import { EyeOff, Layers, Lock, X } from 'lucide-react'
+import { EyeOff, Layers, Lock, X } from '../../design/icons/icons.tsx'
 import type { Editor, EditorState } from '../../engine/editor/Editor.ts'
 
 const WIDTH = 288

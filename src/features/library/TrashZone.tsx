@@ -1,4 +1,4 @@
-import { LoaderCircle, Trash2 } from 'lucide-react'
+import { LoaderCircle, Trash2 } from '../../design/icons/icons.tsx'
 import { useEffect } from 'react'
 import { cn } from '../../lib/cn.ts'
 import { dragLabel, refreshDropTarget, TRASH_BAND_PX, useDragState } from './dragDrop.ts'

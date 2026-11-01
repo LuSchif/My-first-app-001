@@ -1,4 +1,4 @@
-import { Check, UserPlus, X } from 'lucide-react'
+import { Check, UserPlus, X } from '../../design/icons/icons.tsx'
 import { useState } from 'react'
 import { Button, IconButton, TextField } from '../../design/index.ts'
 import { showNotice } from '../../lib/notices.ts'

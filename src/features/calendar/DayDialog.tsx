@@ -1,4 +1,4 @@
-import { Plus, Star } from 'lucide-react'
+import { Plus, Star } from '../../design/icons/icons.tsx'
 import { useState } from 'react'
 import { Button, ColorSwatch, DialogContent, Switch, TextField } from '../../design/index.ts'
 import { setDayMark, type Entry } from './calendarStore.ts'

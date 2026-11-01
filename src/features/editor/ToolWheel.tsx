@@ -1,4 +1,4 @@
-import { ClipboardPaste } from 'lucide-react'
+import { ClipboardPaste } from '../../design/icons/icons.tsx'
 import { useEffect, useRef, useState } from 'react'
 import type { Editor, EditorState, ToolId } from '../../engine/editor/Editor.ts'
 import { cn } from '../../lib/cn.ts'

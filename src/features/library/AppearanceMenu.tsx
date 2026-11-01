@@ -1,5 +1,5 @@
 import { BroomitIcon } from '../../design/index.ts'
-import { Moon, Palette, Plus, X } from 'lucide-react'
+import { Moon, Palette, Plus, X } from '../../design/icons/icons.tsx'
 import { useState } from 'react'
 import {
   Button,

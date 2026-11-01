@@ -10,7 +10,7 @@ import {
   Plus,
   Trash2,
   X,
-} from 'lucide-react'
+} from '../../design/icons/icons.tsx'
 import { useEffect, useRef, useState } from 'react'
 import { navigate } from '../../app/router.ts'
 import {

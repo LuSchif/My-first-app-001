@@ -1,4 +1,4 @@
-import { ArrowUpDown, Check } from 'lucide-react'
+import { ArrowUpDown, Check } from '../../design/icons/icons.tsx'
 import { Popover, PopoverContent, PopoverTrigger, useClosePopover } from '../../design/index.ts'
 
 /** A small menu to choose one of a few orders (or filters). */

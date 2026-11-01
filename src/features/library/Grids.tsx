@@ -1,4 +1,4 @@
-import { Plus } from 'lucide-react'
+import { Plus } from '../../design/icons/icons.tsx'
 import type { Folder, Notebook } from '../../engine/model/types.ts'
 import { FolderCard, FolderRow } from '../folders/FolderCard.tsx'
 import { makeDrop } from './librarySort.ts'

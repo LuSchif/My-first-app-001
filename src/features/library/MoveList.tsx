@@ -1,5 +1,5 @@
 import { createElement } from 'react'
-import { Check, Inbox } from 'lucide-react'
+import { Check, Inbox } from '../../design/icons/icons.tsx'
 import type { Folder, Id } from '../../engine/model/types.ts'
 import { withDescendants } from '../../storage/folders.ts'
 import { folderIcon } from '../folders/folderIcons.ts'

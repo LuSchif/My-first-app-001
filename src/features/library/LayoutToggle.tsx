@@ -1,4 +1,4 @@
-import { LayoutGrid, List } from 'lucide-react'
+import { LayoutGrid, List } from '../../design/icons/icons.tsx'
 import { IconButton } from '../../design/index.ts'
 import type { LibraryLayout } from './libraryLayout.ts'
 

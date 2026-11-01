@@ -58,7 +58,7 @@ import {
   Utensils,
   Wallet,
   type LucideIcon,
-} from 'lucide-react'
+} from '../../design/icons/icons.tsx'
 
 /** Icons for folders, by topic. A folder stores the icon's name. */
 export const FOLDER_ICON_GROUPS: readonly {

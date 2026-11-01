@@ -150,3 +150,12 @@ body::before {
 .bg-accent {
   --icon-bg: var(--color-accent);
 }
+
+/* A chosen icon button (cream, see IconButton) shows its icon in color. */
+.bicon-host[aria-pressed='true'] svg[data-bicon] {
+  color: var(--color-icon-line);
+  --bi-fill: var(--color-icon-fill);
+  --bi-soft: var(--color-icon-soft);
+  --bi-accent: var(--color-icon-accent);
+  --bi-accent-line: var(--color-icon-accent);
+}

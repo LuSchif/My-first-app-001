@@ -1,5 +1,11 @@
 import { BroomitIcon } from '../../design/index.ts'
-import { Check, ChevronLeft, Crown, Infinity as Forever, Trash2 } from 'lucide-react'
+import {
+  Check,
+  ChevronLeft,
+  Crown,
+  InfinityIcon as Forever,
+  Trash2,
+} from '../../design/icons/icons.tsx'
 import { useRef, useState } from 'react'
 import { navigate } from '../../app/router.ts'
 import { Button, TextField } from '../../design/index.ts'

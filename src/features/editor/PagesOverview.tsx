@@ -1,4 +1,12 @@
-import { ArrowDown, ArrowRight, Copy, FilePlus2, LoaderCircle, Share, Trash2 } from 'lucide-react'
+import {
+  ArrowDown,
+  ArrowRight,
+  Copy,
+  FilePlus2,
+  LoaderCircle,
+  Share,
+  Trash2,
+} from '../../design/icons/icons.tsx'
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import type { NotebookDocument } from '../../engine/document/NotebookDocument.ts'
 import type { Editor } from '../../engine/editor/Editor.ts'

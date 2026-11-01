@@ -1,4 +1,4 @@
-import { Type } from 'lucide-react'
+import { Type } from '../../design/icons/icons.tsx'
 import type { ReactNode } from 'react'
 import { BroomitIcon } from '../../design/index.ts'
 import type { Editor, EditorState, ToolId } from '../../engine/editor/Editor.ts'

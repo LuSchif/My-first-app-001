@@ -1,5 +1,5 @@
 import * as RadixDialog from '@radix-ui/react-dialog'
-import { X } from 'lucide-react'
+import { X } from '../../design/icons/icons.tsx'
 import type { ReactNode } from 'react'
 import { cn } from '../../lib/cn.ts'
 import { IconButton } from './IconButton.tsx'

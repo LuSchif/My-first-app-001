@@ -7,7 +7,7 @@ import {
   Minus,
   Plus,
   Unlink,
-} from 'lucide-react'
+} from '../../design/icons/icons.tsx'
 import { useState } from 'react'
 import type { Editor } from '../../engine/editor/Editor.ts'
 import {

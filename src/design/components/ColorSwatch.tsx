@@ -1,4 +1,4 @@
-import { Check } from 'lucide-react'
+import { Check } from '../../design/icons/icons.tsx'
 import { fillToCss, prefersLightText, type Fill } from '../../engine/model/fill.ts'
 import { cn } from '../../lib/cn.ts'
 

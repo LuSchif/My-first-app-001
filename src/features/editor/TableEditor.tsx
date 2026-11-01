@@ -1,4 +1,4 @@
-import { Divide, Minus, Plus, Sigma } from 'lucide-react'
+import { Divide, Minus, Plus, Sigma } from '../../design/icons/icons.tsx'
 import { useState } from 'react'
 import type { Editor } from '../../engine/editor/Editor.ts'
 import {

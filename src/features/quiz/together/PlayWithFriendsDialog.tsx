@@ -1,4 +1,4 @@
-import { Radio, Send, Timer } from 'lucide-react'
+import { Radio, Send, Timer } from '../../../design/icons/icons.tsx'
 import { useState } from 'react'
 import { navigate } from '../../../app/router.ts'
 import { Button, DialogContent, DialogFooter } from '../../../design/index.ts'

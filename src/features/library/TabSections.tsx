@@ -1,5 +1,13 @@
 import { BroomitIcon } from '../../design/index.ts'
-import { ChevronDown, FolderKanban, MoreHorizontal, Pin, PinOff, Plus, Trash2 } from 'lucide-react'
+import {
+  ChevronDown,
+  FolderKanban,
+  MoreHorizontal,
+  Pin,
+  PinOff,
+  Plus,
+  Trash2,
+} from '../../design/icons/icons.tsx'
 import { useState } from 'react'
 import {
   Button,

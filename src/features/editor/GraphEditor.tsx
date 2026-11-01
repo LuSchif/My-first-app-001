@@ -1,4 +1,4 @@
-import { ChartSpline, X } from 'lucide-react'
+import { ChartSpline, X } from '../../design/icons/icons.tsx'
 import { useState } from 'react'
 import type { Editor, EditorState } from '../../engine/editor/Editor.ts'
 import { fitGraphFrame, tickSize, type GraphAxis } from '../../engine/model/graph.ts'

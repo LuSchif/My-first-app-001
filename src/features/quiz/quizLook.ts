@@ -7,7 +7,7 @@ import {
   SlidersHorizontal,
   ToggleLeft,
   Vote,
-} from 'lucide-react'
+} from '../../design/icons/icons.tsx'
 import type { QuestionKind } from '../../engine/model/quiz.ts'
 
 export const KIND_ICONS: Record<QuestionKind, typeof CircleDot> = {

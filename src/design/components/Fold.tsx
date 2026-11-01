@@ -1,4 +1,4 @@
-import { ChevronDown } from 'lucide-react'
+import { ChevronDown } from '../../design/icons/icons.tsx'
 import type { ReactNode } from 'react'
 import { cn } from '../../lib/cn.ts'
 

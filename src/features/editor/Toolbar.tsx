@@ -8,7 +8,7 @@ import {
   Play,
   Redo2,
   Undo2,
-} from 'lucide-react'
+} from '../../design/icons/icons.tsx'
 import { useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
 import type { Editor, EditorState, ToolId } from '../../engine/editor/Editor.ts'
 import type { StrokeDash } from '../../engine/model/types.ts'

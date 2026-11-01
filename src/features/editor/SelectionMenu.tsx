@@ -15,7 +15,7 @@ import {
   SquareRoundCorner,
   TextCursorInput,
   Trash2,
-} from 'lucide-react'
+} from '../../design/icons/icons.tsx'
 import type { Editor, EditorState } from '../../engine/editor/Editor.ts'
 import {
   Button,

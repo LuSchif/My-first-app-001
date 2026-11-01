@@ -6,7 +6,7 @@ import {
   RefreshCw,
   Trash2,
   TriangleAlert,
-} from 'lucide-react'
+} from '../../design/icons/icons.tsx'
 import { useRef, useState } from 'react'
 import { Button, ColorSwatch, DialogContent, Switch, TextField } from '../../design/index.ts'
 import { formatEdited } from '../../lib/time.ts'

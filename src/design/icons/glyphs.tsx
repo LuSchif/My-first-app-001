@@ -20,26 +20,31 @@ export interface Paint {
   tip: string
 }
 
-export function paintFor(colored: boolean, tip?: string): Paint {
+/**
+ * The paints of an icon. They read CSS variables, so the colored look can be switched on by the
+ * icon itself (`colored`) or by a chosen button around it (index.css); without them the icon is
+ * lines only. Pens show `tip` in both looks.
+ */
+export function paintFor(tip?: string): Paint {
   const bg = 'var(--icon-bg, var(--color-surface-raised))'
-  return colored
-    ? {
-        fill: 'var(--color-icon-fill)',
-        soft: 'var(--color-icon-soft)',
-        accent: 'var(--color-icon-accent)',
-        accentLine: 'var(--color-icon-accent)',
-        solid: 'var(--color-icon-accent)',
-        tip: tip ?? 'var(--color-icon-accent)',
-      }
-    : {
-        fill: bg,
-        soft: bg,
-        accent: bg,
-        accentLine: 'currentColor',
-        solid: 'currentColor',
-        tip: tip ?? bg,
-      }
+  return {
+    fill: `var(--bi-fill, ${bg})`,
+    soft: `var(--bi-soft, ${bg})`,
+    accent: `var(--bi-accent, ${bg})`,
+    accentLine: 'var(--bi-accent-line, currentColor)',
+    solid: 'var(--bi-accent-line, currentColor)',
+    tip: tip ?? `var(--bi-accent, ${bg})`,
+  }
 }
+
+/** The CSS variables of the colored look. */
+export const COLORED_VARS = {
+  color: 'var(--color-icon-line)',
+  '--bi-fill': 'var(--color-icon-fill)',
+  '--bi-soft': 'var(--color-icon-soft)',
+  '--bi-accent': 'var(--color-icon-accent)',
+  '--bi-accent-line': 'var(--color-icon-accent)',
+} as Record<string, string>
 
 type Glyph = (p: Paint) => ReactNode
 

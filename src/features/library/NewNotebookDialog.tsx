@@ -1,4 +1,4 @@
-import { BookmarkPlus, Paintbrush, Trash2 } from 'lucide-react'
+import { BookmarkPlus, Paintbrush, Trash2 } from '../../design/icons/icons.tsx'
 import { useState } from 'react'
 import { createNotebook } from '../../engine/model/factory.ts'
 import { fillToCss, type Fill } from '../../engine/model/fill.ts'

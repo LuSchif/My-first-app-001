@@ -1,5 +1,5 @@
 import { BroomitIcon } from '../../design/index.ts'
-import { Check, ChevronLeft, GraduationCap, Plus, X } from 'lucide-react'
+import { Check, ChevronLeft, GraduationCap, Plus, X } from '../../design/icons/icons.tsx'
 import { createPortal } from 'react-dom'
 import { useEffect, useState } from 'react'
 import { navigate } from '../../app/router.ts'

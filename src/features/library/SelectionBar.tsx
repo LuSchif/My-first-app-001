@@ -1,4 +1,4 @@
-import { CheckCheck, FolderInput, FolderKanban, Trash2, X } from 'lucide-react'
+import { CheckCheck, FolderInput, FolderKanban, Trash2, X } from '../../design/icons/icons.tsx'
 import { useState } from 'react'
 import type { Folder, Id } from '../../engine/model/types.ts'
 import { Button, IconButton, Popover, PopoverContent, PopoverTrigger } from '../../design/index.ts'

@@ -1,5 +1,5 @@
-import type { SVGProps } from 'react'
-import { GLYPHS, paintFor, type GlyphName } from './glyphs.tsx'
+import type { CSSProperties, SVGProps } from 'react'
+import { COLORED_VARS, GLYPHS, paintFor, type GlyphName } from './glyphs.tsx'
 
 /**
  * One of Broomit's icons: lines only, or in color when `colored` (a tool in use). Pens show
@@ -32,10 +32,11 @@ export function BroomitIcon({
       strokeLinejoin="round"
       aria-hidden="true"
       // A colored icon keeps its dark lines in every theme.
-      style={colored ? { color: 'var(--color-icon-line)', ...style } : style}
+      style={colored ? ({ ...COLORED_VARS, ...style } as CSSProperties) : style}
+      data-bicon=""
       {...props}
     >
-      {GLYPHS[name](paintFor(colored, tip))}
+      {GLYPHS[name](paintFor(tip))}
     </svg>
   )
 }

@@ -10,7 +10,7 @@ import {
   Minus,
   Plus,
   Underline,
-} from 'lucide-react'
+} from '../../design/icons/icons.tsx'
 import { useContext, useState, type ReactNode } from 'react'
 import type { Editor } from '../../engine/editor/Editor.ts'
 import type { FontFamily, TextStyle } from '../../engine/model/types.ts'

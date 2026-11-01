@@ -1,4 +1,4 @@
-import { Bell, X } from 'lucide-react'
+import { Bell, X } from '../../design/icons/icons.tsx'
 import { useEffect, useSyncExternalStore } from 'react'
 import { loadCalendar } from './calendarStore.ts'
 import {

@@ -1,4 +1,4 @@
-import { GripHorizontal, GripVertical } from 'lucide-react'
+import { GripHorizontal, GripVertical } from '../../design/icons/icons.tsx'
 import {
   useContext,
   useLayoutEffect,

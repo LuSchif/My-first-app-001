@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight, FolderKanban } from 'lucide-react'
+import { ChevronLeft, ChevronRight, FolderKanban } from '../../design/icons/icons.tsx'
 import { useEffect, useRef, type ReactNode } from 'react'
 import { IconButton } from '../../design/index.ts'
 import { cn } from '../../lib/cn.ts'

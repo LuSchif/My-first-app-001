@@ -1,4 +1,4 @@
-import { FolderInput, Inbox } from 'lucide-react'
+import { FolderInput, Inbox } from '../../design/icons/icons.tsx'
 import { dragLabel, useDragState } from './dragDrop.ts'
 
 /** What is being dragged, under the finger, and where it would go. */

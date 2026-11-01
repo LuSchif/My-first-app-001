@@ -1,4 +1,4 @@
-import { Check, FolderKanban, Inbox, Pin, PinOff } from 'lucide-react'
+import { Check, FolderKanban, Inbox, Pin, PinOff } from '../../design/icons/icons.tsx'
 import type { Id } from '../../engine/model/types.ts'
 import { Button } from '../../design/index.ts'
 import { useOrganizer } from './organizer.ts'

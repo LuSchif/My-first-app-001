@@ -1,4 +1,4 @@
-import { User } from 'lucide-react'
+import { User } from '../../design/icons/icons.tsx'
 import { initials } from './profile.ts'
 
 /** The profile picture, or the name's initials, or a person outline, in a circle. */

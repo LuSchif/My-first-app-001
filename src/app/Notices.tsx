@@ -1,4 +1,4 @@
-import { X } from 'lucide-react'
+import { X } from '../design/icons/icons.tsx'
 import { useSyncExternalStore } from 'react'
 import { currentNotices, dismissNotice, subscribeNotices } from '../lib/notices.ts'
 

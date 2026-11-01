@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, X } from '../../design/icons/icons.tsx'
 import { useEffect, useRef, useState } from 'react'
 import type { NotebookDocument } from '../../engine/document/NotebookDocument.ts'
 import { SlideShow, type ShowPosition } from '../../engine/present/SlideShow.ts'

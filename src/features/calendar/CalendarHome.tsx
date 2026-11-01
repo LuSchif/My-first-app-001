@@ -7,7 +7,7 @@ import {
   Plus,
   Settings2,
   TriangleAlert,
-} from 'lucide-react'
+} from '../../design/icons/icons.tsx'
 import { useMemo, useState } from 'react'
 import { connectDevice } from './calendarStore.ts'
 import { deviceCalendarsAvailable, openAppSettings } from './deviceCalendar.ts'

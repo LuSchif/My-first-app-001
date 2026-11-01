@@ -1,5 +1,5 @@
 import { BroomitIcon } from '../../design/index.ts'
-import { Music, PaintBucket, Shapes, X } from 'lucide-react'
+import { Music, PaintBucket, Shapes, X } from '../../design/icons/icons.tsx'
 import type { Editor, EditorState } from '../../engine/editor/Editor.ts'
 
 const CHIP_HEIGHT = 48

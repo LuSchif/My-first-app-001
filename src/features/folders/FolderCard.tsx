@@ -1,5 +1,5 @@
 import { BroomitIcon } from '../../design/index.ts'
-import { Copy, FolderInput, MoreHorizontal, Trash2 } from 'lucide-react'
+import { Copy, FolderInput, MoreHorizontal, Trash2 } from '../../design/icons/icons.tsx'
 import { useState } from 'react'
 import type { Folder, Notebook } from '../../engine/model/types.ts'
 import {

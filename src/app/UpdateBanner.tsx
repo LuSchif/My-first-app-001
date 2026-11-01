@@ -1,4 +1,4 @@
-import { RefreshCw } from 'lucide-react'
+import { RefreshCw } from '../design/icons/icons.tsx'
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import { isUpdateReady, onUpdateReady } from '../lib/install.ts'
 import { publishedRelease } from '../lib/release.ts'

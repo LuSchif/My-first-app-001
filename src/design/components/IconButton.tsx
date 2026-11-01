@@ -9,15 +9,15 @@ export interface IconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement>
   /** For tool buttons: whether this tool is the active one. */
   active?: boolean
   /**
-   * The chosen look for Broomit's own icons: a light cream background, so the icon shows in
-   * color, instead of the dark fill.
+   * The chosen look (the usual one): a light cream background with the icon in color. Off, a
+   * chosen button is filled dark instead.
    */
   soft?: boolean
   size?: 'md' | 'lg'
 }
 
 export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(function IconButton(
-  { label, icon, active, soft = false, size = 'md', className, type = 'button', ...props },
+  { label, icon, active, soft = true, size = 'md', className, type = 'button', ...props },
   ref,
 ) {
   return (
@@ -28,7 +28,7 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(functio
         aria-label={label}
         aria-pressed={active}
         className={cn(
-          'inline-grid shrink-0 place-items-center rounded-control text-ink',
+          'bicon-host inline-grid shrink-0 place-items-center rounded-control text-ink',
           'transition-[background-color,color,transform] duration-150 ease-gentle',
           'hover:bg-hover active:scale-95 disabled:pointer-events-none disabled:opacity-45',
           soft

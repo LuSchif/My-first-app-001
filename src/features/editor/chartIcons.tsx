@@ -1,5 +1,5 @@
 import { BroomitIcon } from '../../design/index.ts'
-import { ChartLine, ChartPie, CircleDashed } from 'lucide-react'
+import { ChartLine, ChartPie, CircleDashed } from '../../design/icons/icons.tsx'
 import type { ReactNode } from 'react'
 import type { ChartKind } from '../../engine/model/types.ts'
 

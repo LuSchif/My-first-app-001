@@ -1,4 +1,4 @@
-import { Plus } from 'lucide-react'
+import { Plus } from '../../design/icons/icons.tsx'
 import { useId, useState } from 'react'
 import type { Editor } from '../../engine/editor/Editor.ts'
 import { Button, DialogClose, DialogContent, DialogFooter } from '../../design/index.ts'

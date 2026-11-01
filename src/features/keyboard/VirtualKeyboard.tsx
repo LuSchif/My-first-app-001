@@ -6,7 +6,7 @@ import {
   ChevronRight,
   CornerDownLeft,
   Delete,
-} from 'lucide-react'
+} from '../../design/icons/icons.tsx'
 import {
   useCallback,
   useEffect,

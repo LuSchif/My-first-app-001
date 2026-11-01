@@ -1,4 +1,4 @@
-import { X } from 'lucide-react'
+import { X } from '../../../design/icons/icons.tsx'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { BroomitIcon, IconButton, Switch } from '../../../design/index.ts'
 import type { GlyphName } from '../../../design/icons/glyphs.tsx'

@@ -1,4 +1,4 @@
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight } from '../../design/icons/icons.tsx'
 import { navigate } from '../../app/router.ts'
 import { useAccount } from '../../storage/cloud/account.ts'
 import { useMyGames, type MyGame } from '../../storage/cloud/games.ts'

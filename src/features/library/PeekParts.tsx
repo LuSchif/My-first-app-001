@@ -1,4 +1,4 @@
-import { ChevronLeft } from 'lucide-react'
+import { ChevronLeft } from '../../design/icons/icons.tsx'
 import type { Folder } from '../../engine/model/types.ts'
 import { openPeek } from './peek.ts'
 

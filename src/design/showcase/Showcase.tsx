@@ -1,4 +1,13 @@
-import { ChartColumn, FolderPlus, Lasso, PenLine, Plus, Redo2, Type, Undo2 } from 'lucide-react'
+import {
+  ChartColumn,
+  FolderPlus,
+  Lasso,
+  PenLine,
+  Plus,
+  Redo2,
+  Type,
+  Undo2,
+} from '../../design/icons/icons.tsx'
 import { useState, type ReactNode } from 'react'
 import { BroomitIcon } from '../icons/BroomitIcon.tsx'
 import { GLYPHS, type GlyphName } from '../icons/glyphs.tsx'

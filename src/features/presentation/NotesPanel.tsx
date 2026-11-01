@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronUp, NotebookText } from 'lucide-react'
+import { ChevronDown, ChevronUp, NotebookText } from '../../design/icons/icons.tsx'
 import { useEffect, useRef, useState } from 'react'
 import type { NotebookDocument } from '../../engine/document/NotebookDocument.ts'
 import type { Editor, EditorState } from '../../engine/editor/Editor.ts'

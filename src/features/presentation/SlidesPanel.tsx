@@ -1,4 +1,11 @@
-import { ArrowDown, ArrowUp, Copy, MoreHorizontal, Plus, Trash2 } from 'lucide-react'
+import {
+  ArrowDown,
+  ArrowUp,
+  Copy,
+  MoreHorizontal,
+  Plus,
+  Trash2,
+} from '../../design/icons/icons.tsx'
 import { useEffect, useRef } from 'react'
 import type { NotebookDocument } from '../../engine/document/NotebookDocument.ts'
 import type { Editor, EditorState } from '../../engine/editor/Editor.ts'

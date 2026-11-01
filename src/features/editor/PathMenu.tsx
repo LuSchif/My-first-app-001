@@ -1,4 +1,4 @@
-import { Check, Spline, Trash2 } from 'lucide-react'
+import { Check, Spline, Trash2 } from '../../design/icons/icons.tsx'
 import type { Editor, EditorState } from '../../engine/editor/Editor.ts'
 
 const GAP = 28

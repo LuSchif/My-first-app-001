@@ -1,5 +1,5 @@
 import { BroomitIcon } from '../../design/index.ts'
-import { RotateCcw } from 'lucide-react'
+import { RotateCcw } from '../../design/icons/icons.tsx'
 import { useEffect, useMemo, useState } from 'react'
 import { navigate } from '../../app/router.ts'
 import { Button } from '../../design/index.ts'

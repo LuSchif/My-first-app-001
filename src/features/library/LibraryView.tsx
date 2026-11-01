@@ -1,5 +1,5 @@
 import { releaseLabel } from '../../release.ts'
-import { ChevronRight, Search, X } from 'lucide-react'
+import { ChevronRight, Search, X } from '../../design/icons/icons.tsx'
 import { useState } from 'react'
 import { navigate } from '../../app/router.ts'
 import { BroomitIcon, Button, Dialog, DialogTrigger } from '../../design/index.ts'

@@ -1,4 +1,4 @@
-import { Check, RotateCcw, X } from 'lucide-react'
+import { Check, RotateCcw, X } from '../../design/icons/icons.tsx'
 import { useEffect, useRef, useState } from 'react'
 import { answer, cardsOf, RETRY_GAP, studyQueue, type Card } from '../../engine/model/flashcards.ts'
 import type { CardStudy, Id, Notebook, Page } from '../../engine/model/types.ts'

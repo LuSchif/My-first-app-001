@@ -1,4 +1,11 @@
-import { ArchiveRestore, Download, FileUp, HardDriveDownload, Share, X } from 'lucide-react'
+import {
+  ArchiveRestore,
+  Download,
+  FileUp,
+  HardDriveDownload,
+  Share,
+  X,
+} from '../../design/icons/icons.tsx'
 import { useRef, useState } from 'react'
 import { Button, IconButton, Popover, PopoverContent, PopoverTrigger } from '../../design/index.ts'
 import { isInstalled } from '../../lib/install.ts'

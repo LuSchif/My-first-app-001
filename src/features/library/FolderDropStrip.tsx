@@ -1,4 +1,4 @@
-import { Inbox } from 'lucide-react'
+import { Inbox } from '../../design/icons/icons.tsx'
 import { useEffect, useRef } from 'react'
 import type { Folder, Notebook } from '../../engine/model/types.ts'
 import { cn } from '../../lib/cn.ts'

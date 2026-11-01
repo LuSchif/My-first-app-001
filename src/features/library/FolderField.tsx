@@ -1,5 +1,5 @@
 import { BroomitIcon } from '../../design/index.ts'
-import { ChevronDown, Inbox } from 'lucide-react'
+import { ChevronDown, Inbox } from '../../design/icons/icons.tsx'
 import { createElement, useState } from 'react'
 import type { Folder, Id } from '../../engine/model/types.ts'
 import { Button, Dialog, Popover, PopoverContent, PopoverTrigger } from '../../design/index.ts'

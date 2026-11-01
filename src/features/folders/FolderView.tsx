@@ -1,5 +1,5 @@
 import { BroomitIcon } from '../../design/index.ts'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight } from '../../design/icons/icons.tsx'
 import { useState } from 'react'
 import { navigate } from '../../app/router.ts'
 import { Button, Dialog, DialogTrigger, IconButton } from '../../design/index.ts'

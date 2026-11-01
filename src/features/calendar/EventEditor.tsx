@@ -1,4 +1,4 @@
-import { Bell, MapPin, Repeat, Trash2 } from 'lucide-react'
+import { Bell, MapPin, Repeat, Trash2 } from '../../design/icons/icons.tsx'
 import { useState } from 'react'
 import { Button, ColorSwatch, DialogContent, Switch, TextField } from '../../design/index.ts'
 import { deleteEvent, saveEvent, type Entry } from './calendarStore.ts'

@@ -1,4 +1,4 @@
-import { Copy, LogOut, Mail, Trash2 } from 'lucide-react'
+import { Copy, LogOut, Mail, Trash2 } from '../../design/icons/icons.tsx'
 import { useState } from 'react'
 import { Button, Dialog, DialogContent, DialogFooter, TextField } from '../../design/index.ts'
 import { showNotice } from '../../lib/notices.ts'

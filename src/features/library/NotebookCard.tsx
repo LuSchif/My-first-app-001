@@ -8,7 +8,7 @@ import {
   Pin,
   Presentation,
   Trash2,
-} from 'lucide-react'
+} from '../../design/icons/icons.tsx'
 import { useState } from 'react'
 import { fillToCss, prefersLightText } from '../../engine/model/fill.ts'
 import { dueCount } from '../../engine/model/flashcards.ts'

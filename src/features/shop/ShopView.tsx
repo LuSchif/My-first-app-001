@@ -11,7 +11,7 @@ import {
   Sticker,
   Target,
   Waypoints,
-} from 'lucide-react'
+} from '../../design/icons/icons.tsx'
 import { createContext, useContext, useState } from 'react'
 import { navigate } from '../../app/router.ts'
 import { Button, Dialog, DialogContent } from '../../design/index.ts'

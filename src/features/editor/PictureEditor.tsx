@@ -1,4 +1,4 @@
-import { Circle, Diamond, Heart, RotateCcw, Square } from 'lucide-react'
+import { Circle, Diamond, Heart, RotateCcw, Square } from '../../design/icons/icons.tsx'
 import { useEffect, useRef, useState } from 'react'
 import type { Editor } from '../../engine/editor/Editor.ts'
 import {

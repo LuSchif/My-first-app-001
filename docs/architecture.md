@@ -237,6 +237,11 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
   usual one) and in color for a tool in use (cream body, caramel details, tokens
   `--color-icon-*`). Pens (pen, fountain pen, magic pen, highlighter) always show their current
   ink at the tip. Buttons for tools take the light "soft" chosen look so the color shows.
+- Every other icon is a Broomit line icon too (`icons.tsx`, shapes in `lineGlyphs.ts`, adapted
+  from Lucide under its ISC license), imported under the usual names; there is no icon library
+  at run time any more. Their parts carry roles (body, detail, dot), so they color the same way.
+- The colored look is switched by CSS variables (`--bi-*`): by `colored`, or by a chosen icon
+  button (`IconButton`, cream with the icon in color, its usual chosen look).
 - Shapes are filled with the background behind them (`--icon-bg`), so lines underneath stay
   hidden; dark and accent backgrounds set it themselves (`index.css`).
 

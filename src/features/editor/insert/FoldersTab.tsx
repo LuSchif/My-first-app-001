@@ -1,4 +1,10 @@
-import { ChevronLeft, ChevronRight, Ellipsis, FileImage, FilePlus2 } from 'lucide-react'
+import {
+  ChevronLeft,
+  ChevronRight,
+  Ellipsis,
+  FileImage,
+  FilePlus2,
+} from '../../../design/icons/icons.tsx'
 import { useState } from 'react'
 import {
   BroomitIcon,

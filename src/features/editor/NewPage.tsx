@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowRight, FilePlus2 } from 'lucide-react'
+import { ArrowDown, ArrowRight, FilePlus2 } from '../../design/icons/icons.tsx'
 import { useState } from 'react'
 import type { Editor, EditorState } from '../../engine/editor/Editor.ts'
 import type { PaperKind } from '../../engine/model/types.ts'

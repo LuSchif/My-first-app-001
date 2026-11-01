@@ -13,7 +13,7 @@ import {
   TextCursorInput,
   Trash2,
   Type,
-} from 'lucide-react'
+} from '../../design/icons/icons.tsx'
 import { useRef, useState } from 'react'
 import type { Editor, EditorState } from '../../engine/editor/Editor.ts'
 import { mergeDownBlock } from '../../engine/editor/layers.ts'

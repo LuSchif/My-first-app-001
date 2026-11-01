@@ -1,4 +1,4 @@
-import { Minus, Plus } from 'lucide-react'
+import { Minus, Plus } from '../../design/icons/icons.tsx'
 import { IconButton } from '../../design/index.ts'
 
 /** A whole number with minus and plus buttons, e.g. a number of rows. */

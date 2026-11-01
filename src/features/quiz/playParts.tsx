@@ -1,4 +1,4 @@
-import { Check, X } from 'lucide-react'
+import { Check, X } from '../../design/icons/icons.tsx'
 import { useEffect, useRef, useState } from 'react'
 import { Button, IconButton } from '../../design/index.ts'
 import { shuffled, solutionOf, type QuizQuestion, type Response } from '../../engine/model/quiz.ts'
