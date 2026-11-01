@@ -81,7 +81,7 @@ export function ExtractView({
         {/* The only tool here. */}
         <span
           aria-label="Magnifier"
-          className="grid size-11 place-items-center rounded-control bg-icon-fill ring-1 ring-icon-accent"
+          className="grid size-11 place-items-center rounded-control bg-icon-fill text-icon-line ring-1 ring-icon-accent"
         >
           <BroomitIcon name="magnifier" size={24} colored />
         </span>

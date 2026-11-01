@@ -45,6 +45,8 @@
   --color-icon-fill: #f8ead8;
   --color-icon-soft: #f1dcc0;
   --color-icon-accent: #df9f55;
+  /* Lines of a colored icon: always dark, also in dark themes, so they show on the cream. */
+  --color-icon-line: #3e2d25;
 
   /* Quiz results: a right and a wrong answer. */
   --color-correct: #2f8a3c;

@@ -32,7 +32,7 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(functio
           'transition-[background-color,color,transform] duration-150 ease-gentle',
           'hover:bg-hover active:scale-95 disabled:pointer-events-none disabled:opacity-45',
           soft
-            ? 'aria-pressed:bg-icon-fill aria-pressed:ring-1 aria-pressed:ring-icon-accent aria-pressed:ring-inset'
+            ? 'aria-pressed:bg-icon-fill aria-pressed:text-icon-line aria-pressed:ring-1 aria-pressed:ring-icon-accent aria-pressed:ring-inset'
             : 'aria-pressed:bg-ink aria-pressed:text-ink-inverse aria-pressed:hover:bg-ink',
           size === 'md' ? 'size-11' : 'size-13',
           className,

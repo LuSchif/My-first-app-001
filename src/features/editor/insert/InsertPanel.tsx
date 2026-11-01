@@ -70,7 +70,7 @@ export function InsertPanel({
             role="tab"
             aria-selected={tab === id}
             onClick={() => setTab(id)}
-            className="grid justify-items-center gap-0.5 rounded-control py-1.5 text-[11px] font-semibold text-ink-muted hover:bg-hover aria-selected:bg-icon-fill aria-selected:text-ink aria-selected:ring-1 aria-selected:ring-icon-accent"
+            className="grid justify-items-center gap-0.5 rounded-control py-1.5 text-[11px] font-semibold text-ink-muted hover:bg-hover aria-selected:bg-icon-fill aria-selected:text-icon-line aria-selected:ring-1 aria-selected:ring-icon-accent"
           >
             <BroomitIcon name={icon} size={26} colored={tab === id} />
             {label}

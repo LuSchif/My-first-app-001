@@ -11,6 +11,7 @@ export function BroomitIcon({
   colored = false,
   tip,
   strokeWidth = 1.6,
+  style,
   ...props
 }: SVGProps<SVGSVGElement> & {
   name: GlyphName
@@ -30,6 +31,8 @@ export function BroomitIcon({
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"
+      // A colored icon keeps its dark lines in every theme.
+      style={colored ? { color: 'var(--color-icon-line)', ...style } : style}
       {...props}
     >
       {GLYPHS[name](paintFor(colored, tip))}
