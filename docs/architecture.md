@@ -190,9 +190,29 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
   anywhere, or dropped near an edge to snap to its middle (top, bottom, left, right). At the
   left and right a bar stands upright; bars at the same edge stack; menus open away from the
   edge. Positions are remembered per device (`FloatingPanel.tsx`, `panelLayout.ts`).
-- The editor's top row: back and title on the left, the tool bar between (moved along to fit,
-  below only when the row is too narrow), layers, pages and the control center on the right.
-  The tool bar always opens with the main tools only; saving is silent unless it fails.
+- The editor's top row: back and the insert panel button on the left; in the middle the
+  notebook's title with a mini tool bar (the tool last taken from the wheel, lasso, magnifier,
+  path editing); undo, redo, layers, pages and the control center on the right. Bars keep to
+  the page area beside the insert panel (`setBarArea`). Saving is silent unless it fails.
+- The tool wheel (`ToolWheel.tsx`, `wheelTools.tsx`): holding a pen or finger still on the page
+  (500 ms) opens an inventory of the drawing tools around that spot: pen, magic pen,
+  highlighter, broom, text, tape, laser (those switched off in the control center are left
+  out). It does not turn. Slide to a tool and lift, or tap one; tools with choices (pen or
+  fountain pen, precise or whole-stroke broom) show them on an arc above. The chosen tool goes
+  into the mini tool bar, where a second tap opens its settings as before. The wheel stays
+  until the page is tapped; its middle offers Paste when something was copied. Tools that work
+  by holding (laser, magnifier, eyedropper) and a press on the selection keep their own meaning.
+- The eyedropper sits on top of the recent colors bar.
+- The insert panel (`insert/InsertPanel.tsx`) opens on the left; the page area shrinks and the
+  page scales with it, so nothing is cut off. Tabs: Shapes (ready-made strokes in the pen's
+  color, editable like drawn shapes), Tables and charts, Stickers (Broomit's own SVG art, added
+  as pictures), Photos (library, camera, and pictures already in the notebook) and Folders.
+  Everything can be tapped (added in the middle of the view) or dragged onto a spot of a page.
+- Folders tab: browse folders and notebooks; a notebook's pages can be dragged onto the page,
+  which asks whether to add it as a new page (everything stays editable) or as a picture.
+  "Take out an element" opens the other notebook with only the magnifier: point at something,
+  choose what was found (an object, or the writing in the circle) and add it. Pictures are
+  copied into this notebook, so they stay when the other one is deleted (`copyAssets.ts`).
 - Every published version has a number and a name (`src/release.ts`), shown on the home
   screen, in the control center and in the update banner; after an update has loaded, a notice
   says which version is now running. The build writes it to `release.json` for the banner.

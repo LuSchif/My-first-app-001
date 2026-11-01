@@ -11,6 +11,7 @@ import { setImageLoader } from '../../engine/render/images.ts'
 import { getAssetBlob, loadNotebook, saveChanges } from '../../storage/notebooks.ts'
 import { loadFeatures, saveFeatures } from './featureStore.ts'
 import { Toolbar } from './Toolbar.tsx'
+import { InsertPanel } from './insert/InsertPanel.tsx'
 import { takeOpeningPage } from './openAt.ts'
 import { NotesPanel } from '../presentation/NotesPanel.tsx'
 import { SlidesPanel } from '../presentation/SlidesPanel.tsx'
@@ -132,52 +133,67 @@ function EditorSession({ doc, history, autosave }: Loaded) {
     () => doc.notebook.title,
   )
 
+  const [insertOpen, setInsertOpen] = useState(false)
+
   return (
-    <div className="fixed inset-0 overflow-hidden bg-desk">
-      {slides ? (
-        // A presentation: the slides on the left, the slide with its notes beside them. A deck:
-        // its cards on the left, front and back.
-        <div className="absolute inset-0 flex">
-          {editor ? (
-            kind === 'deck' ? (
-              <CardsPanel editor={editor} state={editorState!} doc={doc} />
-            ) : (
-              <SlidesPanel editor={editor} state={editorState!} doc={doc} />
-            )
-          ) : null}
-          <div className="flex min-w-0 flex-1 flex-col">
-            <div ref={hostRef} className="relative min-h-0 flex-1" />
-            {editor && kind === 'presentation' ? (
-              <NotesPanel editor={editor} state={editorState!} doc={doc} />
-            ) : null}
-          </div>
-        </div>
-      ) : (
-        <div ref={hostRef} className="absolute inset-0" />
-      )}
-      {editor ? (
-        <Toolbar
+    <div className="fixed inset-0 flex overflow-hidden bg-desk">
+      {insertOpen && editor && editorState ? (
+        <InsertPanel
           editor={editor}
-          autosave={autosave}
-          title={title}
+          state={editorState}
           doc={doc}
-          onBack={async () => {
-            await autosave.flush()
-            // Back to where the notebook lives: its folder, or the library.
-            const folderId = doc.notebook.folderId
-            navigate(folderId ? { name: 'folder', id: folderId } : { name: 'library' })
-          }}
-          onPresent={
-            slides
-              ? () => {
-                  editor.finishEditing()
-                  if (kind === 'deck') setStudying(Date.now())
-                  else setPresenting(true)
-                }
-              : undefined
-          }
+          onClose={() => setInsertOpen(false)}
         />
       ) : null}
+      {/* The page makes room for the panel instead of going under it. */}
+      <div className="relative min-w-0 flex-1">
+        {slides ? (
+          // A presentation: the slides on the left, the slide with its notes beside them. A deck:
+          // its cards on the left, front and back.
+          <div className="absolute inset-0 flex">
+            {editor ? (
+              kind === 'deck' ? (
+                <CardsPanel editor={editor} state={editorState!} doc={doc} />
+              ) : (
+                <SlidesPanel editor={editor} state={editorState!} doc={doc} />
+              )
+            ) : null}
+            <div className="flex min-w-0 flex-1 flex-col">
+              <div ref={hostRef} className="relative min-h-0 flex-1" />
+              {editor && kind === 'presentation' ? (
+                <NotesPanel editor={editor} state={editorState!} doc={doc} />
+              ) : null}
+            </div>
+          </div>
+        ) : (
+          <div ref={hostRef} className="absolute inset-0" />
+        )}
+        {editor ? (
+          <Toolbar
+            editor={editor}
+            autosave={autosave}
+            title={title}
+            doc={doc}
+            onBack={async () => {
+              await autosave.flush()
+              // Back to where the notebook lives: its folder, or the library.
+              const folderId = doc.notebook.folderId
+              navigate(folderId ? { name: 'folder', id: folderId } : { name: 'library' })
+            }}
+            onPresent={
+              slides
+                ? () => {
+                    editor.finishEditing()
+                    if (kind === 'deck') setStudying(Date.now())
+                    else setPresenting(true)
+                  }
+                : undefined
+            }
+            insertOpen={insertOpen}
+            onToggleInsert={() => setInsertOpen((open) => !open)}
+          />
+        ) : null}
+      </div>
       {studying !== null && editor ? (
         <Study
           deck={doc.notebook}

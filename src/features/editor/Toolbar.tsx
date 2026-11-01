@@ -1,28 +1,21 @@
 import {
   Check,
   ChevronLeft,
-  ChevronsLeft,
-  ChevronsRight,
   CloudAlert,
   EyeOff,
-  Highlighter,
   Lasso,
   Layers,
   LayoutGrid,
   Lock,
-  Bandage,
-  PenLine,
-  Pipette,
   ScanSearch,
+  Shapes,
   Settings,
   PenTool,
   GraduationCap,
   Play,
   Redo2,
   SquareDashed,
-  Type,
   Undo2,
-  WandSparkles,
 } from 'lucide-react'
 import { useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
 import type { Editor, EditorState, ToolId } from '../../engine/editor/Editor.ts'
@@ -30,9 +23,6 @@ import type { StrokeDash } from '../../engine/model/types.ts'
 import { dashPattern } from '../../engine/render/strokes.ts'
 import { cn } from '../../lib/cn.ts'
 import {
-  BroomIcon,
-  FountainPenIcon,
-  LaserBroomIcon,
   ColorPicker,
   ColorSwatch,
   Dialog,
@@ -47,8 +37,7 @@ import {
 import type { Autosave } from '../../storage/Autosave.ts'
 import type { NotebookDocument } from '../../engine/document/NotebookDocument.ts'
 import { FloatingPanel, PanelDivider } from './FloatingPanel.tsx'
-import { setTopCorners } from './panelLayout.ts'
-import { InsertTools } from './InsertMenu.tsx'
+import { setBarArea } from './panelLayout.ts'
 import { PagesOverview } from './PagesOverview.tsx'
 import { LayersPanel } from './LayersPanel.tsx'
 import { RecentColors } from './RecentColors.tsx'
@@ -57,7 +46,9 @@ import { InspectCard } from './InspectCard.tsx'
 import { NewPageMenu, PullForPage } from './NewPage.tsx'
 import { PathMenu } from './PathMenu.tsx'
 import { PenPreview } from './PenPreview.tsx'
-import { PasteButton, PasteMenu, SelectionMenu } from './SelectionMenu.tsx'
+import { PasteButton, SelectionMenu } from './SelectionMenu.tsx'
+import { ToolWheel } from './ToolWheel.tsx'
+import { isWheelTool, wheelTools } from './wheelTools.tsx'
 import { SuggestionChip } from './SuggestionChip.tsx'
 import { GraphOfferChip } from './GraphEditor.tsx'
 import { TextFormatControls } from './TextFormatControls.tsx'
@@ -82,6 +73,8 @@ export function Toolbar({
   doc,
   onBack,
   onPresent,
+  insertOpen,
+  onToggleInsert,
 }: {
   editor: Editor
   autosave: Autosave
@@ -90,6 +83,9 @@ export function Toolbar({
   onBack: () => void
   /** Presentations: starts the slide show; flashcards: starts studying. */
   onPresent?: () => void
+  /** The panel of things to add (shapes, tables, stickers, photos, pages) is open. */
+  insertOpen: boolean
+  onToggleInsert: () => void
 }) {
   const state = useSyncExternalStore(
     (fn) => editor.subscribe(fn),
@@ -108,22 +104,38 @@ export function Toolbar({
       ? `${Math.floor(state.pageIndex / 2) + 1}${state.pageIndex % 2 ? 'B' : 'F'}`
       : `${state.pageIndex + 1}/${state.pageCount}`
   const activeLayer = state.layers.find((l) => l.id === state.activeLayerId)
-  // Always starts with the main tools only; "More tools" opens the rest.
-  const [expanded, setExpanded] = useState(false)
+  // The tool last taken from the wheel sits in the toolbar, next to lasso, magnifier and paths.
+  const [slot, setSlot] = useState<ToolId>(isWheelTool(state.tool) ? state.tool : 'pen')
+  if (isWheelTool(state.tool) && state.tool !== slot) setSlot(state.tool)
+  const slotTool = wheelTools(features).find((t) => t.tool === slot) ?? wheelTools(features)[0]!
   const leftCorner = useRef<HTMLDivElement>(null)
   const rightCorner = useRef<HTMLDivElement>(null)
 
-  // A bar at the top keeps clear of the title and of the layer and page buttons.
+  // Bars keep to the page area (beside the insert panel) and clear of the top corner groups.
   useLayoutEffect(() => {
     const left = leftCorner.current
     const right = rightCorner.current
-    if (!left || !right) return
-    const measure = () => setTopCorners(left.offsetWidth, right.offsetWidth)
+    const row = left?.parentElement
+    if (!left || !right || !row) return
+    const measure = () => {
+      const r = row.getBoundingClientRect()
+      setBarArea({
+        areaLeft: r.left,
+        areaRight: r.right,
+        leftEnd: left.getBoundingClientRect().right,
+        rightStart: right.getBoundingClientRect().left,
+      })
+    }
     measure()
     const observer = new ResizeObserver(measure)
     observer.observe(left)
     observer.observe(right)
-    return () => observer.disconnect()
+    observer.observe(row)
+    window.addEventListener('resize', measure)
+    return () => {
+      observer.disconnect()
+      window.removeEventListener('resize', measure)
+    }
   }, [])
 
   // The first tap selects a tool; tapping the selected tool again opens its settings.
@@ -162,101 +174,46 @@ export function Toolbar({
       <div className="pointer-events-none absolute inset-x-0 top-0 flex flex-wrap items-start justify-between gap-2 px-[max(12px,env(safe-area-inset-left))] pt-[calc(10px+env(safe-area-inset-top))]">
         <div
           ref={leftCorner}
-          className={cn(
-            'pointer-events-auto flex min-w-0 items-center gap-1 rounded-panel bg-surface-raised/95 p-1.5 shadow-raised backdrop-blur',
-            !expanded && 'pr-4',
-          )}
+          className="pointer-events-auto flex items-center gap-1 rounded-panel bg-surface-raised/95 p-1.5 shadow-raised backdrop-blur"
         >
           <IconButton label="All notebooks" icon={<ChevronLeft {...ICON} />} onClick={onBack} />
-          {/* With all tools shown, the bars give up words so everything stays on one row. */}
-          <span
-            className={cn(
-              'truncate font-semibold',
-              expanded ? 'sr-only' : 'max-w-[16ch] sm:max-w-[24ch]',
-            )}
-          >
-            {title}
-          </span>
+          <IconButton
+            label={insertOpen ? 'Close shapes, stickers and more' : 'Shapes, stickers and more'}
+            icon={<Shapes {...ICON} />}
+            active={insertOpen}
+            aria-expanded={insertOpen}
+            onClick={onToggleInsert}
+          />
         </div>
 
         <FloatingPanel id="tools" label="Tools" defaultDock="top" order={0}>
+          <span className="max-w-[14ch] truncate px-2 font-semibold sm:max-w-[24ch]" title={title}>
+            {title}
+          </span>
+          <PanelDivider />
+          {toolButton(
+            slotTool.tool,
+            slotTool.label(state),
+            slotTool.icon(state, 22),
+            <SlotSettings tool={slotTool.tool} editor={editor} state={state} />,
+          )}
           {toolButton(
             'lasso',
             state.lassoMode === 'rect' ? 'Rectangle lasso' : 'Lasso',
             state.lassoMode === 'rect' ? <SquareDashed {...ICON} /> : <Lasso {...ICON} />,
             <LassoSettings editor={editor} state={state} />,
           )}
-          {toolButton(
-            'pen',
-            state.pen.nib === 'fountain' ? 'Fountain pen' : 'Pen',
-            // The button shows the pen in use: a ballpoint or a fountain pen.
-            state.pen.nib === 'fountain' ? <FountainPenIcon size={22} /> : <PenLine {...ICON} />,
-            <PenSettings editor={editor} state={state} />,
-          )}
-          {features.magicPen
-            ? toolButton(
-                'magic',
-                'Magic pen',
-                <WandSparkles {...ICON} />,
-                <MagicPenSettings editor={editor} state={state} />,
-              )
+          {features.magnifier
+            ? toolButton('magnifier', 'Magnifier', <ScanSearch {...ICON} />)
             : null}
-          {toolButton(
-            'highlighter',
-            'Highlighter',
-            <Highlighter {...ICON} />,
-            <HighlighterSettings editor={editor} state={state} />,
-          )}
-          {toolButton(
-            'broom',
-            'Broom',
-            <BroomIcon size={22} />,
-            <BroomSettings editor={editor} state={state} />,
-          )}
-          {toolButton(
-            'text',
-            'Text',
-            <Type {...ICON} />,
-            <>
-              <p className="text-sm font-semibold">Style for new text</p>
-              <TextSettings editor={editor} state={state} />
-            </>,
-          )}
           {features.pathTool ? toolButton('path', 'Edit paths', <PenTool {...ICON} />) : null}
-          {expanded ? (
-            <>
-              {features.eyedropper
-                ? toolButton('eyedropper', 'Eyedropper', <Pipette {...ICON} />)
-                : null}
-              {features.magnifier
-                ? toolButton('magnifier', 'Magnifier', <ScanSearch {...ICON} />)
-                : null}
-              {features.tape
-                ? toolButton(
-                    'tape',
-                    'Tape',
-                    <Bandage {...ICON} />,
-                    <TapeSettings editor={editor} state={state} />,
-                  )
-                : null}
-              {features.laser
-                ? toolButton(
-                    'laser',
-                    'Laser pointer',
-                    <LaserBroomIcon size={22} />,
-                    <LaserSettings editor={editor} state={state} />,
-                  )
-                : null}
-              <InsertTools editor={editor} notebookId={doc.notebook.id} />
-            </>
-          ) : null}
-          <IconButton
-            label={expanded ? 'Fewer tools' : 'More tools'}
-            icon={expanded ? <ChevronsLeft {...ICON} /> : <ChevronsRight {...ICON} />}
-            aria-expanded={expanded}
-            onClick={() => setExpanded(!expanded)}
-          />
-          <PanelDivider />
+        </FloatingPanel>
+
+        <div
+          ref={rightCorner}
+          className="pointer-events-auto flex items-center gap-1 rounded-panel bg-surface-raised/95 p-1.5 shadow-raised backdrop-blur"
+        >
+          <SaveProblem autosave={autosave} />
           <IconButton
             label="Undo"
             icon={<Undo2 {...ICON} />}
@@ -269,13 +226,6 @@ export function Toolbar({
             disabled={!state.canRedo}
             onClick={() => editor.redo()}
           />
-        </FloatingPanel>
-
-        <div
-          ref={rightCorner}
-          className="pointer-events-auto flex items-center gap-1 rounded-panel bg-surface-raised/95 p-1.5 shadow-raised backdrop-blur"
-        >
-          <SaveProblem autosave={autosave} />
           {onPresent ? (
             <button
               type="button"
@@ -327,7 +277,7 @@ export function Toolbar({
                 className="flex h-11 items-center gap-1.5 rounded-control px-3 text-sm font-semibold tabular-nums hover:bg-hover"
               >
                 <LayoutGrid size={18} />
-                {expanded ? <span aria-label={place}>{shortPlace}</span> : place}
+                <span aria-label={place}>{shortPlace}</span>
               </button>
             </DialogTrigger>
             {panel === 'pages' ? (
@@ -359,14 +309,21 @@ export function Toolbar({
       {state.editingText ? <FormatBar editor={editor} state={state} /> : null}
       <SelectionMenu editor={editor} state={state} />
       <PathMenu editor={editor} state={state} />
-      {features.recentColors ? <RecentColors editor={editor} state={state} /> : null}
+      <RecentColors editor={editor} state={state} />
       <SuggestionChip editor={editor} state={state} />
       <GraphOfferChip editor={editor} state={state} />
       <InspectCard editor={editor} state={state} />
       <PullForPage state={state} />
       <NewPageMenu editor={editor} state={state} />
       <PasteButton editor={editor} state={state} />
-      <PasteMenu editor={editor} state={state} />
+      {state.wheel ? (
+        <ToolWheel
+          key={`${state.wheel.x},${state.wheel.y}`}
+          editor={editor}
+          state={state}
+          onPick={setSlot}
+        />
+      ) : null}
       {state.notice ? (
         <div
           role="status"
@@ -398,6 +355,39 @@ function FormatBar({ editor, state }: { editor: Editor; state: EditorState }) {
       />
     </FloatingPanel>
   )
+}
+
+/** The settings of the tool taken from the wheel. */
+function SlotSettings({
+  tool,
+  editor,
+  state,
+}: {
+  tool: ToolId
+  editor: Editor
+  state: EditorState
+}) {
+  switch (tool) {
+    case 'magic':
+      return <MagicPenSettings editor={editor} state={state} />
+    case 'highlighter':
+      return <HighlighterSettings editor={editor} state={state} />
+    case 'broom':
+      return <BroomSettings editor={editor} state={state} />
+    case 'text':
+      return (
+        <>
+          <p className="text-sm font-semibold">Style for new text</p>
+          <TextSettings editor={editor} state={state} />
+        </>
+      )
+    case 'tape':
+      return <TapeSettings editor={editor} state={state} />
+    case 'laser':
+      return <LaserSettings editor={editor} state={state} />
+    default:
+      return <PenSettings editor={editor} state={state} />
+  }
 }
 
 const TAPE_COLORS = [

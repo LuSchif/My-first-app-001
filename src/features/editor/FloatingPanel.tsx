@@ -16,7 +16,7 @@ import {
   report,
   stackOffset,
   subscribe,
-  topCorners,
+  barArea,
   unregister,
   VerticalContext,
   type Dock,
@@ -148,6 +148,7 @@ export function FloatingPanel({
 
   function position(): CSSProperties {
     const vw = window.innerWidth
+    const { areaLeft, areaRight, leftEnd, rightStart } = barArea()
     const { width, height } = size
     if (drag) return { left: drag.x, top: drag.y }
     if (!('dock' in placement)) {
@@ -159,25 +160,23 @@ export function FloatingPanel({
     }
     const offset = stackOffset(id, placement.dock)
     const middleY = Math.max(CORNER_ROW, (CORNER_ROW + bottom - height) / 2)
+    const center = (areaLeft + areaRight - width) / 2
     switch (placement.dock) {
       case 'top': {
         // In the top row, between the corner groups: centered when there is room, else moved
         // along to where it fits; below them only when the row is too narrow.
-        const corners = topCorners()
-        const from = corners.left + EDGE + GAP
-        const to = vw - corners.right - EDGE - GAP
+        const from = leftEnd + GAP
+        const to = rightStart - GAP
         const fits = to - from >= width
-        const left = fits
-          ? Math.min(to - width, Math.max(from, (vw - width) / 2))
-          : (vw - width) / 2
+        const left = fits ? Math.min(to - width, Math.max(from, center)) : center
         return { left, top: (fits ? 10 : CORNER_ROW) + offset }
       }
       case 'bottom':
-        return { left: (vw - width) / 2, top: bottom - height - EDGE - offset }
+        return { left: center, top: bottom - height - EDGE - offset }
       case 'left':
-        return { left: EDGE + offset, top: middleY }
+        return { left: areaLeft + EDGE + offset, top: middleY }
       case 'right':
-        return { left: vw - width - EDGE - offset, top: middleY }
+        return { left: areaRight - width - EDGE - offset, top: middleY }
     }
   }
 

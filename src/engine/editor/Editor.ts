@@ -61,7 +61,7 @@ import { onImageLoaded } from '../render/images.ts'
 import { PageCache } from '../render/pageCache.ts'
 import { invalidateTextLayouts, layoutText } from '../render/text.ts'
 import type { EditorContext } from './context.ts'
-import { hitsObject, recolor } from './selection.ts'
+import { boundsOf, hitsObject, recolor, transformObject, type Transform } from './selection.ts'
 import {
   applySuggestion,
   around,
@@ -175,8 +175,11 @@ export interface EditorState {
   pageFlow: PageFlow
   /** The menu for the paper of the page about to be added is open. */
   newPageMenu: boolean
-  /** Where a long press offers to paste, in screen pixels. */
-  pasteMenu: { x: number; y: number } | null
+  /**
+   * The tool wheel, opened by holding a pen or finger still on the page: where (window
+   * coordinates), and whether it offers to paste what was copied.
+   */
+  wheel: { x: number; y: number; canPaste: boolean } | null
 }
 
 const HIGHLIGHTER_OPACITY = 0.45
@@ -206,7 +209,7 @@ const MIN_HOLD_HEAD = 3
 
 /** Pause after a stroke before looking for shapes to offer. */
 const SUGGEST_DELAY_MS = 350
-/** Holding a pen or finger still this long on the page offers Paste. */
+/** Holding a pen or finger still this long on the page opens the tool wheel. */
 const LONG_PRESS_MS = 500
 const LONG_PRESS_SLOP_PX = 8
 const RECENT_LIMIT = 5
@@ -475,7 +478,7 @@ export class Editor {
       pull: null,
       pageFlow: doc.notebook.pageFlow ?? 'vertical',
       newPageMenu: false,
-      pasteMenu: null,
+      wheel: null,
     }
 
     // The canvases are positioned inside the host; keep the host's own positioning if it has one.
@@ -832,26 +835,30 @@ export class Editor {
   /** Pastes the copied objects where the long press was. */
   pasteHere(): void {
     const target = this.pasteTarget
-    this.closePasteMenu()
+    this.closeWheel()
     if (!target) return
     this.setTool('lasso')
     this.selection.pasteAt(target.pageId, target.x, target.y)
   }
 
-  closePasteMenu(): void {
+  closeWheel(): void {
     this.pasteTarget = null
-    if (this._state.pasteMenu) this.update({ pasteMenu: null })
+    if (this._state.wheel) this.update({ wheel: null })
   }
 
   /**
-   * A pen or finger resting on the page offers to paste what was copied. Moving more than a
-   * few pixels, or lifting, cancels it.
+   * A pen or finger resting on the page opens the tool wheel. Moving more than a few pixels,
+   * or lifting, cancels it. Tools that work by holding (laser, magnifier, eyedropper) and a
+   * press on the selection or on a path's anchor keep their own meaning.
    */
   private armLongPress(e: PointerEvent): void {
     this.cancelLongPress()
-    if (!this.selection.hasClipboard) return
+    const tool = this._state.tool
+    if (tool === 'laser' || tool === 'magnifier' || tool === 'eyedropper') return
     const p = this.screenPos(e)
-    const timer = setTimeout(() => this.firePasteMenu(), LONG_PRESS_MS)
+    if (tool === 'lasso' && this.selection.grabs(p)) return
+    if (tool === 'path' && this.paths.grabs(p)) return
+    const timer = setTimeout(() => this.fireWheel(), LONG_PRESS_MS)
     this.longPress = { timer, pointerId: e.pointerId, x: p.x, y: p.y }
   }
 
@@ -861,7 +868,7 @@ export class Editor {
     this.longPress = null
   }
 
-  private firePasteMenu(): void {
+  private fireWheel(): void {
     const press = this.longPress
     this.longPress = null
     if (!press) return
@@ -872,8 +879,13 @@ export class Editor {
     this.selection.clear()
     this.textTap = null
     this.panning = false
-    this.pasteTarget = { pageId: hit.page.id, x: hit.x, y: hit.y }
-    this.update({ pasteMenu: { x: press.x, y: press.y } })
+    this.gesture = null
+    const canPaste = this.selection.hasClipboard
+    this.pasteTarget = canPaste ? { pageId: hit.page.id, x: hit.x, y: hit.y } : null
+    // In window coordinates, for the wheel drawn over the page.
+    const x = press.x + this.hostRect.left
+    const y = press.y + this.hostRect.top
+    this.update({ wheel: { x, y, canPaste } })
   }
 
   cutSelection(): void {
@@ -1271,6 +1283,109 @@ export class Editor {
     this.history.execute(setPageObjects('Insert', page.id, page.objects, [...page.objects, object]))
     this.setTool('lasso')
     this.selection.select(page.id, [object.id])
+  }
+
+  /**
+   * The page under a point of the window (e.g. where something was dropped), with the point in
+   * that page's coordinates; null when no page is there.
+   */
+  pagePointAt(
+    clientX: number,
+    clientY: number,
+  ): { pageIndex: number; x: number; y: number } | null {
+    this.hostRect = this.host.getBoundingClientRect()
+    const hit = this.pageAt(this.screenPos({ clientX, clientY }))
+    return hit ? { pageIndex: hit.index, x: hit.x, y: hit.y } : null
+  }
+
+  /**
+   * Places a box object (picture, table, chart) centered where it was dropped: a point of the
+   * window. False when no page is there.
+   */
+  dropBox(
+    make: (frame: BoxFrame, layerId: Id) => CanvasObject,
+    width: number,
+    height: number,
+    clientX: number,
+    clientY: number,
+  ): boolean {
+    const spot = this.pagePointAt(clientX, clientY)
+    if (!spot) return false
+    if (spot.pageIndex !== this._state.pageIndex) this.update({ pageIndex: spot.pageIndex })
+    const fit = Math.min(
+      1,
+      (this.layout.size.width * 0.7) / width,
+      (this.layout.size.height * 0.6) / height,
+    )
+    this.insertBox(make, width, height, {
+      x: spot.x - (width * fit) / 2,
+      y: spot.y - (height * fit) / 2,
+    })
+    return true
+  }
+
+  /**
+   * Adds copies of objects (from another page or notebook) to the active layer: centered where
+   * they were dropped (a point of the window) or in the middle of the view, made smaller if they
+   * would not fit the page, and selected.
+   */
+  placeObjects(
+    objects: readonly CanvasObject[],
+    drop?: { clientX: number; clientY: number },
+  ): void {
+    const layer = this.activeLayer()
+    const bounds = boundsOf(objects)
+    if (!layer || !bounds || this.blockedByLayer()) return
+    const spot = drop ? this.pagePointAt(drop.clientX, drop.clientY) : null
+    const index = spot?.pageIndex ?? this._state.pageIndex
+    const page = this.doc.pageList[index]
+    if (!page) return
+    const target =
+      spot ?? this.toPageLocal({ x: this.view.width / 2, y: this.view.height / 2 }, index)
+    const width = bounds.maxX - bounds.minX
+    const height = bounds.maxY - bounds.minY
+    const scale = Math.min(
+      1,
+      (this.layout.size.width * 0.8) / Math.max(1, width),
+      (this.layout.size.height * 0.7) / Math.max(1, height),
+    )
+    const cx = (bounds.minX + bounds.maxX) / 2
+    const cy = (bounds.minY + bounds.maxY) / 2
+    const half = { w: (width * scale) / 2, h: (height * scale) / 2 }
+    const x = Math.min(this.layout.size.width - half.w, Math.max(half.w, target.x))
+    const y = Math.min(this.layout.size.height - half.h, Math.max(half.h, target.y))
+    const t: Transform = { cx, cy, dx: x - cx, dy: y - cy, scale, angle: 0 }
+    const copies = objects.map((o) => ({
+      ...transformObject(o, t),
+      id: newId(),
+      layerId: layer.id,
+    }))
+    this.history.execute(
+      setPageObjects('Insert', page.id, page.objects, [...page.objects, ...copies]),
+    )
+    if (index !== this._state.pageIndex) this.update({ pageIndex: index })
+    this.setTool('lasso')
+    this.selection.select(
+      page.id,
+      copies.map((c) => c.id),
+    )
+  }
+
+  /**
+   * Adds a copy of a page from another notebook after the page in view (or at `at`): its paper
+   * and everything on it, on the active layer. Shows the new page.
+   */
+  addPageCopy(source: Page, at = this._state.pageIndex + 1): void {
+    const layer = this.activeLayer()
+    if (!layer) return
+    const copy = {
+      ...createPage(this.doc.notebook.id, source.paper),
+      objects: source.objects.map((o) => ({ ...o, id: newId(), layerId: layer.id })),
+      ...(source.background ? { background: source.background } : {}),
+    }
+    const index = Math.max(0, Math.min(this.doc.notebook.pageIds.length, at))
+    this.history.execute(insertPages('Add page', index, [copy]))
+    this.scrollToPage(index)
   }
 
   /** Pages follow downwards or to the side; the page in view stays in view. */
@@ -1829,6 +1944,7 @@ export class Editor {
     const first = this.view.width === 0
     // A slide shown whole stays whole when the space around it changes (panels, rotation).
     const wasFit = this.slides && Math.abs(this.camera.zoom - this.fitZoom()) < 1e-6
+    const oldWidth = this.view.width
     const dpr = window.devicePixelRatio || 1
     this.view = { width: rect.width, height: rect.height, dpr }
     const canvases = [this.sceneCanvas, this.wetCanvas, this.tipCanvas, this.overlayCanvas]
@@ -1841,6 +1957,16 @@ export class Editor {
       this.setCamera({ zoom: this.fitZoom(), offsetX: 0, offsetY: TOP_INSET })
     } else if (wasFit) {
       this.setCamera({ zoom: 0, offsetX: 0, offsetY: 0 })
+    } else if (!this.slides && oldWidth > 0 && rect.width > 0 && rect.width !== oldWidth) {
+      // A panel opened or closed beside the page: the page grows or shrinks with the space,
+      // so none of it is cut off, and the top of the view stays where it was.
+      const k = rect.width / oldWidth
+      const c = this.camera
+      this.setCamera({
+        zoom: c.zoom * k,
+        offsetX: c.offsetX * k,
+        offsetY: TOP_INSET + (c.offsetY - TOP_INSET) * k,
+      })
     } else {
       this.setCamera(this.camera)
     }
@@ -1930,7 +2056,7 @@ export class Editor {
     if (e.pointerType === 'pen') this.penSeen = true
     // Drawing on goes past the offer to edit a recognized graph; panning keeps it.
     if (e.pointerType !== 'touch' || !this.penSeen) this.dismissGraphOffer()
-    this.closePasteMenu()
+    this.closeWheel()
     // A second finger is a gesture, not a long press.
     if (e.pointerType !== 'touch' || this.touches.size === 0) this.armLongPress(e)
     else this.cancelLongPress()
@@ -3533,7 +3659,7 @@ function widest(flat: readonly number[]): number {
 }
 
 /** A short name for an object, as the magnifier lists it. */
-function objectLabel(o: CanvasObject): string {
+export function objectLabel(o: CanvasObject): string {
   if (o.type === 'stroke') {
     if (o.tool === 'tape') return 'Tape'
     if (o.tool === 'highlighter') return 'Highlighter'

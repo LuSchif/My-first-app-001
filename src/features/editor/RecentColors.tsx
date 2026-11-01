@@ -1,4 +1,6 @@
+import { Pipette } from 'lucide-react'
 import { useRef, useState } from 'react'
+import { IconButton } from '../../design/index.ts'
 import type { Editor, EditorState } from '../../engine/editor/Editor.ts'
 import { FloatingPanel } from './FloatingPanel.tsx'
 
@@ -7,7 +9,7 @@ const DRAG_PX = 8
 const LIFT_PX = 44
 
 /**
- * The colors used in this notebook (up to five) on the right edge. Tap one to use it; drag one onto ink or text to
+ * The eyedropper, and the colors used in this notebook (up to five), on the right edge. Tap one to use it; drag one onto ink or text to
  * recolor it, or onto empty paper to color the whole page.
  */
 export function RecentColors({ editor, state }: { editor: Editor; state: EditorState }) {
@@ -26,14 +28,24 @@ export function RecentColors({ editor, state }: { editor: Editor; state: EditorS
     else editor.applyColor(d.color)
   }
 
-  // Empty until the first color is used in this notebook.
-  if (state.recentColors.length === 0) return null
+  const eyedropper = state.features.eyedropper
+  const colors = state.features.recentColors ? state.recentColors : []
+  // Empty until the first color is used in this notebook (the eyedropper is always there).
+  if (colors.length === 0 && !eyedropper) return null
   const current = currentColor(state).toLowerCase()
 
   return (
     <>
       <FloatingPanel id="colors" label="Recent colors" defaultDock="right" order={2}>
-        {state.recentColors.map((color) => (
+        {eyedropper ? (
+          <IconButton
+            label="Eyedropper: take a color from the page"
+            icon={<Pipette size={20} strokeWidth={1.75} />}
+            active={state.tool === 'eyedropper'}
+            onClick={() => editor.setTool(state.tool === 'eyedropper' ? 'pen' : 'eyedropper')}
+          />
+        ) : null}
+        {colors.map((color) => (
           <button
             key={color}
             type="button"

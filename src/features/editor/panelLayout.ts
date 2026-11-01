@@ -24,11 +24,23 @@ let version = 0
 export function layoutVersion(): number {
   return version
 }
-/** Widths of the top corner groups, which a bar at the top must not cover. */
-let corners = { left: 0, right: 0 }
+/**
+ * Where bars may go, in window pixels: the space beside any side panel (from `areaLeft` to
+ * `areaRight`), and in the top row the room between the corner groups (from `leftEnd` to
+ * `rightStart`), which a bar at the top must not cover.
+ */
+export interface Area {
+  areaLeft: number
+  areaRight: number
+  leftEnd: number
+  rightStart: number
+}
 
-export function topCorners(): { left: number; right: number } {
-  return corners
+let area: Area | null = null
+
+export function barArea(): Area {
+  const vw = window.innerWidth
+  return area ?? { areaLeft: 0, areaRight: vw, leftEnd: 0, rightStart: vw }
 }
 
 function notify(): void {
@@ -56,10 +68,12 @@ export function report(id: string, entry: Entry): void {
   notify()
 }
 
-/** The top corner groups tell their widths, so a bar at the top can keep clear of them. */
-export function setTopCorners(left: number, right: number): void {
-  if (Math.abs(corners.left - left) < 1 && Math.abs(corners.right - right) < 1) return
-  corners = { left, right }
+/** The editor tells where its page area and top corner groups are. */
+export function setBarArea(next: Area): void {
+  const same =
+    area && (Object.keys(next) as (keyof Area)[]).every((k) => Math.abs(area![k] - next[k]) < 1)
+  if (same) return
+  area = next
   notify()
 }
 

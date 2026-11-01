@@ -737,30 +737,6 @@ function MenuButton({
   )
 }
 
-/** After a long press on the page: pastes what was copied right there. */
-export function PasteMenu({ editor, state }: { editor: Editor; state: EditorState }) {
-  const at = state.pasteMenu
-  if (!at) return null
-  return (
-    <div
-      role="menu"
-      aria-label="Paste"
-      className="absolute z-20 flex -translate-x-1/2 animate-pop-in items-center gap-0.5 rounded-panel bg-ink p-1 text-ink-inverse shadow-overlay"
-      style={{ left: `clamp(6rem, ${at.x}px, calc(100% - 6rem))`, top: Math.max(72, at.y - 64) }}
-    >
-      <button
-        type="button"
-        role="menuitem"
-        onClick={() => editor.pasteHere()}
-        className="flex h-11 items-center gap-2 rounded-control px-4 text-sm font-semibold hover:bg-white/10 active:bg-white/15"
-      >
-        <ClipboardPaste size={18} />
-        Paste
-      </button>
-    </div>
-  )
-}
-
 /** Shown with the lasso tool when something has been copied and nothing is selected. */
 export function PasteButton({ editor, state }: { editor: Editor; state: EditorState }) {
   if (state.tool !== 'lasso' || !state.hasClipboard || state.selection) return null
