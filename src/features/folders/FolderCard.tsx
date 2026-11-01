@@ -1,4 +1,5 @@
-import { Copy, FolderInput, MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
+import { BroomitIcon } from '../../design/index.ts'
+import { Copy, FolderInput, MoreHorizontal, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import type { Folder, Notebook } from '../../engine/model/types.ts'
 import {
@@ -243,7 +244,7 @@ function FolderMenu({
               <Button
                 variant="ghost"
                 className="justify-start"
-                icon={<Pencil size={18} />}
+                icon={<BroomitIcon name="edit" size={22} />}
                 onClick={() => {
                   setOpen(false)
                   setEditing(true)

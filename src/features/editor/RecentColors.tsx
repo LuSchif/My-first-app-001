@@ -1,6 +1,5 @@
-import { Pipette } from 'lucide-react'
 import { useRef, useState } from 'react'
-import { IconButton } from '../../design/index.ts'
+import { BroomitIcon, IconButton } from '../../design/index.ts'
 import { cn } from '../../lib/cn.ts'
 import type { Editor, EditorState } from '../../engine/editor/Editor.ts'
 import { FloatingPanel } from './FloatingPanel.tsx'
@@ -41,7 +40,8 @@ export function RecentColors({ editor, state }: { editor: Editor; state: EditorS
         {eyedropper ? (
           <IconButton
             label="Eyedropper: take a color from the page"
-            icon={<Pipette size={20} strokeWidth={1.75} />}
+            icon={<BroomitIcon name="eyedropper" size={24} colored={state.tool === 'eyedropper'} />}
+            soft
             active={state.tool === 'eyedropper'}
             onClick={() => editor.setTool(state.tool === 'eyedropper' ? 'pen' : 'eyedropper')}
           />

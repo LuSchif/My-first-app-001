@@ -3,17 +3,10 @@ import {
   ChevronLeft,
   CloudAlert,
   EyeOff,
-  Lasso,
-  Layers,
-  LayoutGrid,
   Lock,
-  Search,
-  Shapes,
-  Settings,
   GraduationCap,
   Play,
   Redo2,
-  SquareDashed,
   Undo2,
 } from 'lucide-react'
 import { useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
@@ -22,7 +15,7 @@ import type { StrokeDash } from '../../engine/model/types.ts'
 import { dashPattern } from '../../engine/render/strokes.ts'
 import { cn } from '../../lib/cn.ts'
 import {
-  AnchorPathIcon,
+  BroomitIcon,
   ColorPicker,
   ColorSwatch,
   Dialog,
@@ -144,6 +137,7 @@ export function Toolbar({
       <IconButton
         label={label}
         icon={icon}
+        soft
         active={state.tool === tool}
         onClick={() => editor.setTool(tool)}
       />
@@ -153,6 +147,7 @@ export function Toolbar({
           <IconButton
             label={label}
             icon={icon}
+            soft
             active={state.tool === tool}
             onClick={(e) => {
               if (state.tool !== tool) {
@@ -182,7 +177,8 @@ export function Toolbar({
           )}
           <IconButton
             label={insertOpen ? 'Close shapes, stickers and more' : 'Shapes, stickers and more'}
-            icon={<Shapes {...ICON} />}
+            icon={<BroomitIcon name="shapes" size={24} colored={insertOpen} />}
+            soft
             active={insertOpen}
             aria-expanded={insertOpen}
             onClick={onToggleInsert}
@@ -197,18 +193,32 @@ export function Toolbar({
           {toolButton(
             slotTool.tool,
             slotTool.label(state),
-            slotTool.icon(state, 22),
+            slotTool.icon(state, 24, state.tool === slotTool.tool),
             <SlotSettings tool={slotTool.tool} editor={editor} state={state} />,
           )}
           {toolButton(
             'lasso',
             state.lassoMode === 'rect' ? 'Rectangle lasso' : 'Lasso',
-            state.lassoMode === 'rect' ? <SquareDashed {...ICON} /> : <Lasso {...ICON} />,
+            <BroomitIcon
+              name={state.lassoMode === 'rect' ? 'selection' : 'lasso'}
+              size={24}
+              colored={state.tool === 'lasso'}
+            />,
             <LassoSettings editor={editor} state={state} />,
           )}
-          {features.magnifier ? toolButton('magnifier', 'Magnifier', <Search {...ICON} />) : null}
+          {features.magnifier
+            ? toolButton(
+                'magnifier',
+                'Magnifier',
+                <BroomitIcon name="magnifier" size={24} colored={state.tool === 'magnifier'} />,
+              )
+            : null}
           {features.pathTool
-            ? toolButton('path', 'Edit paths', <AnchorPathIcon size={22} />)
+            ? toolButton(
+                'path',
+                'Edit paths',
+                <BroomitIcon name="anchor" size={24} colored={state.tool === 'path'} />,
+              )
             : null}
         </FloatingPanel>
 
@@ -258,7 +268,7 @@ export function Toolbar({
                 aria-label={`Layers, active: ${activeLayer?.name ?? ''}`}
                 className="flex h-11 max-w-[14ch] items-center gap-1.5 rounded-control px-3 text-sm font-semibold hover:bg-hover"
               >
-                <Layers size={18} className="shrink-0" />
+                <BroomitIcon name="layers" size={22} className="shrink-0" />
                 {state.layers.length > 1 ? (
                   <span className="truncate">{activeLayer?.name}</span>
                 ) : null}
@@ -279,7 +289,7 @@ export function Toolbar({
                 type="button"
                 className="flex h-11 items-center gap-1.5 rounded-control px-3 text-sm font-semibold tabular-nums hover:bg-hover"
               >
-                <LayoutGrid size={18} />
+                <BroomitIcon name="pages" size={22} />
                 <span aria-label={place}>{shortPlace}</span>
               </button>
             </DialogTrigger>
@@ -297,7 +307,7 @@ export function Toolbar({
             onOpenChange={(open) => setPanel(open ? 'control' : null)}
           >
             <PopoverTrigger asChild>
-              <IconButton label="Control center" icon={<Settings size={20} />} />
+              <IconButton label="Control center" icon={<BroomitIcon name="settings" size={22} />} />
             </PopoverTrigger>
             <PopoverContent
               movable="control"
@@ -488,8 +498,18 @@ function TextSettings({ editor, state }: { editor: Editor; state: EditorState })
 
 function LassoSettings({ editor, state }: { editor: Editor; state: EditorState }) {
   const modes = [
-    ['freehand', 'Freehand', 'Draw a loop around what you want', <Lasso key="f" size={20} />],
-    ['rect', 'Rectangle', 'Drag a box over what you want', <SquareDashed key="r" size={20} />],
+    [
+      'freehand',
+      'Freehand',
+      'Draw a loop around what you want',
+      <BroomitIcon key="f" name="lasso" size={22} />,
+    ],
+    [
+      'rect',
+      'Rectangle',
+      'Drag a box over what you want',
+      <BroomitIcon key="r" name="selection" size={22} />,
+    ],
   ] as const
   return (
     <div role="group" aria-label="Lasso shape" className="grid gap-1.5">

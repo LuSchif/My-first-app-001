@@ -1,13 +1,5 @@
-import {
-  ChevronDown,
-  FolderKanban,
-  MoreHorizontal,
-  Pencil,
-  Pin,
-  PinOff,
-  Plus,
-  Trash2,
-} from 'lucide-react'
+import { BroomitIcon } from '../../design/index.ts'
+import { ChevronDown, FolderKanban, MoreHorizontal, Pin, PinOff, Plus, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import {
   Button,
@@ -169,7 +161,7 @@ function GroupMenu({
             <Button
               variant="ghost"
               className="justify-start"
-              icon={<Pencil size={18} />}
+              icon={<BroomitIcon name="edit" size={22} />}
               onClick={() => setView('rename')}
             >
               Rename…

@@ -1,4 +1,5 @@
-import { Moon, Palette, Plus, Store, X } from 'lucide-react'
+import { BroomitIcon } from '../../design/index.ts'
+import { Moon, Palette, Plus, X } from 'lucide-react'
 import { useState } from 'react'
 import {
   Button,
@@ -99,7 +100,7 @@ function DesignPacks({
       <Button
         variant="ghost"
         className="justify-start"
-        icon={<Store size={18} />}
+        icon={<BroomitIcon name="shop" size={22} />}
         onClick={() => navigate({ name: 'shop' })}
       >
         {owned.length ? 'More in the shop' : 'Get design packs in the shop'}

@@ -1,4 +1,5 @@
-import { Camera, Check, ChevronLeft, Crown, Infinity as Forever, Store, Trash2 } from 'lucide-react'
+import { BroomitIcon } from '../../design/index.ts'
+import { Check, ChevronLeft, Crown, Infinity as Forever, Trash2 } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { navigate } from '../../app/router.ts'
 import { Button, TextField } from '../../design/index.ts'
@@ -65,7 +66,7 @@ function You() {
         >
           <Avatar profile={profile} size={96} />
           <span className="absolute right-0 bottom-0 grid size-9 place-items-center rounded-full bg-ink text-ink-inverse shadow-soft ring-2 ring-surface-raised">
-            <Camera size={18} />
+            <BroomitIcon name="camera" size={20} />
           </span>
         </button>
         <input
@@ -258,7 +259,10 @@ function Settings() {
           <BackupMenu onRestored={() => showNotice('Your backup is restored.')} />
         </Row>
         <Row label="Shop" hint="Design packs, planners and templates">
-          <Button icon={<Store size={18} />} onClick={() => navigate({ name: 'shop' })}>
+          <Button
+            icon={<BroomitIcon name="shop" size={22} />}
+            onClick={() => navigate({ name: 'shop' })}
+          >
             Open
           </Button>
         </Row>

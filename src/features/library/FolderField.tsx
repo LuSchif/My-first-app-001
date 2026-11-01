@@ -1,4 +1,5 @@
-import { ChevronDown, FolderPlus, Inbox } from 'lucide-react'
+import { BroomitIcon } from '../../design/index.ts'
+import { ChevronDown, Inbox } from 'lucide-react'
 import { createElement, useState } from 'react'
 import type { Folder, Id } from '../../engine/model/types.ts'
 import { Button, Dialog, Popover, PopoverContent, PopoverTrigger } from '../../design/index.ts'
@@ -53,7 +54,10 @@ export function FolderField({
             />
           </PopoverContent>
         </Popover>
-        <Button icon={<FolderPlus size={18} />} onClick={() => setCreating(true)}>
+        <Button
+          icon={<BroomitIcon name="new-folder" size={22} />}
+          onClick={() => setCreating(true)}
+        >
           New folder
         </Button>
       </div>

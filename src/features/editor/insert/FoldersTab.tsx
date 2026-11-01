@@ -1,14 +1,7 @@
-import {
-  ChevronLeft,
-  ChevronRight,
-  Ellipsis,
-  FileImage,
-  FilePlus2,
-  Folder as FolderIcon,
-  Search,
-} from 'lucide-react'
+import { ChevronLeft, ChevronRight, Ellipsis, FileImage, FilePlus2 } from 'lucide-react'
 import { useState } from 'react'
 import {
+  BroomitIcon,
   Button,
   Dialog,
   DialogContent,
@@ -108,7 +101,7 @@ export function FoldersTab({
                   onClick={() => setFolderId(f.id)}
                   className="flex w-full items-center gap-3 rounded-control p-2 text-left hover:bg-hover"
                 >
-                  <FolderIcon size={20} className="shrink-0 text-accent" />
+                  <BroomitIcon name="folder" size={24} className="shrink-0" />
                   <span className="min-w-0 flex-1 truncate font-semibold">{f.name}</span>
                   <ChevronRight size={18} className="text-ink-subtle" />
                 </button>
@@ -156,7 +149,7 @@ export function FoldersTab({
                         onClick={() => void open(n, setExtracting)}
                         className="flex min-h-11 items-center gap-2.5 rounded-control px-3 text-left text-sm font-semibold hover:bg-hover"
                       >
-                        <Search size={18} />
+                        <BroomitIcon name="magnifier" size={20} />
                         <span>
                           Take out an element
                           <span className="block text-xs font-normal text-ink-muted">
@@ -225,7 +218,7 @@ function NotebookPages({
       </button>
       <div className="flex items-center justify-between gap-2">
         <h3 className="min-w-0 truncate text-base font-bold">{notebook.title}</h3>
-        <Button icon={<Search size={18} />} onClick={onExtract}>
+        <Button icon={<BroomitIcon name="magnifier" size={20} />} onClick={onExtract}>
           Take out
         </Button>
       </div>

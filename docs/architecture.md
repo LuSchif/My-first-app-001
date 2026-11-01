@@ -230,6 +230,16 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
 - The text color menu and the tool settings menus have a grip as well: dragged elsewhere, they
   open there again (kept on screen and above the keyboard).
 
+## Icons
+
+- Broomit draws its own icons (`design/icons/glyphs.tsx`, shown by `BroomitIcon`): tools,
+  interface and library, on a 24 px grid with round lines. Each has two looks: lines only (the
+  usual one) and in color for a tool in use (cream body, caramel details, tokens
+  `--color-icon-*`). Pens (pen, fountain pen, magic pen, highlighter) always show their current
+  ink at the tip. Buttons for tools take the light "soft" chosen look so the color shows.
+- Shapes are filled with the background behind them (`--icon-bg`), so lines underneath stay
+  hidden; dark and accent backgrounds set it themselves (`index.css`).
+
 ## Colors
 
 - Pen and text use twelve standard colors plus a color wheel; folders and covers use the full

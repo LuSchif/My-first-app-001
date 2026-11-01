@@ -1,4 +1,5 @@
-import { Music, PaintBucket, Shapes, Table2, X } from 'lucide-react'
+import { BroomitIcon } from '../../design/index.ts'
+import { Music, PaintBucket, Shapes, X } from 'lucide-react'
 import type { Editor, EditorState } from '../../engine/editor/Editor.ts'
 
 const CHIP_HEIGHT = 48
@@ -24,7 +25,7 @@ export function SuggestionChip({ editor, state }: { editor: Editor; state: Edito
         {s.kind === 'fill' ? (
           <PaintBucket size={18} />
         ) : s.kind === 'table' ? (
-          <Table2 size={18} />
+          <BroomitIcon name="table" size={20} />
         ) : s.kind === 'clef' ? (
           <Music size={18} />
         ) : (

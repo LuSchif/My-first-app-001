@@ -1,4 +1,5 @@
-import { Pencil, Play, Users } from 'lucide-react'
+import { BroomitIcon } from '../../design/index.ts'
+import { Play, Users } from 'lucide-react'
 import { useState } from 'react'
 import { navigate } from '../../app/router.ts'
 import { Button, Dialog } from '../../design/index.ts'
@@ -47,7 +48,7 @@ export function QuizPeek({ quiz, library }: { quiz: Notebook; library: Library }
           </p>
         </div>
         <div className="grid gap-2">
-          <Button icon={<Pencil size={18} />} onClick={() => go('quiz')}>
+          <Button icon={<BroomitIcon name="edit" size={22} />} onClick={() => go('quiz')}>
             Edit quiz
           </Button>
           <Button

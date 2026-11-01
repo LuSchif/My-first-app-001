@@ -1,21 +1,10 @@
-import {
-  ChartColumn,
-  FolderPlus,
-  Highlighter,
-  Lasso,
-  Layers,
-  PenLine,
-  Plus,
-  Redo2,
-  Search,
-  Type,
-  Undo2,
-} from 'lucide-react'
+import { ChartColumn, FolderPlus, Lasso, PenLine, Plus, Redo2, Type, Undo2 } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
+import { BroomitIcon } from '../icons/BroomitIcon.tsx'
+import { GLYPHS, type GlyphName } from '../icons/glyphs.tsx'
 import { fillToCss, prefersLightText, type Fill } from '../../engine/model/fill.ts'
 import { cn } from '../../lib/cn.ts'
 import {
-  BroomIcon,
   Button,
   ColorSwatch,
   Dialog,
@@ -155,42 +144,33 @@ function TypeSection() {
   )
 }
 
-const TOOL_ICONS = [
-  ['Lasso', <Lasso key="l" />],
-  ['Pen', <PenLine key="p" />],
-  ['Highlighter', <Highlighter key="h" />],
-  ['Text', <Type key="t" />],
-  ['Broom', <BroomIcon key="b" />],
-  ['Tables and charts', <ChartColumn key="c" />],
-  ['Layers', <Layers key="y" />],
-  ['Undo', <Undo2 key="u" />],
-  ['Redo', <Redo2 key="r" />],
-  ['Search', <Search key="s" />],
-  ['New folder', <FolderPlus key="f" />],
-  ['New notebook', <Plus key="n" />],
-] as const
-
 function IconsSection() {
+  const names = Object.keys(GLYPHS) as GlyphName[]
   return (
     <Section
       title="Icons"
-      note="Lucide line icons at 24 px with a 1.75 stroke. The broom is drawn on the same grid."
+      note="Broomit's own icons on a 24 px grid. Lines as usual; in color for the tool in use, and pens show their ink at the tip."
     >
-      <div className="grid gap-6 sm:grid-cols-[auto_1fr] sm:items-center">
-        <div className="grid size-40 place-items-center rounded-panel bg-ink text-ink-inverse shadow-raised">
-          <BroomIcon size={88} strokeWidth={1.25} />
-        </div>
-        <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6">
-          {TOOL_ICONS.map(([name, icon]) => (
-            <div
-              key={name}
-              className="grid justify-items-center gap-2 rounded-card px-2 py-3 text-center"
-            >
-              <span className="[&>svg]:size-6 [&>svg]:stroke-[1.75]">{icon}</span>
-              <span className="text-xs text-ink-muted">{name}</span>
-            </div>
-          ))}
-        </div>
+      <div className="grid gap-4">
+        {[false, true].map((colored) => (
+          <div
+            key={String(colored)}
+            className={cn(
+              'grid grid-cols-4 gap-2 rounded-panel p-4 sm:grid-cols-6 md:grid-cols-8',
+              colored ? 'bg-surface-raised ring-1 ring-line' : 'bg-ink text-ink-inverse',
+            )}
+            style={
+              colored ? undefined : ({ '--icon-bg': 'var(--color-ink)' } as React.CSSProperties)
+            }
+          >
+            {names.map((name) => (
+              <div key={name} className="grid justify-items-center gap-1.5 py-2 text-center">
+                <BroomitIcon name={name} size={36} colored={colored} tip="#5b8bd6" />
+                <span className="text-[11px] opacity-75">{name}</span>
+              </div>
+            ))}
+          </div>
+        ))}
       </div>
     </Section>
   )
@@ -288,7 +268,7 @@ function ToolbarSection() {
             <PopoverTrigger asChild>
               <IconButton
                 label="Broom"
-                icon={<BroomIcon size={22} />}
+                icon={<BroomitIcon name="broom" size={24} />}
                 active={tool === 'broom'}
                 onClick={selectOrOpen('broom')}
               />

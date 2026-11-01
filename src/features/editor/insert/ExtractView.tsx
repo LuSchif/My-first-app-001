@@ -1,7 +1,7 @@
-import { Check, Search, X } from 'lucide-react'
+import { Check, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Button, IconButton } from '../../../design/index.ts'
+import { BroomitIcon, Button, IconButton } from '../../../design/index.ts'
 import type { NotebookDocument } from '../../../engine/document/NotebookDocument.ts'
 import { objectLabel, type Editor } from '../../../engine/editor/Editor.ts'
 import { boundsOf } from '../../../engine/editor/selection.ts'
@@ -81,9 +81,9 @@ export function ExtractView({
         {/* The only tool here. */}
         <span
           aria-label="Magnifier"
-          className="grid size-11 place-items-center rounded-control bg-ink text-ink-inverse"
+          className="grid size-11 place-items-center rounded-control bg-icon-fill ring-1 ring-icon-accent"
         >
-          <Search size={22} strokeWidth={1.75} />
+          <BroomitIcon name="magnifier" size={24} colored />
         </span>
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-6">

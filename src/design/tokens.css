@@ -41,6 +41,11 @@
   --color-danger: #a8432f;
   --color-scrim: rgb(40 28 22 / 0.32);
 
+  /* Broomit's icons in color (a tool in use): a cream body and caramel details. */
+  --color-icon-fill: #f8ead8;
+  --color-icon-soft: #f1dcc0;
+  --color-icon-accent: #df9f55;
+
   /* Quiz results: a right and a wrong answer. */
   --color-correct: #2f8a3c;
   --color-incorrect: #c4413a;

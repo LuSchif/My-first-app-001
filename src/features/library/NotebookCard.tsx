@@ -1,8 +1,7 @@
+import { BroomitIcon } from '../../design/index.ts'
 import {
   FolderClosed,
-  Gamepad2,
   FolderInput,
-  Layers,
   BarChart3,
   Check,
   MoreHorizontal,
@@ -355,9 +354,19 @@ export function NotebookRow({
                 className="shrink-0 text-ink-muted"
               />
             ) : notebook.kind === 'deck' ? (
-              <Layers size={14} aria-label="Flashcards" className="shrink-0 text-ink-muted" />
+              <BroomitIcon
+                name="flashcards"
+                size={16}
+                aria-label="Flashcards"
+                className="shrink-0 text-ink-muted"
+              />
             ) : notebook.kind === 'quiz' ? (
-              <Gamepad2 size={14} aria-label="Quiz" className="shrink-0 text-ink-muted" />
+              <BroomitIcon
+                name="quiz"
+                size={16}
+                aria-label="Quiz"
+                className="shrink-0 text-ink-muted"
+              />
             ) : null}
           </span>
           <Details notebook={notebook} />

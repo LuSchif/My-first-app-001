@@ -1,4 +1,5 @@
-import { Pencil, RotateCcw } from 'lucide-react'
+import { BroomitIcon } from '../../design/index.ts'
+import { RotateCcw } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { navigate } from '../../app/router.ts'
 import { Button } from '../../design/index.ts'
@@ -94,7 +95,10 @@ export function QuizPlay({ id }: { id: string }) {
           >
             Play again
           </Button>
-          <Button icon={<Pencil size={18} />} onClick={() => navigate({ name: 'quiz', id })}>
+          <Button
+            icon={<BroomitIcon name="edit" size={22} />}
+            onClick={() => navigate({ name: 'quiz', id })}
+          >
             Edit quiz
           </Button>
           <Button variant="primary" onClick={exit}>

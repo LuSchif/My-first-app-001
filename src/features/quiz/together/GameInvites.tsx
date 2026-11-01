@@ -1,4 +1,4 @@
-import { Gamepad2 } from 'lucide-react'
+import { BroomitIcon } from '../../../design/index.ts'
 import { navigate } from '../../../app/router.ts'
 import { Button } from '../../../design/index.ts'
 import { useMyGames, waitsForMe, type MyGame } from '../../../storage/cloud/games.ts'
@@ -26,7 +26,7 @@ export function GameInvites() {
           {item.host ? (
             <Avatar profile={item.host} size={40} />
           ) : (
-            <Gamepad2 size={24} className="mx-2 text-accent" />
+            <BroomitIcon name="quiz" size={26} className="mx-2" />
           )}
           <span className="min-w-0 flex-1">
             <span className="block truncate font-semibold">{describe(item)}</span>

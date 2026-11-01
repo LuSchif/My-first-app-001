@@ -181,7 +181,7 @@ export function ToolWheel({
                     className={cn(
                       'stroke-line transition-colors',
                       on
-                        ? 'fill-ink'
+                        ? 'fill-icon-fill'
                         : same(hover, { variant: v.id })
                           ? 'fill-surface-sunken'
                           : 'fill-surface-raised',
@@ -201,7 +201,7 @@ export function ToolWheel({
                 className={cn(
                   'stroke-line transition-colors',
                   on
-                    ? 'fill-ink'
+                    ? 'fill-icon-fill'
                     : same(hover, { tool: t.tool })
                       ? 'fill-surface-sunken'
                       : 'fill-surface-raised',
@@ -234,11 +234,11 @@ export function ToolWheel({
               onClick={() => choose({ variant: v.id })}
               className={cn(
                 'absolute grid size-12 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full',
-                on ? 'text-ink-inverse' : 'text-ink',
+                'text-ink',
               )}
               style={{ left: ARC + x, top: ARC + y }}
             >
-              {v.icon}
+              {v.icon(state)}
             </button>
           )
         })}
@@ -289,11 +289,11 @@ function WheelButton({
       onClick={onChoose}
       className={cn(
         'absolute grid size-14 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full',
-        on ? 'text-ink-inverse' : 'text-ink',
+        'text-ink',
       )}
       style={{ left: ARC + at[0], top: ARC + at[1] }}
     >
-      {tool.icon(state, 26)}
+      {tool.icon(state, 30, on)}
     </button>
   )
 }

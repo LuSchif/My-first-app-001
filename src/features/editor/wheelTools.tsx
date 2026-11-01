@@ -1,6 +1,6 @@
-import { Highlighter, PenLine, Type, WandSparkles } from 'lucide-react'
+import { Type } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { BroomIcon, FountainPenIcon, LaserBroomIcon, TapeIcon } from '../../design/index.ts'
+import { BroomitIcon } from '../../design/index.ts'
 import type { Editor, EditorState, ToolId } from '../../engine/editor/Editor.ts'
 import type { Features } from '../../engine/editor/features.ts'
 
@@ -8,7 +8,7 @@ import type { Features } from '../../engine/editor/features.ts'
 export interface ToolVariant {
   id: string
   label: string
-  icon: ReactNode
+  icon: (state: EditorState) => ReactNode
   active: (state: EditorState) => boolean
   choose: (editor: Editor) => void
 }
@@ -17,7 +17,8 @@ export interface ToolVariant {
 export interface WheelTool {
   tool: ToolId
   label: (state: EditorState) => string
-  icon: (state: EditorState, size: number) => ReactNode
+  /** In color when the tool is in use; pens show their ink at the tip. */
+  icon: (state: EditorState, size: number, colored?: boolean) => ReactNode
   variants?: ToolVariant[]
 }
 
@@ -29,20 +30,26 @@ export function wheelTools(features: Features): WheelTool[] {
     {
       tool: 'pen',
       label: (s) => (s.pen.nib === 'fountain' ? 'Fountain pen' : 'Pen'),
-      icon: (s, size) =>
-        s.pen.nib === 'fountain' ? <FountainPenIcon size={size} /> : <PenLine {...icon(size)} />,
+      icon: (s, size, colored) => (
+        <BroomitIcon
+          name={s.pen.nib === 'fountain' ? 'fountain' : 'pen'}
+          size={size}
+          colored={colored}
+          tip={s.pen.color}
+        />
+      ),
       variants: [
         {
           id: 'ballpoint',
           label: 'Ballpoint',
-          icon: <PenLine {...icon(20)} />,
+          icon: (s) => <BroomitIcon name="pen" size={22} tip={s.pen.color} />,
           active: (s) => s.pen.nib === 'ballpoint',
           choose: (e) => e.setPen({ nib: 'ballpoint' }),
         },
         {
           id: 'fountain',
           label: 'Fountain pen',
-          icon: <FountainPenIcon size={20} />,
+          icon: (s) => <BroomitIcon name="fountain" size={22} tip={s.pen.color} />,
           active: (s) => s.pen.nib === 'fountain',
           choose: (e) => e.setPen({ nib: 'fountain' }),
         },
@@ -51,29 +58,33 @@ export function wheelTools(features: Features): WheelTool[] {
     features.magicPen && {
       tool: 'magic',
       label: () => 'Magic pen',
-      icon: (_, size) => <WandSparkles {...icon(size)} />,
+      icon: (s, size, colored) => (
+        <BroomitIcon name="magic" size={size} colored={colored} tip={s.pen.color} />
+      ),
     },
     {
       tool: 'highlighter',
       label: () => 'Highlighter',
-      icon: (_, size) => <Highlighter {...icon(size)} />,
+      icon: (s, size, colored) => (
+        <BroomitIcon name="highlighter" size={size} colored={colored} tip={s.highlighter.color} />
+      ),
     },
     {
       tool: 'broom',
       label: () => 'Broom',
-      icon: (_, size) => <BroomIcon size={size} />,
+      icon: (_, size, colored) => <BroomitIcon name="broom" size={size} colored={colored} />,
       variants: [
         {
           id: 'precise',
           label: 'Precise',
-          icon: <BroomIcon size={20} />,
+          icon: () => <BroomitIcon name="broom" size={22} />,
           active: (s) => s.broom.mode === 'precise',
           choose: (e) => e.setBroom({ mode: 'precise' }),
         },
         {
           id: 'stroke',
           label: 'Whole strokes',
-          icon: <BroomIcon size={20} strokeWidth={2.5} />,
+          icon: () => <BroomitIcon name="broom" size={22} strokeWidth={2.4} />,
           active: (s) => s.broom.mode === 'stroke',
           choose: (e) => e.setBroom({ mode: 'stroke' }),
         },
@@ -87,12 +98,12 @@ export function wheelTools(features: Features): WheelTool[] {
     features.tape && {
       tool: 'tape',
       label: () => 'Tape',
-      icon: (_, size) => <TapeIcon size={size} />,
+      icon: (_, size, colored) => <BroomitIcon name="tape" size={size} colored={colored} />,
     },
     features.laser && {
       tool: 'laser',
       label: () => 'Laser pointer',
-      icon: (_, size) => <LaserBroomIcon size={size} />,
+      icon: (_, size, colored) => <BroomitIcon name="laser" size={size} colored={colored} />,
     },
   ]
   return all.filter((t): t is WheelTool => Boolean(t))

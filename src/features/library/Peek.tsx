@@ -1,14 +1,5 @@
-import {
-  Check,
-  ChevronLeft,
-  FolderOpen,
-  GraduationCap,
-  Layers,
-  Pencil,
-  Plus,
-  Presentation,
-  X,
-} from 'lucide-react'
+import { BroomitIcon } from '../../design/index.ts'
+import { Check, ChevronLeft, GraduationCap, Plus, X } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { useEffect, useState } from 'react'
 import { navigate } from '../../app/router.ts'
@@ -168,7 +159,9 @@ function NotebookPeek({
         <div className="grid gap-1">
           <p className="flex items-center gap-1.5 text-lg font-bold">
             <span className="truncate">{notebook.title}</span>
-            {slides ? <Presentation size={16} className="shrink-0 text-ink-muted" /> : null}
+            {slides ? (
+              <BroomitIcon name="presentation" size={18} className="shrink-0 text-ink-muted" />
+            ) : null}
           </p>
           <p className="text-sm text-ink-muted">
             Edited {formatEdited(notebook.updatedAt)} · {count} {unit}
@@ -178,7 +171,7 @@ function NotebookPeek({
         <div className="grid gap-2">
           {slides ? null : (
             <Button
-              icon={editing ? <Check size={18} /> : <Pencil size={18} />}
+              icon={editing ? <Check size={18} /> : <BroomitIcon name="edit" size={22} />}
               aria-pressed={editing}
               onClick={() => setEditing(!editing)}
             >
@@ -333,7 +326,7 @@ function DeckPeek({
         <div className="grid gap-1">
           <p className="flex items-center gap-1.5 text-lg font-bold">
             <span className="truncate">{deck.title}</span>
-            <Layers size={16} className="shrink-0 text-ink-muted" />
+            <BroomitIcon name="flashcards" size={18} className="shrink-0 text-ink-muted" />
           </p>
           <p className="text-sm text-ink-muted">
             {cards.length} {cards.length === 1 ? 'card' : 'cards'} ·{' '}
@@ -350,7 +343,7 @@ function DeckPeek({
             Study{due ? ` · ${due} due` : ''}
           </Button>
           <Button
-            icon={<Pencil size={18} />}
+            icon={<BroomitIcon name="edit" size={22} />}
             onClick={() => {
               openPeek(null)
               navigate({ name: 'notebook', id: deck.id })
@@ -823,7 +816,7 @@ function FolderPeek({
         </div>
         <div className="grid gap-2">
           <Dialog open={editing} onOpenChange={setEditing}>
-            <Button icon={<Pencil size={18} />} onClick={() => setEditing(true)}>
+            <Button icon={<BroomitIcon name="edit" size={22} />} onClick={() => setEditing(true)}>
               Edit folder
             </Button>
             {editing ? (
@@ -838,7 +831,7 @@ function FolderPeek({
           </Dialog>
           <Button
             variant="primary"
-            icon={<FolderOpen size={18} />}
+            icon={<BroomitIcon name="folder" size={22} />}
             onClick={() => {
               openPeek(null)
               navigate({ name: 'folder', id: folder.id })

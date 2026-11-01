@@ -136,3 +136,17 @@ body::before {
 [data-pack] .brand-it {
   color: var(--color-accent);
 }
+
+/*
+ * Broomit's icons fill their shapes with the background behind them, so lines underneath stay
+ * hidden; on dark or accent backgrounds that background is the dark or accent color.
+ */
+.bg-ink,
+.aria-pressed\:bg-ink[aria-pressed='true'],
+.aria-checked\:bg-ink[aria-checked='true'],
+.aria-selected\:bg-ink[aria-selected='true'] {
+  --icon-bg: var(--color-ink);
+}
+.bg-accent {
+  --icon-bg: var(--color-accent);
+}

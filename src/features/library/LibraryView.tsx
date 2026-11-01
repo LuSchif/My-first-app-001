@@ -1,19 +1,8 @@
 import { releaseLabel } from '../../release.ts'
-import {
-  ChevronRight,
-  FolderPlus,
-  Gamepad2,
-  Layers,
-  NotebookPen,
-  Plus,
-  Presentation,
-  Search,
-  Store,
-  X,
-} from 'lucide-react'
+import { ChevronRight, Search, X } from 'lucide-react'
 import { useState } from 'react'
 import { navigate } from '../../app/router.ts'
-import { Button, Dialog, DialogTrigger } from '../../design/index.ts'
+import { BroomitIcon, Button, Dialog, DialogTrigger } from '../../design/index.ts'
 import { Carousel, type CarouselPage } from './Carousel.tsx'
 import { FolderDropStrip } from './FolderDropStrip.tsx'
 import { PeekLayer } from './Peek.tsx'
@@ -482,31 +471,31 @@ const CREATE_OPTIONS: [NonNullable<Creating>, string, string, React.ReactNode][]
     'notebook',
     'Notebook',
     'Pages to write and draw on with your pencil, on the paper you choose.',
-    <NotebookPen key="n" size={22} />,
+    <BroomitIcon key="n" name="notebook" size={28} />,
   ],
   [
     'folder',
     'Folder',
     'Keep notebooks, presentations and flashcards together, e.g. one per subject.',
-    <FolderPlus key="f" size={22} />,
+    <BroomitIcon key="f" name="new-folder" size={28} />,
   ],
   [
     'presentation',
     'Presentation',
     'Slides made with the same pens and tools, presented full screen.',
-    <Presentation key="p" size={22} />,
+    <BroomitIcon key="p" name="new-presentation" size={28} />,
   ],
   [
     'deck',
     'Flashcards',
     'Cards with a front and a back; what you don’t know comes again soon.',
-    <Layers key="d" size={22} />,
+    <BroomitIcon key="d" name="new-flashcards" size={28} />,
   ],
   [
     'quiz',
     'Quiz',
     'Questions against the clock: multiple choice, true or false, puzzles and more.',
-    <Gamepad2 key="q" size={22} />,
+    <BroomitIcon key="q" name="new-quiz" size={28} />,
   ],
 ]
 
@@ -530,7 +519,7 @@ function CreateOptions({
         )}
       >
         <span className="grid size-11 shrink-0 place-items-center rounded-control bg-accent text-ink-inverse shadow-soft">
-          <Store size={22} />
+          <BroomitIcon name="shop" size={28} />
         </span>
         <span className={cn('min-w-0', !tiles && 'flex-1')}>
           <span className="block text-base font-bold">Shop</span>
@@ -767,7 +756,7 @@ export function NewFolderButton({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button icon={<FolderPlus size={18} />}>{label}</Button>
+        <Button icon={<BroomitIcon name="new-folder" size={22} />}>{label}</Button>
       </DialogTrigger>
       {open ? (
         <FolderEditorDialog
@@ -797,7 +786,7 @@ export function NewNotebookButton({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="primary" icon={<Plus size={18} />}>
+        <Button variant="primary" icon={<BroomitIcon name="notebook" size={22} />}>
           New notebook
         </Button>
       </DialogTrigger>
@@ -828,7 +817,7 @@ export function NewPresentationButton({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button icon={<Presentation size={18} />}>New presentation</Button>
+        <Button icon={<BroomitIcon name="new-presentation" size={22} />}>New presentation</Button>
       </DialogTrigger>
       {open ? (
         <NewPresentationDialog
@@ -857,7 +846,7 @@ export function NewDeckButton({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button icon={<Layers size={18} />}>New flashcards</Button>
+        <Button icon={<BroomitIcon name="new-flashcards" size={22} />}>New flashcards</Button>
       </DialogTrigger>
       {open ? (
         <NewDeckDialog
@@ -884,7 +873,7 @@ export function NewQuizButton({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button icon={<Gamepad2 size={18} />}>New quiz</Button>
+        <Button icon={<BroomitIcon name="new-quiz" size={22} />}>New quiz</Button>
       </DialogTrigger>
       {open ? (
         <NewQuizDialog

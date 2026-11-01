@@ -1,4 +1,5 @@
-import { ChevronLeft, ChevronRight, Pencil } from 'lucide-react'
+import { BroomitIcon } from '../../design/index.ts'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useState } from 'react'
 import { navigate } from '../../app/router.ts'
 import { Button, Dialog, DialogTrigger, IconButton } from '../../design/index.ts'
@@ -121,7 +122,7 @@ export function FolderView({ id }: { id: string }) {
             <LayoutToggle value={layout} onChange={setLayout} />
             <Dialog open={editing} onOpenChange={setEditing}>
               <DialogTrigger asChild>
-                <Button icon={<Pencil size={18} />}>Edit</Button>
+                <Button icon={<BroomitIcon name="edit" size={22} />}>Edit</Button>
               </DialogTrigger>
               {editing ? (
                 <FolderEditorDialog

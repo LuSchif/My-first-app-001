@@ -1,10 +1,10 @@
+import { BroomitIcon } from '../../design/index.ts'
 import {
   Check,
   ChevronDown,
   ChevronLeft,
   ChevronUp,
   Copy,
-  ImagePlus,
   Minus,
   Play,
   Plus,
@@ -376,7 +376,7 @@ function QuestionCard({
             onClick={() => file.current?.click()}
             className="flex h-28 w-full max-w-md flex-col items-center justify-center gap-1 rounded-card text-sm font-semibold text-ink-muted ring-2 ring-line ring-inset [border-style:dashed] hover:bg-hover"
           >
-            <ImagePlus size={24} />
+            <BroomitIcon name="photo" size={28} />
             Add a picture
           </button>
         )}

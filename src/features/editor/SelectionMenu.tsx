@@ -1,19 +1,17 @@
+import { BroomitIcon } from '../../design/index.ts'
 import {
   ClipboardPaste,
   Copy,
   CopyPlus,
   FlipHorizontal2,
   FlipVertical2,
-  Layers,
   Scaling,
   Grid3x3,
-  ChartColumn,
   ChartSpline,
   Crop,
   Ellipsis,
   Scissors,
   Sparkles,
-  Table2,
   SquareRoundCorner,
   TextCursorInput,
   Trash2,
@@ -344,7 +342,7 @@ function menuItems(
         <Popover>
           <PopoverTrigger asChild>
             <button type="button" className={pill}>
-              <Layers size={18} />
+              <BroomitIcon name="layers" size={20} />
               Layer
             </button>
           </PopoverTrigger>
@@ -432,7 +430,7 @@ function EditTableButton({ editor, table }: { editor: Editor; table: TableObject
   return (
     <>
       <MenuButton label="Edit table" onClick={() => setEditing(true)}>
-        <Table2 size={18} />
+        <BroomitIcon name="table" size={20} />
       </MenuButton>
       <TableEditor editor={editor} table={table} open={editing} onOpenChange={setEditing} />
     </>
@@ -444,7 +442,7 @@ function EditChartButton({ editor, chart }: { editor: Editor; chart: ChartObject
   return (
     <>
       <MenuButton label="Edit chart" onClick={() => setEditing(true)}>
-        <ChartColumn size={18} />
+        <BroomitIcon name="chart" size={20} />
       </MenuButton>
       <ChartEditor editor={editor} chart={chart} open={editing} onOpenChange={setEditing} />
     </>
@@ -531,7 +529,7 @@ function MakeChart({ editor, table }: { editor: Editor; table: TableObject }) {
           type="button"
           className="flex h-11 items-center gap-1.5 rounded-control px-3 text-sm font-semibold hover:bg-white/10 active:bg-white/15"
         >
-          <ChartColumn size={18} />
+          <BroomitIcon name="chart" size={20} />
           Make chart
         </button>
       </PopoverTrigger>

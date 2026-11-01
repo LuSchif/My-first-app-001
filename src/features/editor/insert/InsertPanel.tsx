@@ -1,16 +1,7 @@
-import {
-  Camera,
-  ChartColumn,
-  FolderOpen,
-  ImagePlus,
-  Images,
-  Shapes,
-  Sticker as StickerIcon,
-  Table2,
-  X,
-} from 'lucide-react'
+import { X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { IconButton, Switch } from '../../../design/index.ts'
+import { BroomitIcon, IconButton, Switch } from '../../../design/index.ts'
+import type { GlyphName } from '../../../design/icons/glyphs.tsx'
 import type { NotebookDocument } from '../../../engine/document/NotebookDocument.ts'
 import type { Editor, EditorState } from '../../../engine/editor/Editor.ts'
 import { CHART_KINDS, createChart } from '../../../engine/model/chart.ts'
@@ -31,12 +22,12 @@ import { useDragToPage, type DragGhost } from './useDragToPage.ts'
 
 type Tab = 'shapes' | 'tables' | 'stickers' | 'photos' | 'folders'
 
-const TABS: { id: Tab; label: string; icon: typeof Shapes }[] = [
-  { id: 'shapes', label: 'Shapes', icon: Shapes },
-  { id: 'tables', label: 'Tables', icon: Table2 },
-  { id: 'stickers', label: 'Stickers', icon: StickerIcon },
-  { id: 'photos', label: 'Photos', icon: Images },
-  { id: 'folders', label: 'Folders', icon: FolderOpen },
+const TABS: { id: Tab; label: string; icon: GlyphName }[] = [
+  { id: 'shapes', label: 'Shapes', icon: 'shapes' },
+  { id: 'tables', label: 'Tables', icon: 'table' },
+  { id: 'stickers', label: 'Stickers', icon: 'sticker' },
+  { id: 'photos', label: 'Photos', icon: 'photo' },
+  { id: 'folders', label: 'Folders', icon: 'folder' },
 ]
 
 type Source = ReturnType<typeof useDragToPage>['source']
@@ -72,16 +63,16 @@ export function InsertPanel({
         <IconButton label="Close" icon={<X size={20} />} onClick={onClose} />
       </div>
       <div role="tablist" aria-label="What to add" className="grid grid-cols-5 gap-1 px-3 pb-2">
-        {TABS.map(({ id, label, icon: Icon }) => (
+        {TABS.map(({ id, label, icon }) => (
           <button
             key={id}
             type="button"
             role="tab"
             aria-selected={tab === id}
             onClick={() => setTab(id)}
-            className="grid justify-items-center gap-0.5 rounded-control py-1.5 text-[11px] font-semibold text-ink-muted hover:bg-hover aria-selected:bg-ink aria-selected:text-ink-inverse"
+            className="grid justify-items-center gap-0.5 rounded-control py-1.5 text-[11px] font-semibold text-ink-muted hover:bg-hover aria-selected:bg-icon-fill aria-selected:text-ink aria-selected:ring-1 aria-selected:ring-icon-accent"
           >
-            <Icon size={20} strokeWidth={1.75} />
+            <BroomitIcon name={icon} size={26} colored={tab === id} />
             {label}
           </button>
         ))}
@@ -241,13 +232,13 @@ function TablesTab({
             className="flex h-11 items-center justify-center gap-2 rounded-control bg-ink text-sm font-semibold text-ink-inverse"
             {...add(`Table ${rows} × ${cols}`, table(rows, cols))}
           >
-            <Table2 size={18} /> Table {rows} × {cols}
+            <BroomitIcon name="table" size={20} /> Table {rows} × {cols}
           </button>
         </div>
       </section>
       <section className="grid gap-2">
         <h3 className="flex items-center gap-1.5 text-sm font-semibold">
-          <ChartColumn size={16} /> Charts
+          <BroomitIcon name="chart" size={18} /> Charts
         </h3>
         <div className="grid grid-cols-2 gap-2">
           {CHART_KINDS.map(({ kind, label }) => (
@@ -418,7 +409,7 @@ function PhotosTab({
           className={cn(tile, 'min-h-20')}
           onClick={() => library.current?.click()}
         >
-          <ImagePlus size={24} strokeWidth={1.75} />
+          <BroomitIcon name="photos" size={30} />
           Photo library
         </button>
         <button
@@ -426,7 +417,7 @@ function PhotosTab({
           className={cn(tile, 'min-h-20')}
           onClick={() => camera.current?.click()}
         >
-          <Camera size={24} strokeWidth={1.75} />
+          <BroomitIcon name="camera" size={30} />
           Take a photo
         </button>
       </div>
