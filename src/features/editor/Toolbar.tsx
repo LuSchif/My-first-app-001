@@ -7,10 +7,9 @@ import {
   Layers,
   LayoutGrid,
   Lock,
-  ScanSearch,
+  Search,
   Shapes,
   Settings,
-  PenTool,
   GraduationCap,
   Play,
   Redo2,
@@ -23,6 +22,7 @@ import type { StrokeDash } from '../../engine/model/types.ts'
 import { dashPattern } from '../../engine/render/strokes.ts'
 import { cn } from '../../lib/cn.ts'
 import {
+  AnchorPathIcon,
   ColorPicker,
   ColorSwatch,
   Dialog,
@@ -176,7 +176,10 @@ export function Toolbar({
           ref={leftCorner}
           className="pointer-events-auto flex items-center gap-1 rounded-panel bg-surface-raised/95 p-1.5 shadow-raised backdrop-blur"
         >
-          <IconButton label="All notebooks" icon={<ChevronLeft {...ICON} />} onClick={onBack} />
+          {/* Hidden while the panel is open, so closing the panel never closes the notebook. */}
+          {insertOpen ? null : (
+            <IconButton label="All notebooks" icon={<ChevronLeft {...ICON} />} onClick={onBack} />
+          )}
           <IconButton
             label={insertOpen ? 'Close shapes, stickers and more' : 'Shapes, stickers and more'}
             icon={<Shapes {...ICON} />}
@@ -203,10 +206,10 @@ export function Toolbar({
             state.lassoMode === 'rect' ? <SquareDashed {...ICON} /> : <Lasso {...ICON} />,
             <LassoSettings editor={editor} state={state} />,
           )}
-          {features.magnifier
-            ? toolButton('magnifier', 'Magnifier', <ScanSearch {...ICON} />)
+          {features.magnifier ? toolButton('magnifier', 'Magnifier', <Search {...ICON} />) : null}
+          {features.pathTool
+            ? toolButton('path', 'Edit paths', <AnchorPathIcon size={22} />)
             : null}
-          {features.pathTool ? toolButton('path', 'Edit paths', <PenTool {...ICON} />) : null}
         </FloatingPanel>
 
         <div

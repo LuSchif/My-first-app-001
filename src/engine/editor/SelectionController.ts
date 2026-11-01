@@ -928,19 +928,26 @@ function drawRotateHandle(ctx: CanvasRenderingContext2D, x: number, y: number): 
   ctx.lineWidth = 2
   ctx.strokeStyle = '#fffcf7'
   ctx.stroke()
+  // Three quarters of a circle, open at the top right, with an arrow head at its end.
   const r = 6
-  const end = Math.PI * 1.65
+  const start = -Math.PI * 0.3
+  const end = Math.PI * 1.15
   ctx.beginPath()
-  ctx.arc(x, y, r, Math.PI * -0.35, end)
+  ctx.arc(x, y, r, start, end)
   ctx.lineWidth = 1.75
   ctx.lineCap = 'round'
   ctx.stroke()
-  // Arrow head at the end of the arc.
   const ex = x + r * Math.cos(end)
   const ey = y + r * Math.sin(end)
+  // The way the arc runs at its end (clockwise), and across it.
+  const tx = -Math.sin(end)
+  const ty = Math.cos(end)
+  const head = 3.6
   ctx.beginPath()
-  ctx.moveTo(ex + 3.2, ey - 0.6)
-  ctx.lineTo(ex, ey)
-  ctx.lineTo(ex + 0.6, ey + 3.4)
-  ctx.stroke()
+  ctx.moveTo(ex + tx * head, ey + ty * head)
+  ctx.lineTo(ex - ty * head * 0.9, ey + tx * head * 0.9)
+  ctx.lineTo(ex + ty * head * 0.9, ey - tx * head * 0.9)
+  ctx.closePath()
+  ctx.fillStyle = '#fffcf7'
+  ctx.fill()
 }

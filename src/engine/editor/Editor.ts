@@ -1396,10 +1396,12 @@ export class Editor {
     this.doc.updateNotebook({ pageFlow: flow })
     this.pageCache.clear()
     this.update({ pageFlow: flow })
-    // Start at the top of the page in view, in the new arrangement.
-    const z = this.camera.zoom
+    // Start at the top of the page in view, in the new arrangement: one page, as wide as the
+    // view allows and centered, also when pages follow to the side.
+    const z = this.fitZoom()
     const o = this.layout.origin(index)
-    this.setCamera({ zoom: z, offsetX: SIDE_MARGIN - o.x * z, offsetY: TOP_INSET - o.y * z })
+    const left = (this.view.width - this.layout.size.width * z) / 2
+    this.setCamera({ zoom: z, offsetX: left - o.x * z, offsetY: TOP_INSET - o.y * z })
   }
 
   /**
@@ -1945,6 +1947,7 @@ export class Editor {
     // A slide shown whole stays whole when the space around it changes (panels, rotation).
     const wasFit = this.slides && Math.abs(this.camera.zoom - this.fitZoom()) < 1e-6
     const oldWidth = this.view.width
+    const oldFit = oldWidth > 0 ? this.fitZoom() : 0
     const dpr = window.devicePixelRatio || 1
     this.view = { width: rect.width, height: rect.height, dpr }
     const canvases = [this.sceneCanvas, this.wetCanvas, this.tipCanvas, this.overlayCanvas]
@@ -1957,16 +1960,15 @@ export class Editor {
       this.setCamera({ zoom: this.fitZoom(), offsetX: 0, offsetY: TOP_INSET })
     } else if (wasFit) {
       this.setCamera({ zoom: 0, offsetX: 0, offsetY: 0 })
-    } else if (!this.slides && oldWidth > 0 && rect.width > 0 && rect.width !== oldWidth) {
-      // A panel opened or closed beside the page: the page grows or shrinks with the space,
-      // so none of it is cut off, and the top of the view stays where it was.
-      const k = rect.width / oldWidth
+    } else if (!this.slides && oldFit > 0 && rect.width > 0 && rect.width !== oldWidth) {
+      // The space changed (a panel beside the page, the screen turned): the page grows or
+      // shrinks with it, so none of it is cut off. What was in the middle stays in the middle,
+      // and the top of the view stays where it was.
       const c = this.camera
-      this.setCamera({
-        zoom: c.zoom * k,
-        offsetX: c.offsetX * k,
-        offsetY: TOP_INSET + (c.offsetY - TOP_INSET) * k,
-      })
+      const zoom = (c.zoom / oldFit) * this.fitZoom()
+      const wx = (oldWidth / 2 - c.offsetX) / c.zoom
+      const wy = (TOP_INSET - c.offsetY) / c.zoom
+      this.setCamera({ zoom, offsetX: rect.width / 2 - wx * zoom, offsetY: TOP_INSET - wy * zoom })
     } else {
       this.setCamera(this.camera)
     }
@@ -3250,16 +3252,34 @@ export class Editor {
       r * 2,
     )
     ctx.restore()
-    ctx.lineWidth = 5
+    // A magnifying glass: a handle going off to the lower right, and a solid rim.
+    const hx = cx + (r + 4) * Math.SQRT1_2
+    const hy = cy + (r + 4) * Math.SQRT1_2
+    ctx.lineCap = 'round'
+    ctx.strokeStyle = '#3e2d25'
+    ctx.lineWidth = 14
+    ctx.beginPath()
+    ctx.moveTo(hx, hy)
+    ctx.lineTo(hx + 40, hy + 40)
+    ctx.stroke()
+    ctx.strokeStyle = 'rgba(255, 252, 247, 0.35)'
+    ctx.lineWidth = 3
+    ctx.beginPath()
+    ctx.moveTo(hx + 4, hy + 1)
+    ctx.lineTo(hx + 38, hy + 35)
+    ctx.stroke()
+    ctx.lineWidth = 7
+    ctx.strokeStyle = '#3e2d25'
+    ctx.beginPath()
+    ctx.arc(cx, cy, r + 2, 0, Math.PI * 2)
+    ctx.stroke()
+    ctx.lineWidth = 2
     ctx.strokeStyle = '#fffcf7'
     ctx.beginPath()
-    ctx.arc(cx, cy, r, 0, Math.PI * 2)
+    ctx.arc(cx, cy, r - 1, 0, Math.PI * 2)
     ctx.stroke()
     ctx.lineWidth = 1.5
     ctx.strokeStyle = 'rgba(62, 45, 37, 0.6)'
-    ctx.beginPath()
-    ctx.arc(cx, cy, r + 3, 0, Math.PI * 2)
-    ctx.stroke()
     // Cross hairs in the loupe, and a ring at the spot itself.
     ctx.beginPath()
     ctx.moveTo(cx - 9, cy)
@@ -3670,7 +3690,7 @@ export function objectLabel(o: CanvasObject): string {
     return `Text “${t.length > 18 ? `${t.slice(0, 18)}…` : t}”`
   }
   if (o.type === 'fill') return 'Filled area'
-  if (o.type === 'image') return 'Picture'
+  if (o.type === 'image') return o.sticker ? 'Sticker' : 'Picture'
   if (o.type === 'table') return 'Table'
   return 'Chart'
 }

@@ -1,5 +1,5 @@
 import type { SVGProps } from 'react'
-import { BROOM_PATHS } from '../../engine/render/broomGlyph.ts'
+import { BROOM_PATHS, BROOM_TILT } from '../../engine/render/broomGlyph.ts'
 
 /**
  * Broomit's eraser. Drawn on the same 24 px grid and stroke as the Lucide icons used elsewhere,
@@ -24,9 +24,11 @@ export function BroomIcon({
       aria-hidden="true"
       {...props}
     >
-      {BROOM_PATHS.map((d) => (
-        <path key={d} d={d} />
-      ))}
+      <g transform={`rotate(${BROOM_TILT} 12 12)`}>
+        {BROOM_PATHS.map((d) => (
+          <path key={d} d={d} />
+        ))}
+      </g>
     </svg>
   )
 }

@@ -1,4 +1,4 @@
-import { Check, ScanSearch, X } from 'lucide-react'
+import { Check, Search, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Button, IconButton } from '../../../design/index.ts'
@@ -83,7 +83,7 @@ export function ExtractView({
           aria-label="Magnifier"
           className="grid size-11 place-items-center rounded-control bg-ink text-ink-inverse"
         >
-          <ScanSearch size={22} strokeWidth={1.75} />
+          <Search size={22} strokeWidth={1.75} />
         </span>
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-6">
@@ -278,6 +278,17 @@ function LookPage({
             top: (highlight.minY - 6) * scale,
             width: (highlight.maxX - highlight.minX + 12) * scale,
             height: (highlight.maxY - highlight.minY + 12) * scale,
+          }}
+        />
+      ) : null}
+      {look ? (
+        // The handle of the magnifying glass, below the lens to the right.
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute h-3.5 w-12 origin-left rotate-45 rounded-full bg-ink shadow-soft"
+          style={{
+            left: look.x + (LENS / 2) * Math.SQRT1_2,
+            top: Math.max(0, look.y - LIFT - LENS / 2) + LENS / 2 + (LENS / 2) * Math.SQRT1_2 - 7,
           }}
         />
       ) : null}

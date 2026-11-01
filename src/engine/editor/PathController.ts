@@ -26,6 +26,8 @@ const ANCHOR_SIZE = 11
 const HANDLE_RADIUS = 5.5
 const HIT_PX = 22
 const CURVE_HIT_PX = 14
+/** A tap this close to an anchor picks the anchor instead of adding a new one. */
+const NEAR_ANCHOR_PX = 40
 const ACCENT = '#b98b65'
 const INK = '#3e2d25'
 
@@ -104,6 +106,22 @@ export class PathController {
           target,
           last: this.local(screen),
           smooth: isSmooth(editing.path, target.index),
+          moved: false,
+        }
+        this.draw()
+        this.ctx.changed()
+        return
+      }
+      // A tap a little off an anchor still takes that anchor; adding is only for the line
+      // between anchors.
+      const close = this.anchorNear(screen, NEAR_ANCHOR_PX)
+      if (close !== null) {
+        editing.anchor = close
+        this.drag = {
+          pointerId: e.pointerId,
+          target: { kind: 'anchor', index: close },
+          last: this.local(screen),
+          smooth: isSmooth(editing.path, close),
           moved: false,
         }
         this.draw()
@@ -408,6 +426,20 @@ export class PathController {
       }
     }
     return bestAnchor >= 0 ? { kind: 'anchor', index: bestAnchor } : null
+  }
+
+  /** The anchor nearest to a screen point, if one is within `px`. */
+  private anchorNear(screen: Point, px: number): number | null {
+    const e = this.editing!
+    const index = this.ctx.pageIndexOf(e.pageId)
+    let best: { i: number; d: number } | null = null
+    for (let i = 0; i < anchorCount(e.path); i++) {
+      const k = anchorIndex(i)
+      const p = this.ctx.toScreen(index, e.path[k]!, e.path[k + 1]!)
+      const d = Math.hypot(p.x - screen.x, p.y - screen.y)
+      if (d < px && (!best || d < best.d)) best = { i, d }
+    }
+    return best?.i ?? null
   }
 
   private local(screen: Point): Point {

@@ -1,4 +1,5 @@
 import type { BoxFrame, Id, StrokeObject } from '../../../engine/model/types.ts'
+import { samplePath } from '../../../engine/geometry/fitCurve.ts'
 import { newId } from '../../../engine/model/ids.ts'
 
 /**
@@ -16,6 +17,84 @@ export interface ShapeDef {
   closed: boolean
   /** Straight edges between the points; otherwise a smooth curve through them. */
   straight: boolean
+  /**
+   * Round shapes as true curves: a path of cubic Bézier segments (start point, then two control
+   * points and an end point per segment), so the corners are smooth and few anchors are needed.
+   */
+  path?: number[]
+}
+
+/** Control point distance for a quarter circle drawn as one cubic Bézier segment. */
+const KAPPA = 0.5523
+
+/** Builds a path: straight lines and quarter-ellipse corners, as cubic segments. */
+class PathBuilder {
+  readonly out: number[]
+  private x: number
+  private y: number
+  constructor(x: number, y: number) {
+    this.out = [x, y]
+    this.x = x
+    this.y = y
+  }
+  line(x: number, y: number): this {
+    const { x: x0, y: y0 } = this
+    this.out.push(
+      x0 + (x - x0) / 3,
+      y0 + (y - y0) / 3,
+      x0 + ((x - x0) * 2) / 3,
+      y0 + ((y - y0) * 2) / 3,
+      x,
+      y,
+    )
+    this.x = x
+    this.y = y
+    return this
+  }
+  curve(c1x: number, c1y: number, c2x: number, c2y: number, x: number, y: number): this {
+    this.out.push(c1x, c1y, c2x, c2y, x, y)
+    this.x = x
+    this.y = y
+    return this
+  }
+  /** A quarter ellipse to (x, y); `horizontalFirst` leaves the current point sideways. */
+  corner(x: number, y: number, horizontalFirst: boolean): this {
+    const { x: x0, y: y0 } = this
+    return horizontalFirst
+      ? this.curve(x0 + (x - x0) * KAPPA, y0, x, y - (y - y0) * KAPPA, x, y)
+      : this.curve(x0, y0 + (y - y0) * KAPPA, x - (x - x0) * KAPPA, y, x, y)
+  }
+}
+
+function ellipsePath(): number[] {
+  return new PathBuilder(1, 0.5)
+    .corner(0.5, 1, false)
+    .corner(0, 0.5, true)
+    .corner(0.5, 0, false)
+    .corner(1, 0.5, true).out
+}
+
+/** A box with round corners; `bottom` is where the box ends (a bubble's tail goes below). */
+function roundedPath(rx: number, ry: number, bottom = 1, tail = false): number[] {
+  const b = new PathBuilder(rx, 0)
+    .line(1 - rx, 0)
+    .corner(1, ry, true)
+    .line(1, bottom - ry)
+    .corner(1 - rx, bottom, false)
+  if (tail) b.line(0.34, bottom).line(0.16, 1).line(0.22, bottom)
+  return b
+    .line(rx, bottom)
+    .corner(0, bottom - ry, true)
+    .line(0, ry)
+    .corner(rx, 0, false).out
+}
+
+function heartPath(): number[] {
+  return new PathBuilder(0.5, 0.28)
+    .curve(0.5, 0.04, 0.88, -0.04, 0.98, 0.24)
+    .curve(1.06, 0.52, 0.72, 0.74, 0.5, 1)
+    .curve(0.28, 0.74, -0.06, 0.52, 0.02, 0.24)
+    .curve(0.12, -0.04, 0.5, 0.04, 0.5, 0.28).out
 }
 
 function ring(count: number, at: (t: number) => [number, number]): number[] {
@@ -31,42 +110,6 @@ function star(tips: number, inner: number): number[] {
     const r = Math.round((t / (Math.PI * 2)) * tips * 2) % 2 ? inner : 0.5
     return [0.5 + r * Math.cos(t - Math.PI / 2), 0.5 + r * Math.sin(t - Math.PI / 2)]
   })
-}
-
-/** A rectangle with round corners, traced corner by corner. */
-function rounded(r: number, rx = r): number[] {
-  const out: number[] = []
-  const corners: [number, number, number][] = [
-    [1 - rx, r, -Math.PI / 2],
-    [1 - rx, 1 - r, 0],
-    [rx, 1 - r, Math.PI / 2],
-    [rx, r, Math.PI],
-  ]
-  for (const [cx, cy, start] of corners) {
-    for (let i = 0; i <= 6; i++) {
-      const a = start + (i / 6) * (Math.PI / 2)
-      out.push(cx + rx * Math.cos(a), cy + r * Math.sin(a))
-    }
-  }
-  return out
-}
-
-function heart(): number[] {
-  // The classic heart curve, scaled into the unit box.
-  const pts = ring(64, (t) => [
-    16 * Math.sin(t) ** 3,
-    -(13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t)),
-  ])
-  return pts.map((v, i) => (i % 2 ? (v + 17) / 30 : (v + 16) / 32))
-}
-
-function bubble(): number[] {
-  // A rounded box with a tail at the bottom left.
-  const box = rounded(0.12, 0.08).map((v, i) => (i % 2 ? v * 0.8 : v))
-  const tail = [0.3, 0.8, 0.16, 1, 0.2, 0.8]
-  // The box's bottom edge runs from right to left; the tail goes in between.
-  const bottomStart = 7 * 2 * 2
-  return [...box.slice(0, bottomStart), ...tail, ...box.slice(bottomStart)]
 }
 
 export const SHAPES: ShapeDef[] = [
@@ -120,27 +163,30 @@ export const SHAPES: ShapeDef[] = [
     label: 'Rounded box',
     width: 200,
     height: 130,
-    points: rounded(0.18, 0.12),
+    points: [],
+    path: roundedPath(0.12, 0.18),
     closed: true,
-    straight: true,
+    straight: false,
   },
   {
     id: 'circle',
     label: 'Circle',
     width: 140,
     height: 140,
-    points: polygon(72),
+    points: [],
+    path: ellipsePath(),
     closed: true,
-    straight: true,
+    straight: false,
   },
   {
     id: 'ellipse',
     label: 'Ellipse',
     width: 200,
     height: 130,
-    points: polygon(72),
+    points: [],
+    path: ellipsePath(),
     closed: true,
-    straight: true,
+    straight: false,
   },
   {
     id: 'triangle',
@@ -201,18 +247,20 @@ export const SHAPES: ShapeDef[] = [
     label: 'Heart',
     width: 150,
     height: 140,
-    points: heart(),
+    points: [],
+    path: heartPath(),
     closed: true,
-    straight: true,
+    straight: false,
   },
   {
     id: 'bubble',
     label: 'Speech bubble',
     width: 200,
     height: 150,
-    points: bubble(),
+    points: [],
+    path: roundedPath(0.09, 0.14, 0.8, true),
     closed: true,
-    straight: true,
+    straight: false,
   },
 ]
 
@@ -223,6 +271,9 @@ export function shapeStroke(
   layerId: Id,
   pen: { color: string; width: number },
 ): StrokeObject {
+  const place = (unit: readonly number[]) =>
+    unit.map((v, i) => (i % 2 ? frame.y + v * frame.height : frame.x + v * frame.width))
+  const path = shape.path ? place(shape.path) : null
   return {
     id: newId(),
     type: 'stroke',
@@ -231,9 +282,8 @@ export function shapeStroke(
     color: pen.color,
     width: Math.max(1.5, pen.width),
     opacity: 1,
-    points: shape.points.map((v, i) =>
-      i % 2 ? frame.y + v * frame.height : frame.x + v * frame.width,
-    ),
+    points: path ? samplePath(path) : place(shape.points),
+    ...(path ? { path } : {}),
     ...(shape.closed ? { closed: true } : {}),
     ...(shape.straight ? { straight: true } : {}),
   }
@@ -246,9 +296,19 @@ export function shapePath(shape: ShapeDef, size: number): string {
   const h = Math.max(shape.height * k, 2)
   const ox = (size - w) / 2
   const oy = (size - h) / 2
+  const x = (v: number) => (ox + v * w).toFixed(1)
+  const y = (v: number) => (oy + v * h).toFixed(1)
+  const p = shape.path
+  if (p) {
+    let d = `M${x(p[0]!)} ${y(p[1]!)}`
+    for (let i = 2; i + 5 < p.length; i += 6) {
+      d += `C${x(p[i]!)} ${y(p[i + 1]!)} ${x(p[i + 2]!)} ${y(p[i + 3]!)} ${x(p[i + 4]!)} ${y(p[i + 5]!)}`
+    }
+    return `${d}Z`
+  }
   let d = ''
   for (let i = 0; i + 1 < shape.points.length; i += 2) {
-    d += `${i ? 'L' : 'M'}${(ox + shape.points[i]! * w).toFixed(1)} ${(oy + shape.points[i + 1]! * h).toFixed(1)}`
+    d += `${i ? 'L' : 'M'}${x(shape.points[i]!)} ${y(shape.points[i + 1]!)}`
   }
   return shape.closed ? `${d}Z` : d
 }

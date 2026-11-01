@@ -31,6 +31,8 @@ const CORNER_ANGLE = (75 * Math.PI) / 180
 export interface FitOptions {
   /** Largest allowed distance between the path and the drawn points, in points. */
   tolerance?: number
+  /** A turn sharper than this (radians) stays a sharp corner. */
+  cornerAngle?: number
 }
 
 export function fitPath(flat: readonly number[], options: FitOptions = {}): number[] {
@@ -40,7 +42,7 @@ export function fitPath(flat: readonly number[], options: FitOptions = {}): numb
   if (pts.length === 1) return [pts[0]!.x, pts[0]!.y]
   if (pts.length === 2) return lineSegment(pts[0]!, pts[1]!)
 
-  const corners = findCorners(pts)
+  const corners = findCorners(pts, options.cornerAngle ?? CORNER_ANGLE)
   const out: number[] = [pts[0]!.x, pts[0]!.y]
   for (let c = 0; c + 1 < corners.length; c++) {
     const first = corners[c]!
@@ -221,7 +223,7 @@ function walk(pts: Vec[], i: number, dir: 1 | -1, reach: number, lo: number, hi:
 }
 
 /** Indices where the line turns sharply, plus both ends. */
-function findCorners(pts: Vec[]): number[] {
+function findCorners(pts: Vec[], cornerAngle: number): number[] {
   const last = pts.length - 1
   const corners = [0]
   let best = -1
@@ -232,7 +234,7 @@ function findCorners(pts: Vec[]): number[] {
     const turn = Math.acos(
       Math.max(-1, Math.min(1, dot(norm(sub(pts[i]!, pts[a]!)), norm(sub(pts[b]!, pts[i]!))))),
     )
-    if (turn > CORNER_ANGLE) {
+    if (turn > cornerAngle) {
       // Keep only the sharpest point of each bend.
       if (turn > bestTurn) {
         best = i

@@ -131,6 +131,8 @@ export interface ImageObject extends BoxFrame, Animatable {
   layerId: Id
   assetId: Id
   opacity: number
+  /** One of Broomit's stickers: handled like a drawing (no cropping or caption). */
+  sticker?: boolean
   /** Mirrored left to right, or top to bottom. */
   flipX?: boolean
   flipY?: boolean

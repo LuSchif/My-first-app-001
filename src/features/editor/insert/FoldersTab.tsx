@@ -5,7 +5,7 @@ import {
   FileImage,
   FilePlus2,
   Folder as FolderIcon,
-  ScanSearch,
+  Search,
 } from 'lucide-react'
 import { useState } from 'react'
 import {
@@ -156,7 +156,7 @@ export function FoldersTab({
                         onClick={() => void open(n, setExtracting)}
                         className="flex min-h-11 items-center gap-2.5 rounded-control px-3 text-left text-sm font-semibold hover:bg-hover"
                       >
-                        <ScanSearch size={18} />
+                        <Search size={18} />
                         <span>
                           Take out an element
                           <span className="block text-xs font-normal text-ink-muted">
@@ -225,7 +225,7 @@ function NotebookPages({
       </button>
       <div className="flex items-center justify-between gap-2">
         <h3 className="min-w-0 truncate text-base font-bold">{notebook.title}</h3>
-        <Button icon={<ScanSearch size={18} />} onClick={onExtract}>
+        <Button icon={<Search size={18} />} onClick={onExtract}>
           Take out
         </Button>
       </div>

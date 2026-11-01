@@ -250,12 +250,28 @@ export function editablePath(stroke: {
     return straightPath([pts[0]!, pts[1]!, pts[pts.length - 2]!, pts[pts.length - 1]!])
   }
   if (stroke.straight) return straightPath(pts)
-  // Few anchors, so editing stays simple; more can be added by tapping the line.
-  return fitPath(pts, { tolerance: EDIT_TOLERANCE })
+  // Few anchors, so editing stays simple; more can be added by tapping the line. Larger
+  // strokes may follow their path more loosely.
+  let minX = Infinity
+  let minY = Infinity
+  let maxX = -Infinity
+  let maxY = -Infinity
+  for (let i = 0; i + 1 < pts.length; i += 2) {
+    minX = Math.min(minX, pts[i]!)
+    maxX = Math.max(maxX, pts[i]!)
+    minY = Math.min(minY, pts[i + 1]!)
+    maxY = Math.max(maxY, pts[i + 1]!)
+  }
+  const size = Math.hypot(maxX - minX, maxY - minY)
+  // Only really sharp turns of handwriting stay corners.
+  return fitPath(pts, {
+    tolerance: Math.max(EDIT_TOLERANCE, size * 0.035),
+    cornerAngle: (115 * Math.PI) / 180,
+  })
 }
 
-/** How loosely an editable path follows a drawn stroke, in points. */
-const EDIT_TOLERANCE = 2.5
+/** How loosely an editable path follows a drawn stroke, at least, in points. */
+const EDIT_TOLERANCE = 4
 
 function nearlyStraight(pts: readonly number[]): boolean {
   const n = pts.length

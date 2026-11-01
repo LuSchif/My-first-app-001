@@ -1,31 +1,20 @@
-import type { SVGProps } from 'react'
-import { BROOM_PATHS } from '../../engine/render/broomGlyph.ts'
+import { Icon, type IconProps } from './Icon.tsx'
 
-/** The laser pointer: Broomit's broom with a glowing dot, on the same grid as BroomIcon. */
-export function LaserBroomIcon({
-  size = 24,
-  strokeWidth = 1.75,
-  ...props
-}: SVGProps<SVGSVGElement> & { size?: number }) {
+/** The laser pointer: a slim pointer with its button, sending a beam to a glowing dot. */
+export function LaserBroomIcon(props: IconProps) {
   return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={strokeWidth}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      {...props}
-    >
-      {BROOM_PATHS.map((d) => (
-        <path key={d} d={d} opacity={0.55} />
-      ))}
-      <circle cx="18" cy="18" r="2.4" fill="currentColor" stroke="none" />
-      <path d="M18 12.6v1.2M23.4 18h-1.2M21.8 14.2l-.85.85" />
-    </svg>
+    <Icon {...props}>
+      <g transform="rotate(40 12 12)">
+        {/* Body with its button */}
+        <rect x="9.6" y="0.8" width="4.8" height="12.4" rx="2.4" />
+        <path d="M12 4.4v1.6" />
+        {/* Tip and beam */}
+        <path d="M10.6 13.2 11.2 15h1.6l.6-1.8" />
+        <path d="M12 16.8v2.4" strokeDasharray="1.4 1.6" />
+      </g>
+      {/* The dot it points at, glowing */}
+      <circle cx="5.2" cy="20" r="1.8" fill="currentColor" stroke="none" />
+      <path d="M2 20h.6M5.2 16.8v.6M2.9 17.7l.45.45" />
+    </Icon>
   )
 }

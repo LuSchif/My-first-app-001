@@ -1,6 +1,7 @@
 import { Pipette } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { IconButton } from '../../design/index.ts'
+import { cn } from '../../lib/cn.ts'
 import type { Editor, EditorState } from '../../engine/editor/Editor.ts'
 import { FloatingPanel } from './FloatingPanel.tsx'
 
@@ -51,7 +52,6 @@ export function RecentColors({ editor, state }: { editor: Editor; state: EditorS
             type="button"
             aria-label={`Use color ${color}`}
             aria-pressed={color.toLowerCase() === current}
-            data-choice
             title="Tap to use, drag onto ink, text or paper to color it"
             className="grid size-11 touch-none place-items-center rounded-full"
             onPointerDown={(e) => {
@@ -69,8 +69,13 @@ export function RecentColors({ editor, state }: { editor: Editor; state: EditorS
             onPointerUp={(e) => end(e, false)}
             onPointerCancel={(e) => end(e, true)}
           >
+            {/* The color in use is ringed tightly, right around the color itself. */}
             <span
-              className="size-8 rounded-full shadow-[inset_0_0_0_1px_rgb(62_45_37/0.16)]"
+              className={cn(
+                'size-8 rounded-full shadow-[inset_0_0_0_1px_rgb(62_45_37/0.16)]',
+                color.toLowerCase() === current &&
+                  'ring-2 ring-selected ring-offset-2 ring-offset-surface-raised',
+              )}
               style={{ background: color }}
             />
           </button>

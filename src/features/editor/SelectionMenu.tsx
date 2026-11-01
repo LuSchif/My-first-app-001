@@ -10,8 +10,7 @@ import {
   ChartColumn,
   ChartSpline,
   Crop,
-  ChevronsLeft,
-  ChevronsRight,
+  Ellipsis,
   Scissors,
   Sparkles,
   Table2,
@@ -60,30 +59,49 @@ import { GraphEditor } from './GraphEditor.tsx'
 import { PictureEditor } from './PictureEditor.tsx'
 import { TableEditor } from './TableEditor.tsx'
 import { Fragment, useLayoutEffect, useRef, useState } from 'react'
-import { useExpanded } from './useExpanded.ts'
 import { AnimationControls } from '../presentation/AnimationControls.tsx'
 
 const GAP = 14
 /** Space kept free at the screen edges and for the toolbar at the top. */
 const EDGE = 12
 const TOP_SAFE = 72
-/** Shown without opening the rest: the most used actions. */
-const PRIMARY_COUNT = 5
 
 const pill =
-  'flex h-11 items-center gap-1.5 rounded-control px-3 text-sm font-semibold hover:bg-white/10 active:bg-white/15'
+  'flex h-11 items-center gap-1.5 rounded-control px-3 text-sm font-semibold whitespace-nowrap hover:bg-white/10 active:bg-white/15'
+
+/** In the bar, in this order; everything else is behind the three dots. */
+const PRIMARY = ['delete', 'duplicate', 'copy', 'scale', 'edit']
+/** The order of the menu behind the three dots. */
+const SECONDARY = [
+  'cut',
+  'flip-h',
+  'flip-v',
+  'color',
+  'outline',
+  'layer',
+  'rows',
+  'chart',
+  'animate',
+]
 
 /**
- * Actions for the lasso selection, floating above it (or below when there is no room). It shows
- * the five most used actions; the arrow opens the rest, like the toolbar. It always stays fully
- * on screen.
+ * Actions for the lasso selection, floating above it (or below when there is no room). The bar
+ * holds what is used most (delete, duplicate, copy, scale, and editing a table, chart, graph or
+ * text); the three dots open a menu with the rest. It always stays fully on screen.
  */
 export function SelectionMenu({ editor, state }: { editor: Editor; state: EditorState }) {
   const sel = state.selection
-  const [expanded, setExpanded] = useExpanded('broomit.selectionExpanded')
   const ref = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ width: 0, height: 56, screenW: 0, screenH: 0 })
+  const [more, setMore] = useState(false)
   const open = sel !== null
+  const selectionKey = sel ? `${sel.count}-${sel.boxKind ?? ''}-${sel.textId ?? ''}` : ''
+  const [shownFor, setShownFor] = useState(selectionKey)
+  // A new selection starts with the menu closed.
+  if (shownFor !== selectionKey) {
+    setShownFor(selectionKey)
+    setMore(false)
+  }
 
   // The menu's own size and the space it lives in, to keep it fully on screen.
   useLayoutEffect(() => {
@@ -109,23 +127,7 @@ export function SelectionMenu({ editor, state }: { editor: Editor; state: Editor
   }, [open])
 
   if (!sel) return null
-  const items = ordered(menuItems(editor, state, sel))
-  const primary = items.slice(0, PRIMARY_COUNT)
-  const rest = items.slice(PRIMARY_COUNT)
-  // A thin line where one group of actions ends and the next begins.
-  const shown = expanded ? items : primary
-  const withDividers = shown.flatMap((item, i) =>
-    i > 0 && shown[i - 1]!.group !== item.group
-      ? [
-          {
-            key: `divider-${item.key}`,
-            group: item.group,
-            node: <span aria-hidden="true" className="mx-1 h-7 w-px bg-white/20" />,
-          },
-          item,
-        ]
-      : [item],
-  )
+  const { primary, secondary } = split(menuItems(editor, state, sel))
 
   // Above the frame (leaving room for the rotate handle), else below it; then kept on screen.
   const screenW = size.screenW || window.innerWidth
@@ -137,27 +139,41 @@ export function SelectionMenu({ editor, state }: { editor: Editor; state: Editor
   const half = size.width / 2
   const center = sel.rect.x + sel.rect.width / 2
   const left = Math.max(EDGE + half, Math.min(screenW - EDGE - half, center))
+  // The menu opens downwards when there is room below the bar, else upwards.
+  const menuUp = top + size.height + 360 > screenH
 
   return (
     <div
       ref={ref}
       role="toolbar"
       aria-label={`${sel.count} selected`}
-      className="absolute z-10 flex w-max max-w-[calc(100%-24px)] -translate-x-1/2 flex-wrap items-center justify-center gap-0.5 rounded-panel bg-ink p-1 text-ink-inverse shadow-overlay"
+      className="absolute z-10 flex w-max max-w-[calc(100%-24px)] -translate-x-1/2 items-center gap-0.5 rounded-panel bg-ink p-1 text-ink-inverse shadow-overlay"
       style={{ top, left }}
     >
-      {withDividers.map((item) => (
+      {primary.map((item) => (
         <Fragment key={item.key}>{item.node}</Fragment>
       ))}
-      {rest.length > 0 ? (
-        <MenuButton
-          label={expanded ? 'Fewer actions' : 'More actions'}
-          iconOnly
-          pressed={undefined}
-          onClick={() => setExpanded(!expanded)}
-        >
-          {expanded ? <ChevronsLeft size={18} /> : <ChevronsRight size={18} />}
-        </MenuButton>
+      {secondary.length ? (
+        <>
+          <span aria-hidden="true" className="mx-0.5 h-7 w-px bg-white/20" />
+          <MenuButton label="More actions" iconOnly pressed={more} onClick={() => setMore(!more)}>
+            <Ellipsis size={18} />
+          </MenuButton>
+          {more ? (
+            <div
+              role="menu"
+              aria-label="More actions"
+              className={cn(
+                'absolute right-0 grid min-w-56 animate-pop-in gap-0.5 rounded-panel bg-ink p-1 shadow-overlay [&_button]:w-full [&_button]:justify-start',
+                menuUp ? 'bottom-full mb-2' : 'top-full mt-2',
+              )}
+            >
+              {secondary.map((item) => (
+                <Fragment key={item.key}>{item.node}</Fragment>
+              ))}
+            </div>
+          ) : null}
+        </>
       ) : null}
     </div>
   )
@@ -168,46 +184,21 @@ interface MenuItem {
   node: React.ReactNode
 }
 
-/**
- * The order of every edit bar: first what is done with the selection as a whole (delete, cut,
- * duplicate, copy), then what changes its content or arrangement, then how it looks.
- */
-const GROUPS = {
-  delete: 'act',
-  cut: 'act',
-  duplicate: 'act',
-  copy: 'act',
-  edit: 'adjust',
-  rows: 'adjust',
-  chart: 'adjust',
-  layer: 'adjust',
-  scale: 'adjust',
-  'flip-h': 'adjust',
-  'flip-v': 'adjust',
-  animate: 'adjust',
-  color: 'look',
-  outline: 'look',
-} as const satisfies Record<string, 'act' | 'adjust' | 'look'>
-const GROUP_ORDER = ['act', 'adjust', 'look'] as const
-const ACT_ORDER = ['delete', 'cut', 'duplicate', 'copy']
-
-type GroupedItem = MenuItem & { group: (typeof GROUP_ORDER)[number] }
-
-function ordered(items: MenuItem[]): GroupedItem[] {
-  const grouped = items.map((item) => ({
-    ...item,
-    group: GROUPS[item.key as keyof typeof GROUPS] ?? 'adjust',
-  }))
-  const rank = (item: GroupedItem) =>
-    GROUP_ORDER.indexOf(item.group) * 100 + (item.group === 'act' ? ACT_ORDER.indexOf(item.key) : 0)
-  // Within a group the order of `menuItems` stays (a stable sort).
-  return grouped
-    .map((item, i) => ({ item, i }))
-    .sort((a, b) => rank(a.item) - rank(b.item) || a.i - b.i)
-    .map(({ item }) => item)
+function split(items: MenuItem[]): { primary: MenuItem[]; secondary: MenuItem[] } {
+  const rank = (list: string[], item: MenuItem) => {
+    const i = list.indexOf(item.key)
+    return i < 0 ? list.length : i
+  }
+  const primary = items
+    .filter((i) => PRIMARY.includes(i.key))
+    .sort((a, b) => rank(PRIMARY, a) - rank(PRIMARY, b))
+  const secondary = items
+    .filter((i) => !PRIMARY.includes(i.key))
+    .sort((a, b) => rank(SECONDARY, a) - rank(SECONDARY, b))
+  return { primary, secondary }
 }
 
-/** Every action that fits the selection; `ordered` puts them in groups. */
+/** Every action that fits the selection; `split` sorts them into the bar and the menu. */
 function menuItems(
   editor: Editor,
   state: EditorState,
@@ -235,7 +226,7 @@ function menuItems(
   if (chart?.type === 'chart') {
     items.push({ key: 'edit', node: <EditChartButton editor={editor} chart={chart} /> })
   }
-  if (picture?.type === 'image') {
+  if (picture?.type === 'image' && !picture.sticker) {
     items.push({ key: 'edit', node: <EditPictureButton editor={editor} image={picture} /> })
   }
   if (graph?.type === 'graph') {
@@ -395,11 +386,7 @@ function menuItems(
     items.push({
       key: 'flip-h',
       node: (
-        <MenuButton
-          label="Flip horizontally"
-          iconOnly
-          onClick={() => editor.flipSelection('horizontal')}
-        >
+        <MenuButton label="Mirror left to right" onClick={() => editor.flipSelection('horizontal')}>
           <FlipVertical2 size={18} />
         </MenuButton>
       ),
@@ -407,11 +394,7 @@ function menuItems(
     items.push({
       key: 'flip-v',
       node: (
-        <MenuButton
-          label="Flip vertically"
-          iconOnly
-          onClick={() => editor.flipSelection('vertical')}
-        >
+        <MenuButton label="Mirror top to bottom" onClick={() => editor.flipSelection('vertical')}>
           <FlipHorizontal2 size={18} />
         </MenuButton>
       ),

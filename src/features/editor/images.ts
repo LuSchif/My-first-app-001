@@ -57,12 +57,13 @@ export async function insertImageBlob(
   blob: Blob,
   drop?: Drop,
   share = 0.5,
+  sticker = false,
 ): Promise<void> {
   const bitmap = await createImageBitmap(blob)
   const assetId = newId()
   await putAsset({ id: assetId, notebookId, blob, width: bitmap.width, height: bitmap.height })
   rememberImage(assetId, bitmap)
-  placeAsset(editor, assetId, bitmap.width, bitmap.height, drop, share)
+  placeAsset(editor, assetId, bitmap.width, bitmap.height, drop, share, sticker)
 }
 
 /**
@@ -77,6 +78,7 @@ export function placeAsset(
   height: number,
   drop?: Drop,
   share = 0.5,
+  sticker = false,
 ): void {
   const page = editor.pageSize
   const fit = Math.min(1, (page.width * share) / width, page.height / 3 / height)
@@ -86,6 +88,7 @@ export function placeAsset(
     layerId,
     assetId,
     opacity: 1,
+    ...(sticker ? { sticker: true } : {}),
     ...frame,
   })
   if (drop) editor.dropBox(make, width * fit, height * fit, drop.clientX, drop.clientY)

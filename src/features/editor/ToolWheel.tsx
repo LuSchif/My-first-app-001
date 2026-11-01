@@ -62,7 +62,9 @@ export function ToolWheel({
   const cy = wheel ? Math.min(height - OUTER - MARGIN, Math.max(ARC + MARGIN, wheel.y)) : 0
 
   const openIndex = tools.findIndex((t) => t.tool === open)
-  const variants = openIndex >= 0 ? (tools[openIndex]!.variants ?? []) : []
+  // The ring shows the tool as it is set; the arc offers only the other kinds of it.
+  const variants =
+    openIndex >= 0 ? (tools[openIndex]!.variants ?? []).filter((v) => !v.active(state)) : []
   const variantStep = variants.length ? step / variants.length : 0
 
   const targetAt = (clientX: number, clientY: number): Target => {

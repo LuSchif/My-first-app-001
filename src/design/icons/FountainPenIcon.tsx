@@ -1,36 +1,22 @@
-import type { SVGProps } from 'react'
+import { Icon, type IconProps } from './Icon.tsx'
 
 /**
- * The fountain pen: a nib with its slit and breather hole, below the barrel. Drawn on the same
- * 24 px grid and stroke as the Lucide icons, so it can stand in for the pen in the toolbar.
+ * The fountain pen: a pointed nib with its slit and breather hole, the grip and the barrel,
+ * leaning with the tip down to the left as when writing.
  */
-export function FountainPenIcon({
-  size = 24,
-  strokeWidth = 1.75,
-  ...props
-}: SVGProps<SVGSVGElement> & { size?: number }) {
+export function FountainPenIcon(props: IconProps) {
   return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={strokeWidth}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      {...props}
-    >
-      {/* Nib */}
-      <path d="M3.5 20.5 6 13l3-3 5 5-3 3Z" />
-      {/* Slit and breather hole */}
-      <path d="M3.5 20.5 7.6 16.4" />
-      <circle cx="8.6" cy="15.4" r="1" />
-      {/* Barrel */}
-      <path d="m9 10 5-5 5 5-5 5" />
-      <path d="m16.5 7.5 3-3" />
-    </svg>
+    <Icon {...props}>
+      <g transform="rotate(40 12 12)">
+        {/* Nib */}
+        <path d="M12 23 7.6 15.2c-.5-.9-.3-2 .5-2.6L9.4 11.6h5.2l1.3 1c.8.6 1 1.7.5 2.6Z" />
+        {/* Slit and breather hole */}
+        <path d="M12 23v-6.2" />
+        <circle cx="12" cy="15.6" r="1" />
+        {/* Grip and barrel */}
+        <path d="M9.4 11.6V8.4h5.2v3.2" />
+        <path d="M9 8.4 9.8 1.5h4.4L15 8.4" />
+      </g>
+    </Icon>
   )
 }

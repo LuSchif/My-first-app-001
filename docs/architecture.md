@@ -202,7 +202,16 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
   into the mini tool bar, where a second tap opens its settings as before. The wheel stays
   until the page is tapped; its middle offers Paste when something was copied. Tools that work
   by holding (laser, magnifier, eyedropper) and a press on the selection keep their own meaning.
-- The eyedropper sits on top of the recent colors bar.
+- The eyedropper sits on top of the recent colors bar; the color in use is ringed tightly.
+- The selection bar shows delete, duplicate, copy, scale (and editing a table, chart, graph or
+  text); everything else (cut, mirroring, color, outline, layer, rows, chart, animate) is in the
+  menu behind the three dots (`SelectionMenu.tsx`).
+- Ready-made round shapes (circle, ellipse, rounded box, heart, speech bubble) are true Bézier
+  paths, so they are smooth and have few anchors. Stickers are pictures marked `sticker`:
+  handled like drawings, without crop and caption.
+- While the insert panel is open, the back button is hidden, so closing the panel never closes
+  the notebook. Dragging from the panel starts sideways or after holding an item; up and down
+  scroll the panel (`useDragToPage.ts`).
 - The insert panel (`insert/InsertPanel.tsx`) opens on the left; the page area shrinks and the
   page scales with it, so nothing is cut off. Tabs: Shapes (ready-made strokes in the pen's
   color, editable like drawn shapes), Tables and charts, Stickers (Broomit's own SVG art, added

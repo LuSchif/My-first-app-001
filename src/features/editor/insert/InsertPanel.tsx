@@ -335,7 +335,7 @@ function StickersTab({
       return
     }
     svgToPng(svg, 480)
-      .then((blob) => insertImageBlob(editor, notebookId, blob, drop, 0.22))
+      .then((blob) => insertImageBlob(editor, notebookId, blob, drop, 0.22, true))
       .catch((err: unknown) => {
         console.error(err)
         showNotice('The sticker could not be added.')
@@ -372,7 +372,7 @@ function useNotebookPictures(doc: NotebookDocument): Id[] {
   return useMemo(() => {
     const ids = new Set<Id>()
     for (const page of doc.pageList) {
-      for (const o of page.objects) if (o.type === 'image') ids.add(o.assetId)
+      for (const o of page.objects) if (o.type === 'image' && !o.sticker) ids.add(o.assetId)
     }
     return [...ids]
   }, [doc.pageList])

@@ -1,6 +1,6 @@
-import { Bandage, Highlighter, PenLine, Type, WandSparkles } from 'lucide-react'
+import { Highlighter, PenLine, Type, WandSparkles } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { BroomIcon, FountainPenIcon, LaserBroomIcon } from '../../design/index.ts'
+import { BroomIcon, FountainPenIcon, LaserBroomIcon, TapeIcon } from '../../design/index.ts'
 import type { Editor, EditorState, ToolId } from '../../engine/editor/Editor.ts'
 import type { Features } from '../../engine/editor/features.ts'
 
@@ -87,7 +87,7 @@ export function wheelTools(features: Features): WheelTool[] {
     features.tape && {
       tool: 'tape',
       label: () => 'Tape',
-      icon: (_, size) => <Bandage {...icon(size)} />,
+      icon: (_, size) => <TapeIcon size={size} />,
     },
     features.laser && {
       tool: 'laser',

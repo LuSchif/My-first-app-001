@@ -4,17 +4,19 @@
  */
 export const BROOM_PATHS = [
   // handle
-  'M20.5 3.5 13 11',
+  'M12 1.5V10',
   // binding
-  'm10.6 9.4 4 4',
-  // head
-  'M10.6 9.4 5.2 12a2 2 0 0 0-.6.4L3 14l7 7 1.6-1.6a2 2 0 0 0 .4-.6l2.6-5.4',
-  // bristles
-  'm7 17.5 2-2M9.6 19.4l1.6-1.6M4.6 15.4 6.2 13.8',
+  'M9.2 10h5.6a.8.8 0 0 1 .8.8v1a.8.8 0 0 1-.8.8H9.2a.8.8 0 0 1-.8-.8v-1a.8.8 0 0 1 .8-.8Z',
+  // bristles: a fanned bundle
+  'M9 12.6 5.6 21.4a.6.6 0 0 0 .56.8h11.68a.6.6 0 0 0 .56-.8L15 12.6',
+  'M9.6 22.2 10.8 15.6M12 22.2V15.6M14.4 22.2 13.2 15.6',
 ] as const
 
-/** The middle of the broom head on the grid: the spot that sweeps. */
-export const BROOM_HEAD = { x: 8.6, y: 15.4 } as const
+/** The broom leans this far (degrees, clockwise) from upright, its head down to the left. */
+export const BROOM_TILT = 35
+
+/** The middle of the broom head on the grid (after the lean): the spot that sweeps. */
+export const BROOM_HEAD = { x: 8.6, y: 16.9 } as const
 
 let cached: Path2D[] | null = null
 
@@ -34,6 +36,9 @@ export function drawBroom(
   ctx.save()
   ctx.translate(x - BROOM_HEAD.x * scale, y - BROOM_HEAD.y * scale)
   ctx.scale(scale, scale)
+  ctx.translate(12, 12)
+  ctx.rotate((BROOM_TILT * Math.PI) / 180)
+  ctx.translate(-12, -12)
   ctx.lineCap = 'round'
   ctx.lineJoin = 'round'
   // A light halo keeps the cursor visible on dark ink.
