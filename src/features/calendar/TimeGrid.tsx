@@ -100,7 +100,7 @@ export function TimeGrid({
       >
         {/* Day names, with all-day entries under them. */}
         <div
-          className="sticky top-0 z-20 flex bg-surface-raised/95 backdrop-blur"
+          className="sticky top-0 z-20 flex bg-surface-raised"
           style={{ height: HEADER + allDayHeight }}
         >
           <div

@@ -136,7 +136,7 @@ function EditorSession({ doc, history, autosave }: Loaded) {
   const [insertOpen, setInsertOpen] = useState(false)
 
   return (
-    <div className="fixed inset-0 flex overflow-hidden bg-desk">
+    <div data-editor="" className="fixed inset-0 flex overflow-hidden bg-desk">
       {insertOpen && editor && editorState ? (
         <InsertPanel
           editor={editor}

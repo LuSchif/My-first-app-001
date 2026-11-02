@@ -88,7 +88,7 @@ export function PeekLayer({ library, reload }: { library: Library; reload: () =>
     <div className="fixed inset-0 z-50 grid place-items-center p-4">
       <div
         aria-hidden="true"
-        className="absolute inset-0 animate-fade-in bg-scrim backdrop-blur-[2px]"
+        className="absolute inset-0 animate-fade-in bg-scrim"
         onClick={close}
       />
       <div

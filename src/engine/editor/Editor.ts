@@ -2010,21 +2010,29 @@ export class Editor {
         this.scheduleCacheBuild(stale, CACHE_AFTER_INK_MS)
         return
       }
+      // One picture at a time, the page in view first, so no frame waits long; the next one
+      // follows right after, unless the view moves again (which starts over).
       const pages = this.doc.pageList
-      for (const index of stale) {
-        const page = pages[index]
-        if (!page) continue
-        this.pageCache.build(
-          page,
-          index,
-          this.doc.notebook.layers,
-          this.doc.notebook.background,
-          this.camera,
-          this.view.dpr,
-          this.layout,
-        )
-      }
+      const order = [...stale].sort(
+        (a, b) => Math.abs(a - this._state.pageIndex) - Math.abs(b - this._state.pageIndex),
+      )
+      const index = order[0]!
+      const page = pages[index]
+      const more = page
+        ? this.pageCache.build(
+            page,
+            index,
+            this.doc.notebook.layers,
+            this.doc.notebook.background,
+            this.camera,
+            this.view.dpr,
+            this.layout,
+            this.view,
+          )
+        : false
+      const rest = more ? order : order.slice(1)
       this.requestRender()
+      if (rest.length) this.scheduleCacheBuild(rest, 16)
     }, delay)
   }
 

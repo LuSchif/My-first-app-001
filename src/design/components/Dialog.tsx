@@ -30,7 +30,7 @@ export function DialogContent({
     <RadixDialog.Portal>
       <RadixDialog.Overlay
         data-dialog-overlay=""
-        className="fixed inset-0 z-50 animate-fade-in bg-scrim backdrop-blur-[2px]"
+        className="fixed inset-0 z-50 animate-fade-in bg-scrim"
       />
       <RadixDialog.Content
         // Focus the dialog itself, not its first field: on iPad a focused field opens the

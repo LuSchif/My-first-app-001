@@ -36,8 +36,12 @@ body::before {
   background-position: center;
 }
 
-/* A design pack's wallpaper shows a little through raised panels. */
-[data-pack] .bg-surface-raised {
+/*
+ * A design pack's wallpaper shows a little through the large panels. Only there: a blur behind
+ * every card and button costs too much while scrolling, and none is used over the page canvas,
+ * which changes on every frame while drawing or zooming.
+ */
+[data-pack] .rounded-panel.bg-surface-raised:not([data-editor] *) {
   -webkit-backdrop-filter: blur(14px) saturate(1.1);
   backdrop-filter: blur(14px) saturate(1.1);
 }

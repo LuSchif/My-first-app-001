@@ -86,18 +86,20 @@ export function renderScene(
     if (!intersects(rect, world)) return
 
     applyCamera(ctx, camera, dpr)
-    ctx.save()
-    ctx.shadowColor = 'rgba(62, 45, 37, 0.14)'
-    ctx.shadowBlur = 18 * dpr
-    ctx.shadowOffsetY = 3 * dpr
+    // A soft shadow from a few faint layers: a blurred shadow costs too much on every frame.
+    const px = 1 / (camera.zoom * dpr)
+    ctx.fillStyle = 'rgba(62, 45, 37, 0.035)'
+    for (const spread of [1, 3, 6, 10]) {
+      const d = spread * dpr * px
+      ctx.fillRect(o.x - d * 0.6, o.y - d * 0.3 + 2 * dpr * px, width + d * 1.2, height + d * 1.2)
+    }
     ctx.fillStyle = page.background ?? background ?? PAPER_STYLE.paper
     ctx.fillRect(o.x, o.y, width, height)
-    ctx.restore()
 
     // Objects drawn elsewhere right now (being moved, typed) must not show twice.
     const hiding = hidden.size > 0 && page.objects.some((obj) => hidden.has(obj.id))
     if (cache && !hiding) {
-      const drawn = cache.draw(ctx, page, index, layers, background, camera, dpr, layout)
+      const drawn = cache.draw(ctx, page, index, layers, background, camera, dpr, layout, view)
       if (drawn !== 'sharp') stale.push(index)
       if (drawn !== 'none') return
     }

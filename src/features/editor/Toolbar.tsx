@@ -169,7 +169,7 @@ export function Toolbar({
       <div className="pointer-events-none absolute inset-x-0 top-0 flex flex-wrap items-start justify-between gap-2 px-[max(12px,env(safe-area-inset-left))] pt-[calc(10px+env(safe-area-inset-top))]">
         <div
           ref={leftCorner}
-          className="pointer-events-auto flex items-center gap-1 rounded-panel bg-surface-raised/95 p-1.5 shadow-raised backdrop-blur"
+          className="pointer-events-auto flex items-center gap-1 rounded-panel bg-surface-raised p-1.5 shadow-raised"
         >
           {/* Hidden while the panel is open, so closing the panel never closes the notebook. */}
           {insertOpen ? null : (
@@ -224,7 +224,7 @@ export function Toolbar({
 
         <div
           ref={rightCorner}
-          className="pointer-events-auto flex items-center gap-1 rounded-panel bg-surface-raised/95 p-1.5 shadow-raised backdrop-blur"
+          className="pointer-events-auto flex items-center gap-1 rounded-panel bg-surface-raised p-1.5 shadow-raised"
         >
           <SaveProblem autosave={autosave} />
           <IconButton

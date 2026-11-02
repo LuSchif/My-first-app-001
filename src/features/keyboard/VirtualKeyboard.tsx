@@ -90,7 +90,7 @@ export function VirtualKeyboard() {
       aria-label="Broomit Keyboard"
       // Stays usable while a dialog blocks the page behind it.
       style={{ pointerEvents: 'auto', touchAction: 'none', WebkitTouchCallout: 'none' }}
-      className="fixed inset-x-0 bottom-0 z-[70] grid gap-1 bg-surface-sunken/97 px-1 pt-1.5 pb-[calc(14px+env(safe-area-inset-bottom))] shadow-overlay backdrop-blur select-none"
+      className="fixed inset-x-0 bottom-0 z-[70] grid gap-1 bg-surface-sunken px-1 pt-1.5 pb-[calc(14px+env(safe-area-inset-bottom))] shadow-overlay select-none"
     >
       <div className="mx-auto flex w-full max-w-[64rem] items-center gap-1 px-1">
         <span className="mr-auto truncate text-sm font-semibold text-ink">Broomit Keyboard</span>

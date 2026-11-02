@@ -67,7 +67,7 @@ export function FolderDropStrip({
 
   return (
     <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 p-3">
-      <div className="pointer-events-auto animate-pop-in rounded-panel bg-surface-raised/95 shadow-overlay ring-1 ring-line backdrop-blur">
+      <div className="pointer-events-auto animate-pop-in rounded-panel bg-surface-raised shadow-overlay ring-1 ring-line">
         <p className="px-4 pt-3 text-xs font-semibold tracking-[0.14em] text-ink-muted uppercase">
           Drop into a folder
         </p>
