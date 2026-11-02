@@ -8,7 +8,8 @@ import {
 } from '../../design/icons/icons.tsx'
 import { useRef, useState } from 'react'
 import { navigate } from '../../app/router.ts'
-import { Button, TextField } from '../../design/index.ts'
+import { Button, Switch, TextField } from '../../design/index.ts'
+import { setFrameRateShown, useFrameRateShown } from '../../lib/frameRateSetting.ts'
 import { releaseLabel } from '../../release.ts'
 import { cn } from '../../lib/cn.ts'
 import { showNotice } from '../../lib/notices.ts'
@@ -272,6 +273,9 @@ function Settings() {
             Open
           </Button>
         </Row>
+        <li className="py-3">
+          <FrameRateSwitch />
+        </li>
         <Row label="Version" hint="The version running now">
           <span className="text-sm font-semibold">{releaseLabel()}</span>
         </Row>
@@ -297,5 +301,18 @@ function Row({
       </span>
       {children}
     </li>
+  )
+}
+
+/** A check for smoothness: the frame rate in a corner of the screen. */
+function FrameRateSwitch() {
+  const shown = useFrameRateShown()
+  return (
+    <Switch
+      label="Show frame rate"
+      hint="In a corner of the screen. 60 is smooth; about 30 means the iPad holds the app back, e.g. in Low Power Mode."
+      checked={shown}
+      onChange={setFrameRateShown}
+    />
   )
 }

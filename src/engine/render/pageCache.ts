@@ -20,12 +20,18 @@ import { drawPaper, PAPER_STYLE } from './paper.ts'
  * long. The cache only reads pages; it never changes what is stored.
  */
 
+/**
+ * iPadOS gives web pages little memory for canvases; above it, drawing slows down for the whole
+ * app. So pictures stay small and few, and freed ones give their memory back at once.
+ */
 /** The largest sharp picture of a whole page, in device pixels. */
-const MAX_PIXELS = 12_000_000
+const MAX_PIXELS = 8_000_000
 /** The size of a base picture, in device pixels at most. */
-const BASE_PIXELS = 3_000_000
+const BASE_PIXELS = 2_000_000
 /** Pages whose pictures are kept at once; the least recently shown goes first. */
-const MAX_PAGES = 10
+const MAX_PAGES = 6
+/** Of those, the pages that also keep a sharp picture. */
+const MAX_SHARP = 3
 /** Around the part in view, a sharp region also covers this share of the view on each side. */
 const REGION_MARGIN = 0.35
 
@@ -62,6 +68,7 @@ export class PageCache {
 
   /** Forgets every picture, e.g. after a picture or font finished loading. */
   clear(): void {
+    for (const entry of this.entries.values()) release(entry)
     this.entries.clear()
   }
 
@@ -151,12 +158,23 @@ export class PageCache {
         sharp: null,
       }
     }
+    const old = this.entries.get(page.id)
+    if (old && old !== entry) release(old)
     this.entries.delete(page.id)
     this.entries.set(page.id, entry)
     while (this.entries.size > MAX_PAGES) {
       const oldest = this.entries.keys().next().value
       if (oldest === undefined) break
+      release(this.entries.get(oldest)!)
       this.entries.delete(oldest)
+    }
+    // Only the most recently shown pages keep a sharp picture.
+    const recent = [...this.entries.values()].reverse()
+    for (const e of recent.slice(MAX_SHARP)) {
+      if (e.sharp) {
+        free(e.sharp)
+        e.sharp = null
+      }
     }
 
     const { width, height } = layout.size
@@ -208,6 +226,19 @@ export class PageCache {
     }
     return entry
   }
+}
+
+/** Gives a picture's memory back right away (WebKit keeps it until collected otherwise). */
+function free(picture: Picture): void {
+  picture.canvas.width = 0
+  picture.canvas.height = 0
+}
+
+function release(entry: Entry): void {
+  if (entry.base) free(entry.base)
+  if (entry.sharp) free(entry.sharp)
+  entry.base = null
+  entry.sharp = null
 }
 
 /** Draws a part of a page into a picture at `scale` device pixels per point. */

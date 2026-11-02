@@ -19,6 +19,7 @@ import { useRoute } from './router.ts'
 import { UpdateBanner } from './UpdateBanner.tsx'
 import { ReminderToasts } from '../features/calendar/ReminderToasts.tsx'
 import { Notices } from './Notices.tsx'
+import { FrameRate } from './FrameRate.tsx'
 import { TrashZone } from '../features/library/TrashZone.tsx'
 
 export function App() {
@@ -61,6 +62,7 @@ export function App() {
       <ReminderToasts />
       <Notices />
       <TrashZone />
+      <FrameRate />
     </TooltipProvider>
   )
 }
