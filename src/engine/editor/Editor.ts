@@ -26,7 +26,7 @@ import {
 import { eraseFromStroke, strokeTouchesCircle } from '../geometry/erase.ts'
 import { intersects } from '../geometry/rect.ts'
 import type { Camera, Point } from '../geometry/camera.ts'
-import { StrokeSampler, type Tilt } from '../input/StrokeSampler.ts'
+import { DEFAULT_STABILIZATION, StrokeSampler, type Tilt } from '../input/StrokeSampler.ts'
 import { createPage, withPoints } from '../model/factory.ts'
 import { newId } from '../model/ids.ts'
 import {
@@ -132,6 +132,8 @@ export interface EditorState {
   broom: { size: number; mode: BroomMode }
   tape: { color: string; width: number }
   laserColor: string
+  /** How steady pen lines are made, from 0 (as drawn) to 1 (strong); for every pen. */
+  stabilization: number
   canUndo: boolean
   canRedo: boolean
   pageIndex: number
@@ -187,7 +189,7 @@ const HIGHLIGHTER_OPACITY = 0.45
 /** How long the screen must be still before sharp page pictures are made. */
 const CACHE_DELAY_MS = 160
 /** How far ahead of the pen (px) a predicted point may be drawn, ... */
-const PREDICT_MAX_PX = 14
+const PREDICT_MAX_PX = 10
 /** ... and how much of the pen's motion (ms) it may run ahead: about one 120 Hz frame. */
 const PREDICT_AHEAD_MS = 10
 /** How quickly the fountain pen's width follows pressure and direction (0 to 1, per point). */
@@ -460,6 +462,7 @@ export class Editor {
       broom: { size: 16, mode: 'precise' },
       tape: { color: '#d9b48f', width: 22 },
       laserColor: '#e0533f',
+      stabilization: DEFAULT_STABILIZATION,
       canUndo: history.canUndo,
       canRedo: history.canRedo,
       pageIndex: 0,
@@ -1252,6 +1255,10 @@ export class Editor {
 
   setTape(patch: Partial<EditorState['tape']>): void {
     this.update({ tape: { ...this._state.tape, ...patch } })
+  }
+
+  setStabilization(stabilization: number): void {
+    this.update({ stabilization: Math.min(1, Math.max(0, stabilization)) })
   }
 
   setLaserColor(laserColor: string): void {
@@ -2664,7 +2671,7 @@ export class Editor {
           ? { dash: this._state.pen.dash }
           : {}),
       },
-      sampler: new StrokeSampler(),
+      sampler: new StrokeSampler(this._state.stabilization),
       local: [],
       nib: fountain,
       pressures: [],

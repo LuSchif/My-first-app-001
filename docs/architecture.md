@@ -34,10 +34,12 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
 - **Spatial index** (`engine/spatial`): an R-tree per page for lasso, broom and drop targets.
 - **Input** (`engine/input`): pointer events with coalesced samples, palm rejection (fingers pan
   and zoom while a pen is in use). Samples that arrive late, repeat or sit under a pixel apart are
-  dropped, then a 1€ filter removes jitter (strong when slow, almost none when fast). The live
+  dropped, then a 1€ filter removes jitter (strong when slow, almost none when fast) and a
+  short rope takes out what is left: the line follows only once the pen pulls it taut. Their
+  strength is the Stabilization slider in the pen's settings (default 60 %, kept on the device). The live
   stroke is drawn once per frame, up to one frame of motion ahead of the pen (the browser's
   predicted events where it gives them, else the recent velocity, less of it in turns; at most
-  14 px), clearing only its own area. The prediction is drawn on the tip layer only, never kept.
+  10 px), clearing only its own area. The prediction is drawn on the tip layer only, never kept.
 - **Ink**: ballpoint strokes keep a constant width chosen with the size control; pen pressure does not
   change it. Ink follows a Catmull-Rom curve through the smoothed samples, and the finished
   stroke looks as it did while drawing: nothing is refitted when the pen lifts (only the

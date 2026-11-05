@@ -6,19 +6,27 @@
  * The points then pass a 1€ filter (Casiez et al.): a low-pass filter whose cutoff rises with
  * the pen's speed. Moving slowly, the hand and sensor wobble shows most and lag matters least,
  * so it smooths strongly; moving fast, it lets the samples through almost as they are, so the
- * line never trails. The line is always drawn on to the actual pen tip, and the finished stroke
+ * line never trails. Then a short rope (see `DEFAULT_STABILIZATION`) takes out what is left. The line is always drawn on to the actual pen tip, and the finished stroke
  * ends exactly where the pen lifted.
  */
 
 /** Closer samples than this (px) add nothing but noise to the curve. */
 const MIN_STEP = 0.5
 const FALLBACK_SAMPLE_MS = 1000 / 240 // Apple Pencil reports at 240 Hz
-/** 1€ filter: the cutoff (Hz) while the pen is still, ... */
-const MIN_CUTOFF = 10
+/**
+ * How steady lines are made, from 0 (samples almost as they come) to 1 (strong): the default.
+ * It sets the 1€ filter below and a short "rope" that the line follows only once the pen pulls
+ * it taut, so the tremor of a slow hand and the sensor's pixel steps never reach the line.
+ */
+export const DEFAULT_STABILIZATION = 0.6
+/** 1€ filter: the cutoff (Hz) while the pen is still, from no to full stabilization, ... */
+const MIN_CUTOFF = [14, 1.5] as const
 /** ... how much it rises per pixel per second of speed, ... */
-const BETA = 0.05
+const BETA = [0.06, 0.006] as const
 /** ... and the cutoff for the speed estimate itself. */
 const SPEED_CUTOFF = 10
+/** The rope's length in screen pixels at full stabilization. */
+const ROPE_PX = 3
 /** Raw samples kept for estimating where the pen goes next. */
 const RECENT = 12
 
@@ -55,6 +63,19 @@ export class StrokeSampler {
   private vx = 0
   private vy = 0
   private readonly recent: ScreenSample[] = []
+  /** The end of the rope: where the line is. */
+  private rx = 0
+  private ry = 0
+  private readonly minCutoff: number
+  private readonly beta: number
+  private readonly rope: number
+
+  constructor(stabilization = DEFAULT_STABILIZATION) {
+    const k = Math.min(1, Math.max(0, stabilization))
+    this.minCutoff = MIN_CUTOFF[0] + (MIN_CUTOFF[1] - MIN_CUTOFF[0]) * k
+    this.beta = BETA[0] + (BETA[1] - BETA[0]) * k
+    this.rope = ROPE_PX * k
+  }
 
   /** Returns true when the sample became a new point of the stroke. */
   add(x: number, y: number, timeStamp: number, pressure = 0.5, tilt?: Tilt): boolean {
@@ -80,6 +101,8 @@ export class StrokeSampler {
     if (!last || !previous) {
       this.fx = x
       this.fy = y
+      this.rx = x
+      this.ry = y
       this.points.push(sample)
       return true
     }
@@ -87,10 +110,17 @@ export class StrokeSampler {
     const dAlpha = alpha(SPEED_CUTOFF, dt)
     this.vx += ((x - this.fx) / dt - this.vx) * dAlpha
     this.vy += ((y - this.fy) / dt - this.vy) * dAlpha
-    const a = alpha(MIN_CUTOFF + BETA * Math.hypot(this.vx, this.vy), dt)
+    const a = alpha(this.minCutoff + this.beta * Math.hypot(this.vx, this.vy), dt)
     this.fx += (x - this.fx) * a
     this.fy += (y - this.fy) * a
-    const point = { ...sample, x: this.fx, y: this.fy }
+    // The rope: the line moves only by as much as the filtered pen is further than its length.
+    const d = Math.hypot(this.fx - this.rx, this.fy - this.ry)
+    if (d > this.rope) {
+      const k = (d - this.rope) / d
+      this.rx += (this.fx - this.rx) * k
+      this.ry += (this.fy - this.ry) * k
+    }
+    const point = { ...sample, x: this.rx, y: this.ry }
     if (Math.hypot(point.x - last.x, point.y - last.y) < MIN_STEP) {
       this.filtered++
       return false
@@ -108,8 +138,9 @@ export class StrokeSampler {
     const r = this.recent
     const tip = this.tip
     if (!tip || r.length < 4) return null
-    const mid = r[r.length - 3]!
-    const old = r[Math.max(0, r.length - 6)]!
+    // Velocities over a few samples each: one sample to the next is mostly sensor noise.
+    const mid = r[Math.max(1, r.length - 5)]!
+    const old = r[Math.max(0, r.length - 9)]!
     const dt1 = tip.t - mid.t
     const dt0 = mid.t - old.t
     if (dt1 <= 0 || dt0 <= 0) return null

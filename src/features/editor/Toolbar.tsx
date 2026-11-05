@@ -632,6 +632,15 @@ function PenSettings({ editor, state }: { editor: Editor; state: EditorState }) 
         onChange={(width) => editor.setPen({ width })}
         format={(v) => `${v} pt`}
       />
+      <Slider
+        label="Stabilization"
+        value={Math.round(state.stabilization * 100)}
+        min={0}
+        max={100}
+        step={5}
+        onChange={(v) => editor.setStabilization(v / 100)}
+        format={(v) => (v === 0 ? 'Off' : `${v}%`)}
+      />
       {pen.nib === 'fountain' ? (
         <Slider
           label="Pressure sensitivity"

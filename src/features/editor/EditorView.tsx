@@ -83,10 +83,17 @@ function EditorSession({ doc, history, autosave }: Loaded) {
     const notebookId = doc.notebook.id
     instance.setRecentColors(loadRecentColors(notebookId))
     instance.setFeatures(loadFeatures())
+    const steady = loadStabilization()
+    if (steady !== null) instance.setStabilization(steady)
     // Each notebook has its own recent colors, kept on this device; features apply to all.
     let saved = instance.state.recentColors
     let features = instance.state.features
+    let stabilization = instance.state.stabilization
     const stop = instance.subscribe(() => {
+      if (instance.state.stabilization !== stabilization) {
+        stabilization = instance.state.stabilization
+        saveStabilization(stabilization)
+      }
       if (instance.state.features !== features) {
         features = instance.state.features
         saveFeatures(features)
@@ -236,5 +243,25 @@ function saveRecentColors(notebookId: string, colors: string[]): void {
     localStorage.setItem(recentColorsKey(notebookId), JSON.stringify(colors))
   } catch {
     // Private browsing or full storage: recent colors are a convenience and may be lost.
+  }
+}
+
+/** Pen stabilization is kept on this device, for every notebook. */
+const STABILIZATION_KEY = 'broomit.stabilization'
+
+function loadStabilization(): number | null {
+  try {
+    const value: unknown = JSON.parse(localStorage.getItem(STABILIZATION_KEY) ?? 'null')
+    return typeof value === 'number' && value >= 0 && value <= 1 ? value : null
+  } catch {
+    return null
+  }
+}
+
+function saveStabilization(value: number): void {
+  try {
+    localStorage.setItem(STABILIZATION_KEY, JSON.stringify(value))
+  } catch {
+    // Private browsing or full storage: the default comes back next time.
   }
 }
