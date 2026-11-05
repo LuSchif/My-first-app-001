@@ -102,7 +102,7 @@ describe('smoothAlong', () => {
     const out = smoothAlong(wobbly, 6)
     const ys = out.filter((_, k) => k % 2 === 1)
     expect(Math.max(...ys.slice(3, -3).map(Math.abs))).toBeLessThan(0.3)
-    expect(out[0]).toBe(0)
+    expect(out[0]).toBeCloseTo(0, 6)
     expect(out[1]).toBeCloseTo(0, 6)
   })
 })

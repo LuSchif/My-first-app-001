@@ -38,7 +38,7 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
   loops keep their shape), a short rope takes out what is left (the line follows only once the
   pen pulls it taut), and the line eases towards the rope's end by distance moved, with its
   points a little further apart. Their
-  strength is the Stabilization slider in the pen's settings (0–200 %, default 140 %, kept on the device; above 100 % tiny slow loops round off). When the pen lifts, the finished stroke is made from the pen's actual positions smoothed both ways along the line (`smoothAlong` in `geometry/strokePath.ts`, a Gaussian over about 10 screen pixels at 140 %, ends mirrored): it neither trails nor hooks at the ends, and fast lines lose the small waves the live filter lets through.
+  strength is the Stabilization slider in the pen's settings (0–200 %, default 140 %, kept on the device; above 100 % tiny slow loops round off). With stabilization the line is drawn from the pen's actual positions smoothed both ways along it while writing (`smoothedAlongAt` in `geometry/strokePath.ts`, a Gaussian over about 10 screen pixels at 140 %, ends mirrored): a point is final once the pen is three sigma further on, only the open end near the pen is redrawn, and when the pen lifts the stroke keeps exactly what was drawn. It neither trails nor hooks at the ends, and fast lines lose small waves. The 1€ filter, rope and easing then only decide which samples become points.
   Above 50 % the live line ends at the steadied position, a little behind the pen, with no
   prediction: a calm line is worth a few milliseconds of lag; the finished stroke still ends
   where the pen lifted. The live
@@ -48,8 +48,8 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
 - **Ink**: ballpoint strokes keep a constant width chosen with the size control; pen pressure does not
   change it. Ink follows a cubic B-spline over the smoothed samples (round even where Safari
   hands over only one sample per frame, about 60 a second), and the finished
-  stroke looks as it did while drawing: nothing is refitted when the pen lifts (with
-  stabilization the line is smoothed once more both ways, and the fountain pen tapers its end). Only
+  stroke looks as it did while drawing: nothing is refitted or adjusted when the pen
+  lifts. Only
   the path tool turns a stroke into an editable vector path (`geometry/fitCurve.ts`) with few
   anchors; straight lines get two, and straight segments stay straight. Pens can draw solid,
   dashed or dotted lines.
@@ -307,8 +307,8 @@ The ink pipeline, from pen to storage, each part in its own module:
 - Pens: the ballpoint draws one width; the fountain pen's width follows pressure (adjustable
   sensitivity, off to strong; the sensor's ends are stretched to the full range, then a gamma
   curve), direction (an angled nib), speed (up to 30 % thinner when fast) and, where Safari
-  reports it, tilt. Width is eased separately from position. Starts and ends taper over about
-  1.5 line widths (the end when the pen lifts). Without pressure (finger, mouse) it keeps the
+  reports it, tilt. Width is eased separately from position. Starts taper over about 1.5 line
+  widths. Without pressure (finger, mouse) it keeps the
   base width apart from direction, speed and tapers.
 - A pencil hovering over the page (iPads with Pencil hover) shows a faint dot of the pen's or
   highlighter's color and width where it will write.

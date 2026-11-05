@@ -68,64 +68,72 @@ export function finishPoints(points: readonly number[]): number[] {
   return out
 }
 
-/**
- * Smooths a line along its own length: each point becomes the Gaussian-weighted average of the
- * points within three `sigma` (same units as the points) of it, measured along the line. Past
- * either end the line is mirrored through its end point, so the ends stay where they are and
- * keep their direction, with no hook. Point count and order stay the same.
- */
-export function smoothAlong(points: readonly number[], sigma: number): number[] {
-  const n = points.length / 2
-  if (sigma <= 0 || n < 3) return points.slice()
+/** The distance along a line from its first point to each point. */
+export function lengthsAlong(points: readonly number[]): number[] {
   const along = [0]
-  for (let i = 1; i < n; i++) {
+  for (let i = 1; i < points.length / 2; i++) {
     along.push(
       along[i - 1]! +
         Math.hypot(points[i * 2]! - points[i * 2 - 2]!, points[i * 2 + 1]! - points[i * 2 - 1]!),
     )
   }
-  const total = along[n - 1]!
+  return along
+}
+
+/**
+ * Point `i` of a line smoothed along its own length: the Gaussian-weighted average of the
+ * points within three `sigma` (same units as the points) of it, measured along the line
+ * (`along` from `lengthsAlong`). Past either end the line is mirrored through its end point, so
+ * the ends stay where they are and keep their direction, with no hook. A point further than
+ * three sigma from the end never changes as the line grows, so a line being drawn can be
+ * smoothed as it goes and stay exactly as drawn.
+ */
+export function smoothedAlongAt(
+  points: readonly number[],
+  along: readonly number[],
+  i: number,
+  sigma: number,
+): [number, number] {
+  const n = along.length
+  if (sigma <= 0 || n < 3) return [points[i * 2]!, points[i * 2 + 1]!]
   const reach = sigma * 3
   const k = 1 / (2 * sigma * sigma)
+  const si = along[i]!
+  const total = along[n - 1]!
+  let sx = 0
+  let sy = 0
+  let sw = 0
+  const add = (x: number, y: number, d: number) => {
+    const w = Math.exp(-d * d * k)
+    sx += x * w
+    sy += y * w
+    sw += w
+  }
+  let lo = i
+  while (lo > 0 && si - along[lo - 1]! <= reach) lo--
+  let hi = i
+  while (hi < n - 1 && along[hi + 1]! - si <= reach) hi++
+  for (let j = lo; j <= hi; j++) add(points[j * 2]!, points[j * 2 + 1]!, along[j]! - si)
+  // The mirror image past the start, ...
   const x0 = points[0]!
   const y0 = points[1]!
+  for (let j = 1; j < n && along[j]! + si <= reach; j++) {
+    add(2 * x0 - points[j * 2]!, 2 * y0 - points[j * 2 + 1]!, along[j]! + si)
+  }
+  // ... and past the end.
   const xn = points[(n - 1) * 2]!
   const yn = points[(n - 1) * 2 + 1]!
-  const out = new Array<number>(n * 2)
-  for (let i = 0; i < n; i++) {
-    const si = along[i]!
-    let sx = 0
-    let sy = 0
-    let sw = 0
-    for (let j = 0; j < n; j++) {
-      const xj = points[j * 2]!
-      const yj = points[j * 2 + 1]!
-      const d = along[j]! - si
-      if (Math.abs(d) <= reach) {
-        const w = Math.exp(-d * d * k)
-        sx += xj * w
-        sy += yj * w
-        sw += w
-      }
-      // The mirror images past the start and past the end.
-      const ds = -along[j]! - si
-      if (j > 0 && Math.abs(ds) <= reach) {
-        const w = Math.exp(-ds * ds * k)
-        sx += (2 * x0 - xj) * w
-        sy += (2 * y0 - yj) * w
-        sw += w
-      }
-      const de = 2 * total - along[j]! - si
-      if (j < n - 1 && Math.abs(de) <= reach) {
-        const w = Math.exp(-de * de * k)
-        sx += (2 * xn - xj) * w
-        sy += (2 * yn - yj) * w
-        sw += w
-      }
-    }
-    out[i * 2] = sx / sw
-    out[i * 2 + 1] = sy / sw
+  for (let j = n - 2; j >= 0 && 2 * total - along[j]! - si <= reach; j--) {
+    add(2 * xn - points[j * 2]!, 2 * yn - points[j * 2 + 1]!, 2 * total - along[j]! - si)
   }
+  return [sx / sw, sy / sw]
+}
+
+/** A whole line smoothed along its length (see `smoothedAlongAt`). */
+export function smoothAlong(points: readonly number[], sigma: number): number[] {
+  const along = lengthsAlong(points)
+  const out: number[] = []
+  for (let i = 0; i < along.length; i++) out.push(...smoothedAlongAt(points, along, i, sigma))
   return out
 }
 

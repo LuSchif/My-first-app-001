@@ -36,10 +36,10 @@ const EASE_PX = [0, 2.5, 6] as const
 /** ... and keeps its points this far apart (px), so the curve between them is calm. */
 const MIN_STEPS = [MIN_STEP, MIN_STEP + 1, MIN_STEP + 2] as const
 /**
- * When the pen lifts, the finished line is smoothed again, now looking both ways along it: a
- * Gaussian over this much of its length (sigma, screen pixels). Being symmetric, it does not
- * trail and leaves no hook at the ends; it takes out the small waves the live filter lets
- * through when the pen moves fast.
+ * With stabilization, the line is the pen's actual positions smoothed both ways along it, as
+ * it is written: a Gaussian over this much of its length (sigma, screen pixels). Being
+ * symmetric, it does not trail and leaves no hook at the ends; a point is final once the pen is
+ * three sigma further on, and the line never changes after the pen lifts.
  */
 const FINISH_SIGMA = [0, 6, 16] as const
 /** Raw samples kept for estimating where the pen goes next. */
@@ -225,6 +225,12 @@ export class StrokeSampler {
     const from = r[Math.max(0, r.length - 4)]
     if (!tip || !from || tip.t <= from.t) return 0
     return Math.hypot(tip.x - from.x, tip.y - from.y) / (tip.t - from.t)
+  }
+
+  /** Where the pen actually was for the newest point (screen pixels). */
+  lastRaw(): { x: number; y: number } {
+    const n = this.rawAt.length
+    return { x: this.rawAt[n - 2]!, y: this.rawAt[n - 1]! }
   }
 
   /**
