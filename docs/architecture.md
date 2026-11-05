@@ -38,7 +38,7 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
   loops keep their shape), a short rope takes out what is left (the line follows only once the
   pen pulls it taut), and the line eases towards the rope's end by distance moved, with its
   points a little further apart. Their
-  strength is the Stabilization slider in the pen's settings (default 90 %, kept on the device).
+  strength is the Stabilization slider in the pen's settings (0–200 %, default 170 %, kept on the device; above 100 % tiny slow loops round off).
   Above 50 % the live line ends at the steadied position, a little behind the pen, with no
   prediction: a calm line is worth a few milliseconds of lag; the finished stroke still ends
   where the pen lifted. The live

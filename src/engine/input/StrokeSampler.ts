@@ -14,26 +14,27 @@
 const MIN_STEP = 0.5
 const FALLBACK_SAMPLE_MS = 1000 / 240 // Apple Pencil reports at 240 Hz
 /**
- * How steady lines are made, from 0 (samples almost as they come) to 1 (strong): the default.
- * It sets the 1€ filter below and a short "rope" that the line follows only once the pen pulls
- * it taut, so the tremor of a slow hand and the sensor's pixel steps never reach the line.
+ * How steady lines are made, from 0 (samples almost as they come) through 1 (strong) to
+ * `MAX_STABILIZATION` (very calm: small details round off and the line trails the pen more).
+ * It sets the 1€ filter below, a short "rope" that the line follows only once the pen pulls it
+ * taut, and an easing by distance, so the tremor of a slow hand and the sensor's pixel steps
+ * never reach the line.
  */
-export const DEFAULT_STABILIZATION = 0.9
-/** 1€ filter: the cutoff (Hz) while the pen is still, from no to full stabilization, ... */
-const MIN_CUTOFF = [14, 0.5] as const
+export const DEFAULT_STABILIZATION = 1.7
+export const MAX_STABILIZATION = 2
+/** Each setting at stabilization 0, 1 and 2; in between it changes evenly. */
+/** 1€ filter: the cutoff (Hz) while the pen is still, ... */
+const MIN_CUTOFF = [14, 0.5, 0.25] as const
 /** ... how much it rises per pixel per second of speed, ... */
-const BETA = [0.06, 0.03] as const
+const BETA = [0.06, 0.03, 0.018] as const
 /** ... and the cutoff for the speed estimate itself. */
 const SPEED_CUTOFF = 10
-/** The rope's length in screen pixels at full stabilization. */
-const ROPE_PX = 2
-/**
- * At full stabilization, the line also eases towards the rope's end over this much of its own
- * length (screen pixels), rounding off what tremor is left, ...
- */
-const EASE_PX = 2.5
-/** ... and keeps its points this much further apart (px), so the curve between them is calm. */
-const EXTRA_STEP = 1
+/** The rope's length in screen pixels. */
+const ROPE_PX = [0, 2, 3.5] as const
+/** The line eases towards the rope's end over this much of its own length (screen pixels), ... */
+const EASE_PX = [0, 2.5, 6] as const
+/** ... and keeps its points this far apart (px), so the curve between them is calm. */
+const MIN_STEPS = [MIN_STEP, MIN_STEP + 1, MIN_STEP + 2] as const
 /** Raw samples kept for estimating where the pen goes next. */
 const RECENT = 12
 
@@ -88,13 +89,13 @@ export class StrokeSampler {
   readonly stabilization: number
 
   constructor(stabilization = DEFAULT_STABILIZATION) {
-    const k = Math.min(1, Math.max(0, stabilization))
+    const k = Math.min(MAX_STABILIZATION, Math.max(0, stabilization))
     this.stabilization = k
-    this.minCutoff = MIN_CUTOFF[0] + (MIN_CUTOFF[1] - MIN_CUTOFF[0]) * k
-    this.beta = BETA[0] + (BETA[1] - BETA[0]) * k
-    this.rope = ROPE_PX * k
-    this.ease = EASE_PX * k
-    this.minStep = MIN_STEP + EXTRA_STEP * k
+    this.minCutoff = level(MIN_CUTOFF, k)
+    this.beta = level(BETA, k)
+    this.rope = level(ROPE_PX, k)
+    this.ease = level(EASE_PX, k)
+    this.minStep = level(MIN_STEPS, k)
   }
 
   /** Returns true when the sample became a new point of the stroke. */
@@ -227,4 +228,11 @@ export class StrokeSampler {
 function alpha(cutoff: number, dt: number): number {
   const tau = 1 / (2 * Math.PI * cutoff)
   return 1 / (1 + tau / dt)
+}
+
+/** A setting at stabilization `k`, from its values at 0, 1 and 2. */
+function level(values: readonly [number, number, number], k: number): number {
+  return k <= 1
+    ? values[0] + (values[1] - values[0]) * k
+    : values[1] + (values[2] - values[1]) * (k - 1)
 }

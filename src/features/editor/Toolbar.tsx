@@ -1,3 +1,4 @@
+import { MAX_STABILIZATION } from '../../engine/input/StrokeSampler.ts'
 import {
   Check,
   ChevronLeft,
@@ -636,7 +637,7 @@ function PenSettings({ editor, state }: { editor: Editor; state: EditorState }) 
         label="Stabilization"
         value={Math.round(state.stabilization * 100)}
         min={0}
-        max={100}
+        max={MAX_STABILIZATION * 100}
         step={5}
         onChange={(v) => editor.setStabilization(v / 100)}
         format={(v) => (v === 0 ? 'Off' : `${v}%`)}

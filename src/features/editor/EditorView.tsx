@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { MAX_STABILIZATION } from '../../engine/input/StrokeSampler.ts'
 import { listenToPencil } from './pencilGestures.ts'
 import { navigate, routeToHash } from '../../app/router.ts'
 import { History } from '../../engine/commands/History.ts'
@@ -252,7 +253,7 @@ const STABILIZATION_KEY = 'broomit.stabilization'
 function loadStabilization(): number | null {
   try {
     const value: unknown = JSON.parse(localStorage.getItem(STABILIZATION_KEY) ?? 'null')
-    return typeof value === 'number' && value >= 0 && value <= 1 ? value : null
+    return typeof value === 'number' && value >= 0 && value <= MAX_STABILIZATION ? value : null
   } catch {
     return null
   }

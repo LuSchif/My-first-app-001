@@ -26,7 +26,12 @@ import {
 import { eraseFromStroke, strokeTouchesCircle } from '../geometry/erase.ts'
 import { intersects } from '../geometry/rect.ts'
 import type { Camera, Point } from '../geometry/camera.ts'
-import { DEFAULT_STABILIZATION, StrokeSampler, type Tilt } from '../input/StrokeSampler.ts'
+import {
+  DEFAULT_STABILIZATION,
+  MAX_STABILIZATION,
+  StrokeSampler,
+  type Tilt,
+} from '../input/StrokeSampler.ts'
 import { inkDiagnostics } from '../input/inkDiagnostics.ts'
 import { createPage, withPoints } from '../model/factory.ts'
 import { newId } from '../model/ids.ts'
@@ -133,7 +138,7 @@ export interface EditorState {
   broom: { size: number; mode: BroomMode }
   tape: { color: string; width: number }
   laserColor: string
-  /** How steady pen lines are made, from 0 (as drawn) to 1 (strong); for every pen. */
+  /** How steady pen lines are made, from 0 (as drawn) to 2 (very calm); for every pen. */
   stabilization: number
   canUndo: boolean
   canRedo: boolean
@@ -1268,7 +1273,7 @@ export class Editor {
   }
 
   setStabilization(stabilization: number): void {
-    this.update({ stabilization: Math.min(1, Math.max(0, stabilization)) })
+    this.update({ stabilization: Math.min(MAX_STABILIZATION, Math.max(0, stabilization)) })
   }
 
   setLaserColor(laserColor: string): void {
