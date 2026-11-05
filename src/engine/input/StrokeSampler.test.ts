@@ -3,7 +3,7 @@ import { DEFAULT_STABILIZATION, StrokeSampler } from './StrokeSampler.ts'
 
 describe('StrokeSampler', () => {
   it('drops late samples', () => {
-    const s = new StrokeSampler()
+    const s = new StrokeSampler(0)
     s.add(0, 0, 100)
     s.add(10, 0, 110)
     expect(s.add(5, 0, 105)).toBe(false)
@@ -37,12 +37,13 @@ describe('StrokeSampler', () => {
     const wobble = (stabilization: number) => {
       const s = new StrokeSampler(stabilization)
       // A slow hand (60 px/s) on whole-pixel coordinates, with a 1 px tremor.
-      for (let i = 0; i <= 120; i++) s.add(Math.round(i * 0.25), i % 3 === 0 ? 1 : 0, i * 4)
-      return Math.max(...s.points.slice(20).map((p) => Math.abs(p.y - 1 / 3)))
+      for (let i = 0; i <= 600; i++) s.add(Math.round(i * 0.25), i % 3 === 0 ? 1 : 0, i * 4)
+      const ys = s.points.filter((p) => p.x > 100).map((p) => p.y)
+      return Math.max(...ys) - Math.min(...ys)
     }
     expect(wobble(1)).toBeLessThan(wobble(0.5))
     expect(wobble(0.5)).toBeLessThan(wobble(0))
-    expect(wobble(DEFAULT_STABILIZATION)).toBeLessThan(0.35)
+    expect(wobble(DEFAULT_STABILIZATION)).toBeLessThan(0.15)
   })
 
   it('guesses where the pen goes, less around a turn', () => {

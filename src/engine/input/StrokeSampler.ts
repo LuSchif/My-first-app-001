@@ -18,15 +18,15 @@ const FALLBACK_SAMPLE_MS = 1000 / 240 // Apple Pencil reports at 240 Hz
  * It sets the 1€ filter below and a short "rope" that the line follows only once the pen pulls
  * it taut, so the tremor of a slow hand and the sensor's pixel steps never reach the line.
  */
-export const DEFAULT_STABILIZATION = 0.6
+export const DEFAULT_STABILIZATION = 0.8
 /** 1€ filter: the cutoff (Hz) while the pen is still, from no to full stabilization, ... */
-const MIN_CUTOFF = [14, 1.5] as const
+const MIN_CUTOFF = [14, 0.8] as const
 /** ... how much it rises per pixel per second of speed, ... */
-const BETA = [0.06, 0.006] as const
+const BETA = [0.06, 0.0015] as const
 /** ... and the cutoff for the speed estimate itself. */
 const SPEED_CUTOFF = 10
 /** The rope's length in screen pixels at full stabilization. */
-const ROPE_PX = 3
+const ROPE_PX = 4
 /** Raw samples kept for estimating where the pen goes next. */
 const RECENT = 12
 
@@ -69,9 +69,11 @@ export class StrokeSampler {
   private readonly minCutoff: number
   private readonly beta: number
   private readonly rope: number
+  readonly stabilization: number
 
   constructor(stabilization = DEFAULT_STABILIZATION) {
     const k = Math.min(1, Math.max(0, stabilization))
+    this.stabilization = k
     this.minCutoff = MIN_CUTOFF[0] + (MIN_CUTOFF[1] - MIN_CUTOFF[0]) * k
     this.beta = BETA[0] + (BETA[1] - BETA[0]) * k
     this.rope = ROPE_PX * k
@@ -156,6 +158,11 @@ export class StrokeSampler {
     const d = Math.min(maxPx, speed * aheadMs * straight * straight)
     if (d < 0.5) return null
     return { x: tip.x + (vx / speed) * d, y: tip.y + (vy / speed) * d }
+  }
+
+  /** Where the steadied line is now, between its last point and the pen (screen pixels). */
+  steady(): { x: number; y: number } | null {
+    return this.tip ? { x: this.rx, y: this.ry } : null
   }
 
   /** The pen's recent speed in px per ms (0 when unknown). */

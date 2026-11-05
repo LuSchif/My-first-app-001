@@ -36,7 +36,10 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
   and zoom while a pen is in use). Samples that arrive late, repeat or sit under a pixel apart are
   dropped, then a 1€ filter removes jitter (strong when slow, almost none when fast) and a
   short rope takes out what is left: the line follows only once the pen pulls it taut. Their
-  strength is the Stabilization slider in the pen's settings (default 60 %, kept on the device). The live
+  strength is the Stabilization slider in the pen's settings (default 80 %, kept on the device).
+  Above 50 % the live line ends at the steadied position, a little behind the pen, with no
+  prediction: a calm line is worth a few milliseconds of lag; the finished stroke still ends
+  where the pen lifted. The live
   stroke is drawn once per frame, up to one frame of motion ahead of the pen (the browser's
   predicted events where it gives them, else the recent velocity, less of it in turns; at most
   10 px), clearing only its own area. The prediction is drawn on the tip layer only, never kept.

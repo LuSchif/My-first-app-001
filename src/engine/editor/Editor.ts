@@ -192,6 +192,11 @@ const CACHE_DELAY_MS = 160
 const PREDICT_MAX_PX = 10
 /** ... and how much of the pen's motion (ms) it may run ahead: about one 120 Hz frame. */
 const PREDICT_AHEAD_MS = 10
+/**
+ * Up to this stabilization the live line runs on to the pen's actual tip and a prediction;
+ * above it, it ends at the steadied position, a little behind the pen.
+ */
+const RAW_TIP_UP_TO = 0.5
 /** How quickly the fountain pen's width follows pressure and direction (0 to 1, per point). */
 const WIDTH_EASE = 0.35
 /** After writing, pictures wait this long, so a pause between words is never spent on them. */
@@ -2763,7 +2768,7 @@ export class Editor {
     }
     const coalesced = e.getCoalescedEvents?.() ?? []
     for (const ev of coalesced.length ? coalesced : [e]) this.addInkSample(s, ev)
-    s.predicted = this.predictedPoint(s, e)
+    s.predicted = s.sampler.stabilization > RAW_TIP_UP_TO ? null : this.predictedPoint(s, e)
     // Drawn once per screen frame, however many events arrive in it.
     if (!this.inkFrame) {
       this.inkFrame = requestAnimationFrame(() => {
@@ -2836,8 +2841,18 @@ export class Editor {
    * browser's predicted next position: drawn for this frame only, never kept.
    */
   private inkTail(s: InkSession, points: number[]): number[] {
-    const tip = s.sampler.tip
     const last = s.sampler.points[s.sampler.points.length - 1]
+    // Steadied strongly, the line trails the pen a little, as chosen, and ends where it is
+    // steady: drawn on to the raw tip, every tremor would show at its end.
+    if (s.sampler.stabilization > RAW_TIP_UP_TO) {
+      const steady = s.sampler.steady()
+      if (steady && last && (steady.x !== last.x || steady.y !== last.y)) {
+        const t = this.toPageLocal(steady, s.pageIndex)
+        points.push(t.x, t.y)
+      }
+      return points
+    }
+    const tip = s.sampler.tip
     if (tip && tip !== last) {
       const t = this.toPageLocal(tip, s.pageIndex)
       points.push(t.x, t.y)
