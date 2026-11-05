@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { directionFactor, flattenStroke, nibWidthAt, pressureFactor, tiltFactor } from './nib.ts'
+import {
+  directionFactor,
+  flattenStroke,
+  nibWidthAt,
+  pressureFactor,
+  speedFactor,
+  taperEnd,
+  tiltFactor,
+} from './nib.ts'
 import { eraseFromStroke } from './erase.ts'
 
 describe('fountain pen nib', () => {
@@ -50,5 +58,25 @@ describe('pressure sensitivity and tilt', () => {
     expect(tiltFactor(55)).toBeCloseTo(1, 5)
     expect(tiltFactor(25)).toBeGreaterThan(1)
     expect(tiltFactor(90)).toBeLessThan(1)
+  })
+})
+
+describe('speed and tapers', () => {
+  it('thins a fast stroke, not a slow one', () => {
+    expect(speedFactor(0.1)).toBe(1)
+    expect(speedFactor(5)).toBeCloseTo(0.7)
+    expect(speedFactor(1.4)).toBeLessThan(1)
+  })
+
+  it('tapers the start and the end of a line', () => {
+    const points = Array.from({ length: 40 }, (_, i) => [i, 0]).flat()
+    const pressures = points.map(() => 0.5)
+    const first = nibWidthAt(points, pressures, 4, 0)
+    const middle = nibWidthAt(points, pressures, 4, 20)
+    expect(first).toBeLessThan(middle)
+    const widths = Array.from({ length: 40 }, () => 4)
+    taperEnd(points, widths, 4)
+    expect(widths[39]).toBeLessThan(widths[30]!)
+    expect(widths[20]).toBe(4)
   })
 })

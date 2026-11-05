@@ -18,18 +18,34 @@ describe('StrokeSampler', () => {
     expect(new Set(times).size).toBe(20)
   })
 
-  it('evens out wobbles by pulling each point halfway towards the pen', () => {
-    const s = new StrokeSampler()
-    s.add(0, 0, 0)
-    s.add(4, 2, 4)
-    s.add(8, 0, 8)
-    expect(s.points.map((p) => [p.x, p.y])).toEqual([
-      [0, 0],
-      [2, 1],
-      [5, 0.5],
-    ])
+  it('smooths a slow wobble strongly but follows a fast line closely', () => {
+    const slow = new StrokeSampler()
+    // 100 px/s along x with a ±1 px zigzag from the hand and sensor.
+    for (let i = 0; i <= 60; i++) slow.add(i * 0.4, i % 2 ? 1 : -1, i * 4)
+    const ys = slow.points.slice(10).map((p) => Math.abs(p.y))
+    expect(Math.max(...ys)).toBeLessThan(0.6)
+
+    const fast = new StrokeSampler()
+    // 2000 px/s, straight.
+    for (let i = 0; i <= 30; i++) fast.add(i * 8, 0, i * 4)
+    expect(240 - fast.points.at(-1)!.x).toBeLessThan(16)
     // The pen tip itself is never behind.
-    expect(s.tip).toMatchObject({ x: 8, y: 0 })
+    expect(fast.tip).toMatchObject({ x: 240, y: 0 })
+  })
+
+  it('guesses where the pen goes, less around a turn', () => {
+    const s = new StrokeSampler()
+    for (let i = 0; i <= 10; i++) s.add(i * 4, 0, i * 4)
+    const ahead = s.predict(10, 20)!
+    expect(ahead.x).toBeGreaterThan(45)
+    expect(ahead.y).toBeCloseTo(0)
+    expect(s.predict(10, 4)!.x).toBeCloseTo(44)
+
+    const turn = new StrokeSampler()
+    for (let i = 0; i <= 5; i++) turn.add(i * 4, 0, i * 4)
+    turn.add(20, 4, 24)
+    const guess = turn.predict(10, 20)!
+    expect(Math.hypot(guess.x - 20, guess.y - 4)).toBeLessThan(5)
   })
 
   it('ignores sub-pixel steps but keeps small turns of tiny letters', () => {
@@ -37,7 +53,12 @@ describe('StrokeSampler', () => {
     s.add(10, 10, 0)
     expect(s.add(10.6, 10, 4)).toBe(false)
     expect(s.add(14, 10, 8)).toBe(true)
-    expect(s.add(11, 11.5, 12)).toBe(true) // a small turn back is real handwriting
+    // A small turn back is real handwriting: it shows within a sample or two.
+    s.add(11, 11.5, 12)
+    s.add(10.5, 12, 16)
+    const end = s.points.at(-1)!
+    expect(end.x).toBeLessThan(11.5)
+    expect(end.y).toBeGreaterThan(10.5)
   })
 
   it('ends the stroke at the pen tip', () => {

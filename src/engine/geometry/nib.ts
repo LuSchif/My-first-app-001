@@ -14,6 +14,20 @@ const HAIRLINE = 0.28
 /** Distance in points between the circles a stroke is drawn with. */
 const FLATTEN_STEP = 1
 
+/** Pressure readings at or below this count as the lightest touch, ... */
+const PRESSURE_FLOOR = 0.02
+/** ... at or above this as the firmest press. */
+const PRESSURE_CEIL = 0.95
+/** Moving fast, ink has less time to flow: the line gets up to this share thinner. */
+const SPEED_THINNING = 0.3
+/** Speeds (page points per ms) between which that thinning sets in. */
+const SLOW = 0.3
+const FAST = 2.5
+/** Line starts and ends taper over this many line widths, ... */
+const TAPER_WIDTHS = 1.5
+/** ... from this share of the width. */
+const TAPER_FROM = 0.65
+
 /** How strongly pressure changes the width by default (see `NibOptions.sensitivity`). */
 export const DEFAULT_SENSITIVITY = 0.5
 
@@ -22,7 +36,9 @@ export const DEFAULT_SENSITIVITY = 0.5
  * width. `sensitivity` from 0 (pressure changes nothing) to 1 (twice the default effect).
  */
 export function pressureFactor(pressure: number, sensitivity = DEFAULT_SENSITIVITY): number {
-  const p = Math.min(1, Math.max(0, pressure))
+  // The sensor rarely reports the very ends of its range: a resting pen reads a little above 0
+  // and a full press a little below 1, so those are stretched to the whole range first.
+  const p = Math.min(1, Math.max(0, (pressure - PRESSURE_FLOOR) / (PRESSURE_CEIL - PRESSURE_FLOOR)))
   const full = 0.3 + 1.4 * Math.pow(p, 0.85)
   return Math.max(0.12, 1 + (full - 1) * sensitivity * 2)
 }
@@ -45,6 +61,46 @@ export interface NibOptions {
   sensitivity?: number
   /** The pen's altitude at each point, in degrees, where it is known. */
   altitudes?: readonly (number | undefined)[]
+  /** The time of each point in ms, for thinning fast strokes. */
+  times?: readonly number[]
+}
+
+/** Width factor for the pen's speed in page points per ms: 1 when slow, thinner when fast. */
+export function speedFactor(speed: number): number {
+  const k = Math.min(1, Math.max(0, (speed - SLOW) / (FAST - SLOW)))
+  return 1 - SPEED_THINNING * k * k * (3 - 2 * k)
+}
+
+/** Width factor `distance` along a line from its start or end: a soft taper. */
+export function taperFactor(distance: number, base: number): number {
+  const k = Math.min(1, distance / Math.max(1e-6, base * TAPER_WIDTHS))
+  return TAPER_FROM + (1 - TAPER_FROM) * Math.sin((k * Math.PI) / 2)
+}
+
+/**
+ * Tapers the end of a finished line: the widths of its last points, within a few line widths of
+ * where the pen lifted (and at most the last third of a short line), in place.
+ */
+export function taperEnd(points: readonly number[], widths: number[], base: number): void {
+  const n = Math.min(points.length / 2, widths.length)
+  let total = 0
+  for (let i = 1; i < n; i++) {
+    total += Math.hypot(
+      points[i * 2]! - points[i * 2 - 2]!,
+      points[i * 2 + 1]! - points[i * 2 - 1]!,
+    )
+  }
+  const reach = Math.min(base * TAPER_WIDTHS, total / 3)
+  let along = 0
+  for (let i = n - 1; i >= 0 && along < reach; i--) {
+    widths[i] = widths[i]! * taperFactor((along / reach) * base * TAPER_WIDTHS, base)
+    if (i > 0) {
+      along += Math.hypot(
+        points[i * 2]! - points[i * 2 - 2]!,
+        points[i * 2 + 1]! - points[i * 2 - 1]!,
+      )
+    }
+  }
 }
 
 /** Width factor for a stroke moving in direction (dx, dy). */
@@ -55,8 +111,9 @@ export function directionFactor(dx: number, dy: number): number {
 }
 
 /**
- * The width at raw point `i`. It looks only at points before it (and the first three for the
- * very start), so the width of a point never changes while the stroke is still being drawn.
+ * The width at raw point `i`: pressure, tilt, direction against the nib, speed and the taper at
+ * the start. It looks only at points before it (and the first three for the very start), so the
+ * width of a point never changes while the stroke is still being drawn.
  */
 export function nibWidthAt(
   points: readonly number[],
@@ -72,7 +129,21 @@ export function nibWidthAt(
   const b = i < 2 ? Math.min(2, n - 1) : i
   const dx = points[b * 2]! - points[a * 2]!
   const dy = points[b * 2 + 1]! - points[a * 2 + 1]!
-  return base * p * directionFactor(dx, dy)
+  let speed = 1
+  const times = options.times
+  if (times && times[b] !== undefined && times[a] !== undefined && times[b]! > times[a]!) {
+    speed = speedFactor(Math.hypot(dx, dy) / (times[b]! - times[a]!))
+  }
+  // The start tapers: distance from the first point, counted only as far as the taper reaches.
+  let along = 0
+  const reach = base * TAPER_WIDTHS
+  for (let k = 1; k <= i && along < reach; k++) {
+    along += Math.hypot(
+      points[k * 2]! - points[k * 2 - 2]!,
+      points[k * 2 + 1]! - points[k * 2 - 1]!,
+    )
+  }
+  return base * p * directionFactor(dx, dy) * speed * taperFactor(along, base)
 }
 
 /**

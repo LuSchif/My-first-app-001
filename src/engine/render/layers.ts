@@ -36,9 +36,13 @@ export function paintLayers(
   paint: (ctx: CanvasRenderingContext2D, object: CanvasObject) => void = paintObject,
 ): void {
   const on = (layer: LayerDef) =>
-    objects.filter(
-      (o) =>
-        o.layerId === layer.id && !hidden.has(o.id) && (!area || intersects(objectBounds(o), area)),
+    underInkFirst(
+      objects.filter(
+        (o) =>
+          o.layerId === layer.id &&
+          !hidden.has(o.id) &&
+          (!area || intersects(objectBounds(o), area)),
+      ),
     )
   for (const { base, clipped } of layerGroups(layers)) {
     if (!base.visible || base.opacity <= 0) continue
@@ -73,6 +77,20 @@ export function paintLayers(
     ctx.drawImage(group.canvas, 0, 0)
     ctx.restore()
   }
+}
+
+/**
+ * A layer's objects in drawing order, with highlighter strokes first: like a marker on paper, the
+ * highlight lies under the writing, so ink keeps its own color wherever it is marked.
+ */
+function underInkFirst(objects: CanvasObject[]): CanvasObject[] {
+  const marks = objects.filter(isHighlight)
+  if (marks.length === 0 || marks.length === objects.length) return objects
+  return [...marks, ...objects.filter((o) => !isHighlight(o))]
+}
+
+function isHighlight(o: CanvasObject): boolean {
+  return o.type === 'stroke' && o.tool === 'highlighter'
 }
 
 const scratches: (CanvasRenderingContext2D | null)[] = [null, null]

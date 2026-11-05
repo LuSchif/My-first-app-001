@@ -34,11 +34,14 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
 - **Spatial index** (`engine/spatial`): an R-tree per page for lasso, broom and drop targets.
 - **Input** (`engine/input`): pointer events with coalesced samples, palm rejection (fingers pan
   and zoom while a pen is in use). Samples that arrive late, repeat or sit under a pixel apart are
-  dropped, then a 1€ filter removes jitter. The live stroke is drawn once per frame, one frame
-  ahead of the pen (browser prediction or velocity extrapolation), clearing only its own area.
-- **Ink**: strokes keep a constant width chosen with the size control; pen pressure does not
+  dropped, then a 1€ filter removes jitter (strong when slow, almost none when fast). The live
+  stroke is drawn once per frame, up to one frame of motion ahead of the pen (the browser's
+  predicted events where it gives them, else the recent velocity, less of it in turns; at most
+  14 px), clearing only its own area. The prediction is drawn on the tip layer only, never kept.
+- **Ink**: ballpoint strokes keep a constant width chosen with the size control; pen pressure does not
   change it. Ink follows a Catmull-Rom curve through the smoothed samples, and the finished
-  stroke looks exactly as it did while drawing: nothing is refitted when the pen lifts. Only
+  stroke looks as it did while drawing: nothing is refitted when the pen lifts (only the
+  fountain pen tapers its end then). Only
   the path tool turns a stroke into an editable vector path (`geometry/fitCurve.ts`) with few
   anchors; straight lines get two, and straight segments stay straight. Pens can draw solid,
   dashed or dotted lines.
@@ -294,13 +297,30 @@ The ink pipeline, from pen to storage, each part in its own module:
   prediction): the line lagged behind the pencil and kept changing near the tip. Strokes saved
   then keep their smoothed points and look as they did.
 - Pens: the ballpoint draws one width; the fountain pen's width follows pressure (adjustable
-  sensitivity, off to strong), direction (an angled nib) and, where Safari reports it, tilt.
-  Without pressure (finger, mouse) it keeps the base width.
+  sensitivity, off to strong; the sensor's ends are stretched to the full range, then a gamma
+  curve), direction (an angled nib), speed (up to 30 % thinner when fast) and, where Safari
+  reports it, tilt. Width is eased separately from position. Starts and ends taper over about
+  1.5 line widths (the end when the pen lifts). Without pressure (finger, mouse) it keeps the
+  base width apart from direction, speed and tapers.
+- A pencil hovering over the page (iPads with Pencil hover) shows a faint dot of the pen's or
+  highlighter's color and width where it will write.
 - The highlighter's opacity is adjustable. It is painted opaque in its color faded by that
   opacity with the darken blend, so marks of one color overlapping stay one tint and text under
-  it stays dark.
-- Browsers give no direct access to Apple Pencil's hover distance, barrel roll or squeeze;
-  tilt comes as altitude/azimuth (Safari) or tiltX/tiltY, and is left out where not reported.
+  it stays dark. Within a layer, highlighter strokes are painted before everything else
+  (`render/layers.ts`): the mark lies under the writing like on paper, so colored ink keeps its
+  color.
+- Browsers give no direct access to Apple Pencil's hover distance, barrel roll, double tap or
+  squeeze; tilt comes as altitude/azimuth (Safari) or tiltX/tiltY, and is left out where not
+  reported. In the App Store app a small native plugin (`ios/App/App/Pencil.swift`, a
+  `UIPencilInteraction`) passes the double tap and the Pencil Pro squeeze to the web app
+  (`features/editor/pencilGestures.ts`): they do what is set in Settings › Apple Pencil (to the
+  broom and back, back to the previous tool), and a squeeze opens the tool wheel where the
+  pencil hovers.
+- Why no PencilKit and no Metal: Broomit has its own pens (fountain, magic pen, tape, laser),
+  its own file format and a web version, so it keeps its own engine on the canvas. Things only
+  native code has (Metal's drawable count, `estimationUpdateIndex` for late pressure values,
+  `UICanvasFeedbackGenerator`) are out of reach for a web view; latency is measured instead by
+  filming pen and line in slow motion next to Apple Notes.
 
 ## Pens and tools
 
@@ -552,8 +572,8 @@ The editor was moved ahead of the dashboard (packages 2–3) so the tools can be
 - A pack is part of the theme setting (`ThemeSetting.pack`) and wins over the other theme
   choices. Bought packs show in the appearance menu with a switch each.
 - Buying (`purchases.ts`): in the App Store app, through Apple with StoreKit 2. A small native
-  plugin of our own (`ios/App/App/Store.swift`, registered by `BroomitViewController` in
-  `SceneDelegate.swift`) loads the App Store's prices, shows Apple's purchase sheet, and says
+  plugin of our own (`ios/App/App/Store.swift`, registered with `Pencil.swift` by
+  `BroomitViewController` in `SceneDelegate.swift`) loads the App Store's prices, shows Apple's purchase sheet, and says
   what is owned (`Transaction.currentEntitlements`); StoreKit checks Apple's signature on the
   device, so no server is needed. Each paid product has an `appStoreId` (a non-consumable in
   App Store Connect, e.g. `com.luisschiffter.broomit.pack.sakuradusk`). At start and on every

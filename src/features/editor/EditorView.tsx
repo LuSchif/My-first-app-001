@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { listenToPencil } from './pencilGestures.ts'
 import { navigate, routeToHash } from '../../app/router.ts'
 import { History } from '../../engine/commands/History.ts'
 import { NotebookDocument } from '../../engine/document/NotebookDocument.ts'
@@ -99,7 +100,9 @@ function EditorSession({ doc, history, autosave }: Loaded) {
     if (page > 0) instance.scrollToPage(page)
     // Text being typed stays above the app's own keyboard.
     const stopInset = onKeyboardInset(() => instance.setKeyboardInset(keyboardInset()))
+    const stopPencil = listenToPencil(instance)
     return () => {
+      stopPencil()
       stopInset()
       stop()
       instance.dispose()

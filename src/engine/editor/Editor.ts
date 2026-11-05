@@ -19,6 +19,7 @@ import {
   DEFAULT_SENSITIVITY,
   flattenStroke,
   nibWidthAt,
+  taperEnd,
   traceNib,
   type NibOptions,
 } from '../geometry/nib.ts'
@@ -185,8 +186,10 @@ export interface EditorState {
 const HIGHLIGHTER_OPACITY = 0.45
 /** How long the screen must be still before sharp page pictures are made. */
 const CACHE_DELAY_MS = 160
-/** How far ahead of the pen (px) a predicted point may be drawn. */
-const PREDICT_MAX_PX = 6
+/** How far ahead of the pen (px) a predicted point may be drawn, ... */
+const PREDICT_MAX_PX = 14
+/** ... and how much of the pen's motion (ms) it may run ahead: about one 120 Hz frame. */
+const PREDICT_AHEAD_MS = 10
 /** How quickly the fountain pen's width follows pressure and direction (0 to 1, per point). */
 const WIDTH_EASE = 0.35
 /** After writing, pictures wait this long, so a pause between words is never spent on them. */
@@ -242,6 +245,8 @@ interface InkSession {
   pressures: number[]
   /** The pen's altitude in degrees at each point of `local`, where the device reports it. */
   altitudes: (number | undefined)[]
+  /** The time (ms) of each point in `local`. */
+  times: number[]
   rawWidths: number[]
   /** The width drawn at each point: `rawWidths` eased, never changing once set. */
   widths: number[]
@@ -619,6 +624,9 @@ export class Editor {
     return () => this.listeners.delete(listener)
   }
 
+  /** The tool in use before the current one, for the Pencil's double tap. */
+  private previousTool: ToolId = 'pen'
+
   setTool(tool: ToolId): void {
     this.dismissSuggestion()
     if (tool !== 'text') this.text.finish()
@@ -628,7 +636,31 @@ export class Editor {
     if (tool === 'eyedropper' && this._state.tool !== 'eyedropper')
       this.pickReturn = this._state.tool
     if (this._state.inspect) this.closeInspect()
+    if (tool !== this._state.tool) this.previousTool = this._state.tool
     this.update({ tool })
+  }
+
+  /**
+   * The Apple Pencil's double tap, as set in iPadOS: to the broom (the eraser) and back, or back
+   * to the tool used before.
+   */
+  pencilSwitch(action: 'eraser' | 'previous'): void {
+    const tool = this._state.tool
+    if (action === 'eraser') {
+      if (tool === 'broom') this.setTool(this.previousTool === 'broom' ? 'pen' : this.previousTool)
+      else this.setTool('broom')
+      return
+    }
+    this.setTool(this.previousTool)
+  }
+
+  /** Opens the tool wheel at a point in window coordinates (Pencil squeeze), or mid-view. */
+  openWheelAt(clientX?: number, clientY?: number): void {
+    this.hostRect = this.host.getBoundingClientRect()
+    const rect = this.hostRect
+    const x = clientX ?? rect.left + rect.width / 2
+    const y = clientY ?? rect.top + rect.height / 2
+    this.showWheel({ x: x - rect.left, y: y - rect.top })
   }
 
   /** Changes the box being edited, and the style for the next new box. */
@@ -871,7 +903,11 @@ export class Editor {
   private fireWheel(): void {
     const press = this.longPress
     this.longPress = null
-    if (!press) return
+    if (press) this.showWheel(press)
+  }
+
+  /** The tool wheel at `press` (host coordinates), over the page there. */
+  private showWheel(press: Point): void {
     const hit = this.pageAt(press)
     if (!hit) return
     // The press was not meant as a dot, a lasso or a new text box.
@@ -2293,6 +2329,16 @@ export class Editor {
     if (this._state.tool === 'broom' && e.pointerType !== 'touch' && !this.session) {
       this.drawBroomCursor(this.screenPos(e))
     }
+    // A hovering pencil shows where and how wide it will write (iPads with Pencil hover).
+    const tool = this._state.tool
+    if (
+      (tool === 'pen' || tool === 'magic' || tool === 'highlighter') &&
+      e.pointerType === 'pen' &&
+      e.buttons === 0 &&
+      !this.session
+    ) {
+      this.drawInkCursor(this.screenPos(e))
+    }
   }
 
   private onPointerEnd(e: PointerEvent): void {
@@ -2623,6 +2669,7 @@ export class Editor {
       nib: fountain,
       pressures: [],
       altitudes: [],
+      times: [],
       rawWidths: [],
       widths: [],
       drawnSegments: 0,
@@ -2654,6 +2701,7 @@ export class Editor {
     if (!s.nib) return
     s.pressures.push(last.p)
     s.altitudes.push(last.tilt ? (last.tilt.altitude * 180) / Math.PI : undefined)
+    s.times.push(last.t)
     // The first widths look ahead to the third point (see nibWidthAt); after that they are final.
     const n = s.local.length / 2
     const from = n <= 3 ? 0 : s.rawWidths.length
@@ -2666,7 +2714,7 @@ export class Editor {
   }
 
   private nibOptions(s: InkSession): NibOptions {
-    return { sensitivity: this._state.pen.sensitivity, altitudes: s.altitudes }
+    return { sensitivity: this._state.pen.sensitivity, altitudes: s.altitudes, times: s.times }
   }
 
   /** The stroke's recorded input, one entry per point of `drawnPoints`. */
@@ -2836,22 +2884,29 @@ export class Editor {
   }
 
   /**
-   * Where the browser expects the pen next (Chrome reports it; Safari does not), only a short way
-   * ahead: a long guess overshoots turns and has to be taken back, which looks like the line
-   * correcting itself. Never part of the stroke.
+   * Where the pen will be when the next frame shows, drawn on the tip layer only and replaced by
+   * the real samples: it hides most of the time between sample and screen. The browser's own
+   * guess is used where it gives one (Chrome); otherwise (Safari) the pen's recent motion is
+   * carried forward. Either way it reaches at most one frame of motion ahead, and less in turns,
+   * since a long guess overshoots and has to be taken back, which looks like a wobbling line.
    */
   private predictedPoint(s: InkSession, e: PointerEvent): Point | null {
-    const predicted = e.getPredictedEvents?.()[0]
     const tip = s.sampler.tip
-    if (!predicted || !tip) return null
-    const p = this.screenPos(predicted)
-    const d = Math.hypot(p.x - tip.x, p.y - tip.y)
-    if (d < 0.5) return null
-    const k = Math.min(1, PREDICT_MAX_PX / d)
-    return this.toPageLocal(
-      { x: tip.x + (p.x - tip.x) * k, y: tip.y + (p.y - tip.y) * k },
-      s.pageIndex,
-    )
+    if (!tip) return null
+    const reach = Math.min(PREDICT_MAX_PX, s.sampler.speed() * PREDICT_AHEAD_MS)
+    const events = e.getPredictedEvents?.() ?? []
+    const browser = events[events.length - 1]
+    let guess: Point | null
+    if (browser) {
+      const p = this.screenPos(browser)
+      const d = Math.hypot(p.x - tip.x, p.y - tip.y)
+      const k = d > 0 ? Math.min(1, reach / d) : 0
+      guess = { x: tip.x + (p.x - tip.x) * k, y: tip.y + (p.y - tip.y) * k }
+    } else {
+      guess = s.sampler.predict(PREDICT_AHEAD_MS, PREDICT_MAX_PX)
+    }
+    if (!guess || Math.hypot(guess.x - tip.x, guess.y - tip.y) < 0.5) return null
+    return this.toPageLocal(guess, s.pageIndex)
   }
 
   /** Restarts the wait for the pen to rest; resting long enough draws the perfect shape. */
@@ -2890,11 +2945,13 @@ export class Editor {
     const options = {
       sensitivity: this._state.pen.sensitivity,
       altitudes: samples.map((p) => (p.tilt ? (p.tilt.altitude * 180) / Math.PI : undefined)),
+      times: samples.map((p) => p.t),
     }
     const widths: number[] = []
     for (let i = 0; i < pressures.length; i++) {
       widths.push(easeWidth(widths[i - 1], nibWidthAt(raw, pressures, s.stroke.width, i, options)))
     }
+    taperEnd(raw, widths, s.stroke.width)
     return widths
   }
 
@@ -3555,6 +3612,32 @@ export class Editor {
   }
 
   /** The broom itself marks where it sweeps: its head is as wide as the sweep. */
+  /** The pen's tip while it hovers: a faint dot of the line's color and width. */
+  private drawInkCursor(screen: Point): void {
+    this.clearTip()
+    const highlighter = this._state.tool === 'highlighter'
+    const settings = highlighter ? this._state.highlighter : this._state.pen
+    const { dpr } = this.view
+    const r = Math.max(1.5, (settings.width / 2) * this.camera.zoom)
+    this.inkLayer.style.opacity = '1'
+    this.inkLayer.style.mixBlendMode = 'normal'
+    this.tip.save()
+    this.tip.setTransform(dpr, 0, 0, dpr, 0, 0)
+    this.tip.globalAlpha = highlighter ? 0.35 : 0.45
+    this.tip.fillStyle = settings.color
+    this.tip.beginPath()
+    this.tip.arc(screen.x, screen.y, r, 0, Math.PI * 2)
+    this.tip.fill()
+    this.tip.restore()
+    const reach = r + 2
+    this.tipDirty = {
+      x: Math.floor((screen.x - reach) * dpr),
+      y: Math.floor((screen.y - reach) * dpr),
+      w: Math.ceil(reach * 2 * dpr),
+      h: Math.ceil(reach * 2 * dpr),
+    }
+  }
+
   private drawBroomCursor(screen: Point): void {
     this.clearTip()
     const { dpr } = this.view
