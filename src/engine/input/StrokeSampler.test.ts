@@ -28,7 +28,7 @@ describe('StrokeSampler', () => {
     const fast = new StrokeSampler()
     // 2000 px/s, straight.
     for (let i = 0; i <= 30; i++) fast.add(i * 8, 0, i * 4)
-    expect(240 - fast.points.at(-1)!.x).toBeLessThan(16)
+    expect(240 - fast.points.at(-1)!.x).toBeLessThan(24)
     // The pen tip itself is never behind.
     expect(fast.tip).toMatchObject({ x: 240, y: 0 })
   })

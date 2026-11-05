@@ -18,15 +18,22 @@ const FALLBACK_SAMPLE_MS = 1000 / 240 // Apple Pencil reports at 240 Hz
  * It sets the 1€ filter below and a short "rope" that the line follows only once the pen pulls
  * it taut, so the tremor of a slow hand and the sensor's pixel steps never reach the line.
  */
-export const DEFAULT_STABILIZATION = 0.8
+export const DEFAULT_STABILIZATION = 0.9
 /** 1€ filter: the cutoff (Hz) while the pen is still, from no to full stabilization, ... */
-const MIN_CUTOFF = [14, 0.8] as const
+const MIN_CUTOFF = [14, 0.5] as const
 /** ... how much it rises per pixel per second of speed, ... */
-const BETA = [0.06, 0.0015] as const
+const BETA = [0.06, 0.03] as const
 /** ... and the cutoff for the speed estimate itself. */
 const SPEED_CUTOFF = 10
 /** The rope's length in screen pixels at full stabilization. */
-const ROPE_PX = 4
+const ROPE_PX = 2
+/**
+ * At full stabilization, the line also eases towards the rope's end over this much of its own
+ * length (screen pixels), rounding off what tremor is left, ...
+ */
+const EASE_PX = 2.5
+/** ... and keeps its points this much further apart (px), so the curve between them is calm. */
+const EXTRA_STEP = 1
 /** Raw samples kept for estimating where the pen goes next. */
 const RECENT = 12
 
@@ -69,6 +76,11 @@ export class StrokeSampler {
   private readonly minCutoff: number
   private readonly beta: number
   private readonly rope: number
+  private readonly ease: number
+  private readonly minStep: number
+  /** The line's eased position, following the rope's end. */
+  private sx = 0
+  private sy = 0
   readonly stabilization: number
 
   constructor(stabilization = DEFAULT_STABILIZATION) {
@@ -77,6 +89,8 @@ export class StrokeSampler {
     this.minCutoff = MIN_CUTOFF[0] + (MIN_CUTOFF[1] - MIN_CUTOFF[0]) * k
     this.beta = BETA[0] + (BETA[1] - BETA[0]) * k
     this.rope = ROPE_PX * k
+    this.ease = EASE_PX * k
+    this.minStep = MIN_STEP + EXTRA_STEP * k
   }
 
   /** Returns true when the sample became a new point of the stroke. */
@@ -105,6 +119,8 @@ export class StrokeSampler {
       this.fy = y
       this.rx = x
       this.ry = y
+      this.sx = x
+      this.sy = y
       this.points.push(sample)
       return true
     }
@@ -122,8 +138,17 @@ export class StrokeSampler {
       this.rx += (this.fx - this.rx) * k
       this.ry += (this.fy - this.ry) * k
     }
-    const point = { ...sample, x: this.rx, y: this.ry }
-    if (Math.hypot(point.x - last.x, point.y - last.y) < MIN_STEP) {
+    if (d > this.rope && this.ease > 0) {
+      // Eased by the distance moved, not by time: as calm when slow as when fast.
+      const k = 1 - Math.exp(-(d - this.rope) / this.ease)
+      this.sx += (this.rx - this.sx) * k
+      this.sy += (this.ry - this.sy) * k
+    } else if (this.ease === 0) {
+      this.sx = this.rx
+      this.sy = this.ry
+    }
+    const point = { ...sample, x: this.sx, y: this.sy }
+    if (Math.hypot(point.x - last.x, point.y - last.y) < this.minStep) {
       this.filtered++
       return false
     }
@@ -162,7 +187,7 @@ export class StrokeSampler {
 
   /** Where the steadied line is now, between its last point and the pen (screen pixels). */
   steady(): { x: number; y: number } | null {
-    return this.tip ? { x: this.rx, y: this.ry } : null
+    return this.tip ? { x: this.sx, y: this.sy } : null
   }
 
   /** The pen's recent speed in px per ms (0 when unknown). */
