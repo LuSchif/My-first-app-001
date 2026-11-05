@@ -54,7 +54,7 @@ import { enterPage, renderScene, setDeskColor, type View } from '../render/Scene
 import { PAPER_STYLE, paperGrid } from '../render/paper.ts'
 import { inkAlpha, paintStroke, setInkStyle, strokeBounds } from '../render/strokes.ts'
 import { perfectShape, recognizeShape, regionAt, type Shape } from '../geometry/shapes.ts'
-import { finishPoints, traceSegments, traceStroke } from '../geometry/strokePath.ts'
+import { curveStart, finishPoints, traceSegments, traceStroke } from '../geometry/strokePath.ts'
 import { boundsOfPoints } from '../geometry/rect.ts'
 import { drawBroom } from '../render/broomGlyph.ts'
 import { objectBounds, paintObject } from '../render/objects.ts'
@@ -2800,7 +2800,7 @@ export class Editor {
     if (!dashed && settled > s.drawnSegments) {
       const from = s.drawnSegments
       const path = new Path2D()
-      path.moveTo(pts[from * 2]!, pts[from * 2 + 1]!)
+      path.moveTo(...curveStart(pts, from))
       traceSegments(path, pts, from, settled)
       this.wet.save()
       enterPage(this.wet, this.camera, dpr, s.pageIndex, this.layout)
@@ -2824,6 +2824,8 @@ export class Editor {
     if (dashed && s.drawnSegments > 0) {
       path.moveTo(pts[0]!, pts[1]!)
       traceSegments(path, pts, 0, s.drawnSegments)
+    } else if (tail.length / 2 - 1 > first) {
+      path.moveTo(...curveStart(tail, first))
     } else {
       path.moveTo(tail[first * 2]!, tail[first * 2 + 1]!)
     }

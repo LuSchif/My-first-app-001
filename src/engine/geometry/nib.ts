@@ -1,4 +1,4 @@
-import { traceSegments, type PathSink } from './strokePath.ts'
+import { curveStart, traceSegments, type PathSink } from './strokePath.ts'
 
 /**
  * The fountain pen: a broad nib held at an angle draws wide when it moves across the nib's edge
@@ -156,10 +156,11 @@ export function flattenStroke(
   from = 0,
   to = points.length / 2 - 1,
 ): number[] {
-  const out: number[] = [points[from * 2]!, points[from * 2 + 1]!, widths[from]!]
+  const [sx, sy] = from < to ? curveStart(points, from) : [points[from * 2]!, points[from * 2 + 1]!]
+  const out: number[] = [sx, sy, widths[from]!]
   let seg = from
-  let x0 = points[from * 2]!
-  let y0 = points[from * 2 + 1]!
+  let x0 = sx
+  let y0 = sy
   const sink: PathSink = {
     moveTo() {},
     lineTo() {},

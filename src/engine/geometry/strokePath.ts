@@ -141,8 +141,9 @@ function traceClosedSegments(sink: PathSink, points: readonly number[]): void {
 }
 
 /**
- * Appends curve segments `from` to `to - 1`; segment `i` runs from point `i` to point `i + 1`.
- * The path must already be at point `from`. A segment depends on points `i - 1` to `i + 2`, so
+ * Appends curve segments `from` to `to - 1`; segment `i` runs near points `i` to `i + 1`.
+ * The path must already be at `curveStart(points, from)`. A segment depends on points `i - 1`
+ * to `i + 2` (the last one also on the end), so
  * once those exist it never changes: the editor draws settled segments once and only redraws
  * the end.
  */
@@ -152,21 +153,63 @@ export function traceSegments(
   from: number,
   to: number,
 ): void {
-  const n = points.length / 2
   for (let i = from; i < to; i++) {
-    const a = Math.max(0, i - 1)
-    const d = Math.min(n - 1, i + 2)
-    const x0 = points[a * 2]!
-    const y0 = points[a * 2 + 1]!
-    const x1 = points[i * 2]!
-    const y1 = points[i * 2 + 1]!
-    const x2 = points[i * 2 + 2]!
-    const y2 = points[i * 2 + 3]!
-    const x3 = points[d * 2]!
-    const y3 = points[d * 2 + 1]!
-    const [c1x, c1y, c2x, c2y] = catmullRomControls(x0, y0, x1, y1, x2, y2, x3, y3)
-    sink.bezierCurveTo(c1x, c1y, c2x, c2y, x2, y2)
+    const [, , c1x, c1y, c2x, c2y, x, y] = bSplineSegment(points, i)
+    sink.bezierCurveTo(c1x, c1y, c2x, c2y, x, y)
   }
+}
+
+/** Where curve segment `i` starts: the point to move to before tracing from segment `i`. */
+export function curveStart(points: readonly number[], i: number): [number, number] {
+  const seg = bSplineSegment(points, i)
+  return [seg[0], seg[1]]
+}
+
+/** Point `i`, or beyond either end its mirror image, so the curve ends exactly at the ends. */
+function pointAt(points: readonly number[], i: number): [number, number] {
+  const n = points.length / 2
+  if (i < 0) {
+    return [2 * points[0]! - points[2]!, 2 * points[1]! - points[3]!]
+  }
+  if (i > n - 1) {
+    return [
+      2 * points[(n - 1) * 2]! - points[(n - 2) * 2]!,
+      2 * points[(n - 1) * 2 + 1]! - points[(n - 2) * 2 + 1]!,
+    ]
+  }
+  return [points[i * 2]!, points[i * 2 + 1]!]
+}
+
+/**
+ * Segment `i` of a uniform cubic B-spline with the points as its control points, as a Bézier:
+ * start, two controls, end. Unlike a curve through the points, it bends gradually everywhere
+ * (its curvature is continuous), so even sparse samples of fast writing make a round line, not
+ * a polygon with corners; it passes within a fraction of each turn of the samples, and starts
+ * and ends exactly at the first and last point.
+ */
+export function bSplineSegment(
+  points: readonly number[],
+  i: number,
+): [number, number, number, number, number, number, number, number] {
+  if (points.length < 4) {
+    const x = points[0]!
+    const y = points[1]!
+    return [x, y, x, y, x, y, x, y]
+  }
+  const [x0, y0] = pointAt(points, i - 1)
+  const [x1, y1] = pointAt(points, i)
+  const [x2, y2] = pointAt(points, i + 1)
+  const [x3, y3] = pointAt(points, i + 2)
+  return [
+    (x0 + 4 * x1 + x2) / 6,
+    (y0 + 4 * y1 + y2) / 6,
+    (2 * x1 + x2) / 3,
+    (2 * y1 + y2) / 3,
+    (x1 + 2 * x2) / 3,
+    (y1 + 2 * y2) / 3,
+    (x1 + 4 * x2 + x3) / 6,
+    (y1 + 4 * y2 + y3) / 6,
+  ]
 }
 
 /**

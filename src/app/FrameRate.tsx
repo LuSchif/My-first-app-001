@@ -3,7 +3,9 @@ import { useFrameRateShown } from '../lib/frameRateSetting.ts'
 
 /**
  * The frame rate, measured each second, in a corner of the screen: 60 (or 120) is smooth; about
- * 30 means the iPad is limiting the app, e.g. in Low Power Mode.
+ * 30 means the iPad is limiting the app, e.g. in Low Power Mode. While the pencil writes, also
+ * how many pen samples per second reach the app (Apple Pencil measures 240; a browser that
+ * hands over only one per frame gives 60, and the line has less to follow).
  */
 export function FrameRate() {
   const shown = useFrameRateShown()
@@ -15,6 +17,25 @@ export function FrameRate() {
     let worst = 0
     let start = performance.now()
     let last = start
+    let samples = 0
+    let firstPen = 0
+    let lastPen = 0
+    let penHz = 0
+    let coalesced = true
+    const onMove = (e: PointerEvent) => {
+      if (e.pointerType !== 'pen' || e.buttons === 0) return
+      coalesced = typeof e.getCoalescedEvents === 'function'
+      const count = coalesced ? Math.max(1, e.getCoalescedEvents().length) : 1
+      // The first event of a second only starts the clock; later ones count their samples.
+      if (samples === 0) {
+        firstPen = e.timeStamp
+        samples = 1
+      } else {
+        samples += count
+      }
+      lastPen = e.timeStamp
+    }
+    window.addEventListener('pointermove', onMove, { capture: true, passive: true })
     const tick = (now: number) => {
       frames++
       worst = Math.max(worst, now - last)
@@ -22,8 +43,12 @@ export function FrameRate() {
       if (now - start >= 1000) {
         const fps = Math.round((frames * 1000) / (now - start))
         // Written directly: a React update every second would itself cost a frame.
+        if (samples > 1 && lastPen - firstPen > 100)
+          penHz = Math.round(((samples - 1) * 1000) / (lastPen - firstPen))
+        samples = 0
         if (label.current) {
-          label.current.textContent = `${fps} fps · slowest ${Math.round(worst)} ms`
+          const pen = penHz ? ` · pen ${penHz} Hz${coalesced ? '' : ' (no coalesced)'}` : ''
+          label.current.textContent = `${fps} fps · slowest ${Math.round(worst)} ms${pen}`
           label.current.dataset.state = fps >= 55 ? 'good' : fps >= 40 ? 'fair' : 'poor'
         }
         frames = 0
@@ -33,7 +58,10 @@ export function FrameRate() {
       frame = requestAnimationFrame(tick)
     }
     frame = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(frame)
+    return () => {
+      cancelAnimationFrame(frame)
+      window.removeEventListener('pointermove', onMove, { capture: true })
+    }
   }, [shown])
   if (!shown) return null
   return (
