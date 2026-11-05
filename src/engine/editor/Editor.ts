@@ -257,6 +257,8 @@ interface InkSession {
   times: number[]
   /** The pen samples as they arrived: x, y, time stamp, the carrying event's time stamp. */
   raw: number[]
+  /** The last move event handled: its time stamp and newest sample's position. */
+  lastEvent: { t: number; x: number; y: number }
   rawWidths: number[]
   /** The width drawn at each point: `rawWidths` eased, never changing once set. */
   widths: number[]
@@ -2686,6 +2688,7 @@ export class Editor {
       altitudes: [],
       times: [],
       raw: [],
+      lastEvent: { t: -1, x: NaN, y: NaN },
       rawWidths: [],
       widths: [],
       drawnSegments: 0,
@@ -2772,6 +2775,17 @@ export class Editor {
     }
     const coalesced = e.getCoalescedEvents?.() ?? []
     const samples = coalesced.length ? coalesced : [e]
+    // Safari on iPad delivers every pen move twice, with the same samples: the second adds
+    // nothing, so it is not processed again.
+    const newestSample = samples[samples.length - 1]!
+    if (
+      e.timeStamp === s.lastEvent.t &&
+      newestSample.clientX === s.lastEvent.x &&
+      newestSample.clientY === s.lastEvent.y
+    ) {
+      return
+    }
+    s.lastEvent = { t: e.timeStamp, x: newestSample.clientX, y: newestSample.clientY }
     // The samples' time stamps should share the event's clock; where a browser gives them
     // another one, they are moved onto it, so they are neither dropped as late nor bunched.
     const newest = samples[samples.length - 1]!.timeStamp

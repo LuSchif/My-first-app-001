@@ -33,6 +33,9 @@ export function FrameRate() {
       coalesced = typeof e.getCoalescedEvents === 'function'
       const list = coalesced ? e.getCoalescedEvents() : []
       const all = list.length ? list : [e]
+      // Safari delivers each move twice; the repeat is not counted.
+      const newest = all[all.length - 1]!
+      if (e.timeStamp === lastPen && newest.clientX === px && newest.clientY === py) return
       const count = all.length
       // Samples at a new position: a browser may repeat positions, which add nothing to follow.
       for (const s of all) {
