@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
   SMOOTH_RADIUS,
-  smoothAlong,
   smoothedAt,
   finishPoints,
   smoothPoints,
@@ -85,24 +84,5 @@ describe('finishPoints', () => {
     for (let i = 0; i < raw.length; i++) expect(Math.abs(out[i]! - raw[i]!)).toBeLessThanOrEqual(1)
     // The zigzag gets flatter.
     expect(Math.abs(out[3]!)).toBeLessThan(1)
-  })
-})
-
-describe('smoothAlong', () => {
-  it('keeps a straight line, its ends and its point count', () => {
-    const line = Array.from({ length: 30 }, (_, i) => [i * 3, i * 1.5]).flat()
-    const out = smoothAlong(line, 6)
-    expect(out).toHaveLength(line.length)
-    for (let i = 0; i < out.length; i++) expect(out[i]).toBeCloseTo(line[i]!, 6)
-  })
-
-  it('takes the wobble out of a fast line without a hook at the ends', () => {
-    const wobbly = Array.from({ length: 60 }, (_, i) => [i * 5, i % 2 ? 1.5 : -1.5]).flat()
-    wobbly[1] = 0
-    const out = smoothAlong(wobbly, 6)
-    const ys = out.filter((_, k) => k % 2 === 1)
-    expect(Math.max(...ys.slice(3, -3).map(Math.abs))).toBeLessThan(0.3)
-    expect(out[0]).toBeCloseTo(0, 6)
-    expect(out[1]).toBeCloseTo(0, 6)
   })
 })

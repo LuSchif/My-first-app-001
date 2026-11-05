@@ -35,13 +35,6 @@ const ROPE_PX = [0, 2, 3.5] as const
 const EASE_PX = [0, 2.5, 6] as const
 /** ... and keeps its points this far apart (px), so the curve between them is calm. */
 const MIN_STEPS = [MIN_STEP, MIN_STEP + 1, MIN_STEP + 2] as const
-/**
- * With stabilization, the line is the pen's actual positions smoothed both ways along it, as
- * it is written: a Gaussian over this much of its length (sigma, screen pixels). Being
- * symmetric, it does not trail and leaves no hook at the ends; a point is final once the pen is
- * three sigma further on, and the line never changes after the pen lifts.
- */
-const FINISH_SIGMA = [0, 6, 16] as const
 /** Raw samples kept for estimating where the pen goes next. */
 const RECENT = 12
 
@@ -94,10 +87,6 @@ export class StrokeSampler {
   private sx = 0
   private sy = 0
   readonly stabilization: number
-  /** See `FINISH_SIGMA`. */
-  readonly finishSigma: number
-  /** Where the pen actually was for each point (x, y), before any filter. */
-  private readonly rawAt: number[] = []
 
   constructor(stabilization = DEFAULT_STABILIZATION) {
     const k = Math.min(MAX_STABILIZATION, Math.max(0, stabilization))
@@ -106,7 +95,6 @@ export class StrokeSampler {
     this.beta = level(BETA, k)
     this.rope = level(ROPE_PX, k)
     this.ease = level(EASE_PX, k)
-    this.finishSigma = level(FINISH_SIGMA, k)
     this.minStep = level(MIN_STEPS, k)
   }
 
@@ -147,7 +135,6 @@ export class StrokeSampler {
       this.sx = x
       this.sy = y
       this.points.push(sample)
-      this.rawAt.push(x, y)
       return true
     }
     const dt = Math.max(0.5, t - previous.t) / 1000
@@ -180,7 +167,6 @@ export class StrokeSampler {
       return false
     }
     this.points.push(point)
-    this.rawAt.push(x, y)
     return true
   }
 
@@ -225,22 +211,6 @@ export class StrokeSampler {
     const from = r[Math.max(0, r.length - 4)]
     if (!tip || !from || tip.t <= from.t) return 0
     return Math.hypot(tip.x - from.x, tip.y - from.y) / (tip.t - from.t)
-  }
-
-  /** Where the pen actually was for the newest point (screen pixels). */
-  lastRaw(): { x: number; y: number } {
-    const n = this.rawAt.length
-    return { x: this.rawAt[n - 2]!, y: this.rawAt[n - 1]! }
-  }
-
-  /**
-   * Where the pen actually was at each point of `finalPoints` (x, y pairs, screen pixels), for
-   * the smoothing when it lifts.
-   */
-  finalRawPoints(): number[] {
-    const tip = this.tip
-    if (this.finalPoints().length > this.points.length && tip) return [...this.rawAt, tip.x, tip.y]
-    return this.rawAt.slice()
   }
 
   /** The stroke's points, ending exactly where the pen lifted. */

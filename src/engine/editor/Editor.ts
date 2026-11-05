@@ -19,6 +19,7 @@ import {
   DEFAULT_SENSITIVITY,
   flattenStroke,
   nibWidthAt,
+  taperEnd,
   traceNib,
   type NibOptions,
 } from '../geometry/nib.ts'
@@ -59,13 +60,7 @@ import { enterPage, renderScene, setDeskColor, type View } from '../render/Scene
 import { PAPER_STYLE, paperGrid } from '../render/paper.ts'
 import { inkAlpha, paintStroke, setInkStyle, strokeBounds } from '../render/strokes.ts'
 import { perfectShape, recognizeShape, regionAt, type Shape } from '../geometry/shapes.ts'
-import {
-  curveStart,
-  finishPoints,
-  smoothedAlongAt,
-  traceSegments,
-  traceStroke,
-} from '../geometry/strokePath.ts'
+import { curveStart, finishPoints, traceSegments, traceStroke } from '../geometry/strokePath.ts'
 import { boundsOfPoints } from '../geometry/rect.ts'
 import { drawBroom } from '../render/broomGlyph.ts'
 import { objectBounds, paintObject } from '../render/objects.ts'
@@ -267,13 +262,6 @@ interface InkSession {
   times: number[]
   /** The pen samples as they arrived: x, y, time stamp, the carrying event's time stamp. */
   raw: number[]
-  /**
-   * Stabilized strokes: the pen's actual positions (page coordinates), the length along them
-   * to each, and the smoothing sigma in page units (see `StrokeSampler.finishSigma`).
-   */
-  rawLocal: number[]
-  along: number[]
-  sigma: number
   /** The last move event handled: its time stamp and newest sample's position. */
   lastEvent: { t: number; x: number; y: number }
   rawWidths: number[]
@@ -2680,7 +2668,6 @@ export class Editor {
     const magic = this._state.tool === 'magic'
     const settings = highlighter ? this._state.highlighter : this._state.pen
     const fountain = !highlighter && !magic && this._state.pen.nib === 'fountain'
-    const sampler = new StrokeSampler(this._state.stabilization)
     const session: InkSession = {
       kind: 'ink',
       pointerId: e.pointerId,
@@ -2699,7 +2686,7 @@ export class Editor {
           ? { dash: this._state.pen.dash }
           : {}),
       },
-      sampler,
+      sampler: new StrokeSampler(this._state.stabilization),
       local: [],
       nib: fountain,
       pressures: [],
@@ -2707,9 +2694,6 @@ export class Editor {
       times: [],
       raw: [],
       lastEvent: { t: -1, x: NaN, y: NaN },
-      rawLocal: [],
-      along: [],
-      sigma: sampler.finishSigma / this.camera.zoom,
       rawWidths: [],
       widths: [],
       drawnSegments: 0,
@@ -2736,38 +2720,12 @@ export class Editor {
     const p = this.screenPos(e)
     if (!s.sampler.add(p.x, p.y, time, this.pressureOf(e), tiltOf(e))) return
     const last = s.sampler.points[s.sampler.points.length - 1]!
-    if (s.nib) {
-      s.pressures.push(last.p)
-      s.altitudes.push(last.tilt ? (last.tilt.altitude * 180) / Math.PI : undefined)
-      s.times.push(last.t)
-    }
-    if (s.sigma <= 0) {
-      const local = this.toPageLocal(last, s.pageIndex)
-      this.pushInkPoint(s, local.x, local.y)
-      return
-    }
-    // Smoothed both ways along the line: points the pen is far enough past are final.
-    const raw = this.toPageLocal(s.sampler.lastRaw(), s.pageIndex)
-    const n = s.rawLocal.length / 2
-    s.along.push(
-      n === 0
-        ? 0
-        : s.along[n - 1]! +
-            Math.hypot(raw.x - s.rawLocal[n * 2 - 2]!, raw.y - s.rawLocal[n * 2 - 1]!),
-    )
-    s.rawLocal.push(raw.x, raw.y)
-    const reach = s.sigma * 3
-    const end = s.along[n]!
-    for (let i = s.local.length / 2; i <= n && end - s.along[i]! > reach; i++) {
-      const [x, y] = smoothedAlongAt(s.rawLocal, s.along, i, s.sigma)
-      this.pushInkPoint(s, x, y)
-    }
-  }
-
-  /** Adds a final point to the stroke being drawn, with its width for the fountain pen. */
-  private pushInkPoint(s: InkSession, x: number, y: number): void {
-    s.local.push(x, y)
+    const local = this.toPageLocal(last, s.pageIndex)
+    s.local.push(local.x, local.y)
     if (!s.nib) return
+    s.pressures.push(last.p)
+    s.altitudes.push(last.tilt ? (last.tilt.altitude * 180) / Math.PI : undefined)
+    s.times.push(last.t)
     // The first widths look ahead to the third point (see nibWidthAt); after that they are final.
     const n = s.local.length / 2
     const from = n <= 3 ? 0 : s.rawWidths.length
@@ -2777,30 +2735,6 @@ export class Editor {
       s.rawWidths.push(nibWidthAt(s.local, s.pressures, s.stroke.width, i, this.nibOptions(s)))
       s.widths.push(easeWidth(s.widths[i - 1], s.rawWidths[i]!))
     }
-  }
-
-  /**
-   * The points of a stabilized stroke that are not final yet, smoothed with what is known now
-   * and ending at the pen tip. They are drawn as the line's open end; when the pen lifts they
-   * become its last points just as they were last drawn.
-   */
-  private openInkPoints(s: InkSession): number[] {
-    const raw = s.rawLocal.slice()
-    const along = s.along.slice()
-    const tip = s.sampler.tip
-    if (tip && s.sampler.finalPoints().length > s.sampler.points.length) {
-      const t = this.toPageLocal(tip, s.pageIndex)
-      const n = raw.length / 2
-      along.push(
-        n === 0 ? 0 : along[n - 1]! + Math.hypot(t.x - raw[n * 2 - 2]!, t.y - raw[n * 2 - 1]!),
-      )
-      raw.push(t.x, t.y)
-    }
-    const out: number[] = []
-    for (let i = s.local.length / 2; i < along.length; i++) {
-      out.push(...smoothedAlongAt(raw, along, i, s.sigma))
-    }
-    return out
   }
 
   private nibOptions(s: InkSession): NibOptions {
@@ -2940,10 +2874,6 @@ export class Editor {
    * browser's predicted next position: drawn for this frame only, never kept.
    */
   private inkTail(s: InkSession, points: number[]): number[] {
-    if (s.sigma > 0) {
-      points.push(...this.openInkPoints(s))
-      return points
-    }
     const last = s.sampler.points[s.sampler.points.length - 1]
     // Steadied strongly, the line trails the pen a little, as chosen, and ends where it is
     // steady: drawn on to the raw tip, every tremor would show at its end.
@@ -3048,14 +2978,9 @@ export class Editor {
     return (b.maxX - b.minX) * zoom < TAP_SLOP_PX && (b.maxY - b.minY) * zoom < TAP_SLOP_PX
   }
 
-  /**
-   * The finished stroke's points, ending at the pen tip: exactly the line drawn while writing
-   * (stabilized: its final points and its open end), never adjusted afterwards. Unstabilized,
-   * the points drawn live, lightly finished.
-   */
+  /** The finished stroke's points: the ones drawn live, lightly finished, ending at the pen tip. */
   private drawnPoints(s: InkSession): number[] {
-    if (s.sigma <= 0) return finishPoints(this.rawPoints(s))
-    return [...s.local, ...this.openInkPoints(s)]
+    return finishPoints(this.rawPoints(s))
   }
 
   private rawPoints(s: InkSession): number[] {
@@ -3069,7 +2994,7 @@ export class Editor {
 
   /** The fountain pen's width at each point of `drawnPoints`. */
   private drawnWidths(s: InkSession): number[] {
-    const raw = s.sigma > 0 ? this.drawnPoints(s) : this.rawPoints(s)
+    const raw = this.rawPoints(s)
     const samples = s.sampler.finalPoints()
     const pressures = samples.map((p) => p.p)
     const options = {
@@ -3081,6 +3006,7 @@ export class Editor {
     for (let i = 0; i < pressures.length; i++) {
       widths.push(easeWidth(widths[i - 1], nibWidthAt(raw, pressures, s.stroke.width, i, options)))
     }
+    taperEnd(raw, widths, s.stroke.width)
     return widths
   }
 
