@@ -426,11 +426,13 @@ The ink pipeline, from pen to storage, each part in its own module:
 - Addons are building blocks that change how the workspace behaves. The addons bar (the blocks
   button in the top right; `features/editor/addons/AddonsPanel.tsx`) sits on the right beside the
   page: "My addons" lists the person's own addons, each with a switch for this notebook, Edit,
-  and a menu (save a copy as a preset, move, remove); "Browse" offers the kinds Broomit has;
-  - makes a new one of any kind. Every addon has its own name and can be "Always active": then it
-    is on in every notebook without switching it on.
+  and a menu (save a copy as a preset, move, remove); "Browse" offers the kinds Broomit has; the
+  plus button makes a new one of any kind. Every addon has its own name and can be "Always
+  active": then it is on in every notebook without switching it on, but its switch still turns
+  it off in one notebook (that wins over "always").
 - Kept on the device (`addons/store.ts`): the library in localStorage (`broomit.addons`), and per
-  notebook which addons were switched on (`broomit.addons.on.<notebook id>`). EditorView hands
+  notebook which addons were switched on and which "always" ones off
+  (`broomit.addons.on.<notebook id>`, `{ on, off }`). EditorView hands
   the addons that are on to `Editor.setAddons`; the engine never reads the library itself.
 - Kinds (`engine/addons/types.ts`):
   - Date and time: today's date and/or the time, each in one of six places on every page, with
@@ -448,6 +450,13 @@ The ink pipeline, from pen to storage, each part in its own module:
     (`engine/addons/gesture.ts`) compares point clouds ($P recognizer): stroke order and
     direction do not matter, and each axis is stretched on its own, so brackets match however
     far apart they are drawn. A tolerance setting makes it stricter or looser.
+    Colors in the addon editor can be tapped or dragged: dropped onto a closed stroke in the
+    "after" sheet they fill it, and the command then makes a fill under that stroke.
+  - Text command: typing a trigger in a text box (or writing it there with Scribble) replaces it
+    at once with a text, in which {date}, {time} and {page} are filled in
+    (`engine/addons/textCommands.ts`, applied in `TextController.onInput`).
+- Page labels are cheap per frame: date and time formats are made once and their text kept for
+  the minute, and label widths are measured once (formatting on every frame was slow on iPad).
 
 ## Calendar
 
