@@ -27,6 +27,7 @@ import { eraseFromStroke, strokeTouchesCircle } from '../geometry/erase.ts'
 import { intersects } from '../geometry/rect.ts'
 import type { Camera, Point } from '../geometry/camera.ts'
 import { DEFAULT_STABILIZATION, StrokeSampler, type Tilt } from '../input/StrokeSampler.ts'
+import { inkDiagnostics } from '../input/inkDiagnostics.ts'
 import { createPage, withPoints } from '../model/factory.ts'
 import { newId } from '../model/ids.ts'
 import {
@@ -254,6 +255,8 @@ interface InkSession {
   altitudes: (number | undefined)[]
   /** The time (ms) of each point in `local`. */
   times: number[]
+  /** The pen samples as they arrived: x, y, time stamp, the carrying event's time stamp. */
+  raw: number[]
   rawWidths: number[]
   /** The width drawn at each point: `rawWidths` eased, never changing once set. */
   widths: number[]
@@ -2682,6 +2685,7 @@ export class Editor {
       pressures: [],
       altitudes: [],
       times: [],
+      raw: [],
       rawWidths: [],
       widths: [],
       drawnSegments: 0,
@@ -2704,9 +2708,9 @@ export class Editor {
     this.drawInk(session)
   }
 
-  private addInkSample(s: InkSession, e: PointerEvent): void {
+  private addInkSample(s: InkSession, e: PointerEvent, time = e.timeStamp): void {
     const p = this.screenPos(e)
-    if (!s.sampler.add(p.x, p.y, e.timeStamp, this.pressureOf(e), tiltOf(e))) return
+    if (!s.sampler.add(p.x, p.y, time, this.pressureOf(e), tiltOf(e))) return
     const last = s.sampler.points[s.sampler.points.length - 1]!
     const local = this.toPageLocal(last, s.pageIndex)
     s.local.push(local.x, local.y)
@@ -2767,7 +2771,15 @@ export class Editor {
       this.armHold(s)
     }
     const coalesced = e.getCoalescedEvents?.() ?? []
-    for (const ev of coalesced.length ? coalesced : [e]) this.addInkSample(s, ev)
+    const samples = coalesced.length ? coalesced : [e]
+    // The samples' time stamps should share the event's clock; where a browser gives them
+    // another one, they are moved onto it, so they are neither dropped as late nor bunched.
+    const newest = samples[samples.length - 1]!.timeStamp
+    const shift = Math.abs(e.timeStamp - newest) > 100 ? e.timeStamp - newest : 0
+    for (const ev of samples) {
+      s.raw.push(ev.clientX, ev.clientY, ev.timeStamp, e.timeStamp)
+      this.addInkSample(s, ev, ev.timeStamp + shift)
+    }
     s.predicted = s.sampler.stabilization > RAW_TIP_UP_TO ? null : this.predictedPoint(s, e)
     // Drawn once per screen frame, however many events arrive in it.
     if (!this.inkFrame) {
@@ -3039,6 +3051,15 @@ export class Editor {
   }
 
   private finishInk(s: InkSession): void {
+    const sampler = s.sampler
+    inkDiagnostics.last = {
+      received: sampler.received,
+      kept: sampler.points.length,
+      late: sampler.late,
+      repeats: sampler.repeats,
+      tooClose: sampler.tooClose,
+      raw: s.raw,
+    }
     if (s.holdTimer) clearTimeout(s.holdTimer)
     cancelAnimationFrame(this.inkFrame)
     this.inkFrame = 0

@@ -1,4 +1,6 @@
 import { useEffect, useRef } from 'react'
+import { inkDiagnostics } from '../engine/input/inkDiagnostics.ts'
+import { showNotice } from '../lib/notices.ts'
 import { useFrameRateShown } from '../lib/frameRateSetting.ts'
 
 /**
@@ -65,8 +67,13 @@ export function FrameRate() {
           const pen = penHz
             ? ` · pen ${penHz} Hz, ${distinctHz} new${coalesced ? '' : ' (no coalesced)'}`
             : ''
-          label.current.textContent = `${fps} fps · slowest ${Math.round(worst)} ms${pen}`
-          label.current.dataset.state = fps >= 55 ? 'good' : fps >= 40 ? 'fair' : 'poor'
+          const d = inkDiagnostics.last
+          const kept = d
+            ? ` · kept ${d.kept}/${d.received} (late ${d.late}, same ${d.repeats}, close ${d.tooClose})`
+            : ''
+          label.current.textContent = `${fps} fps · slowest ${Math.round(worst)} ms${pen}${kept}`
+          const host = label.current.parentElement ?? label.current
+          host.dataset.state = fps >= 55 ? 'good' : fps >= 40 ? 'fair' : 'poor'
         }
         frames = 0
         worst = 0
@@ -81,13 +88,24 @@ export function FrameRate() {
     }
   }, [shown])
   if (!shown) return null
+  // Tapping copies the last stroke's samples, to send along when writing looks wrong.
+  const copy = () => {
+    const d = inkDiagnostics.last
+    if (!d) return
+    navigator.clipboard
+      .writeText(JSON.stringify(d))
+      .then(() => showNotice('The last stroke’s pen samples are copied.'))
+      .catch(() => showNotice('Copying is not allowed here.'))
+  }
   return (
-    <span
-      ref={label}
-      role="status"
-      className="pointer-events-none fixed bottom-[calc(8px+env(safe-area-inset-bottom))] left-2 z-[90] rounded-full bg-ink px-2.5 py-1 font-mono text-[11px] font-semibold text-ink-inverse tabular-nums data-[state=fair]:bg-accent data-[state=poor]:bg-danger"
+    <button
+      type="button"
+      onClick={copy}
+      className="fixed bottom-[calc(8px+env(safe-area-inset-bottom))] left-2 z-[90] rounded-full bg-ink px-2.5 py-1 font-mono text-[11px] font-semibold text-ink-inverse tabular-nums data-[state=fair]:bg-accent data-[state=poor]:bg-danger"
     >
-      … fps
-    </span>
+      <span ref={label} role="status">
+        … fps
+      </span>
+    </button>
   )
 }

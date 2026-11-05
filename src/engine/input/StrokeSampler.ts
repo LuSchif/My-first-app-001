@@ -61,6 +61,10 @@ export class StrokeSampler {
   tip: ScreenSample | null = null
   filtered = 0
   received = 0
+  /** Why samples were not kept: arrived after a later one, repeated a position, or too close. */
+  late = 0
+  repeats = 0
+  tooClose = 0
 
   private lastStamp = -Infinity
   private lastTime = -Infinity
@@ -98,12 +102,14 @@ export class StrokeSampler {
     this.received++
     if (timeStamp < this.lastStamp) {
       this.filtered++
+      this.late++
       return false
     }
     // A repeat of the last position (Safari sends many) is no movement: fed to the filter it
     // would read as the pen stopping and starting, and the line would go in straight jumps.
     if (this.tip && x === this.tip.x && y === this.tip.y) {
       this.filtered++
+      this.repeats++
       return false
     }
     // Some browsers give all samples of one frame the same time stamp; space those evenly.
@@ -156,6 +162,7 @@ export class StrokeSampler {
     const point = { ...sample, x: this.sx, y: this.sy }
     if (Math.hypot(point.x - last.x, point.y - last.y) < this.minStep) {
       this.filtered++
+      this.tooClose++
       return false
     }
     this.points.push(point)
