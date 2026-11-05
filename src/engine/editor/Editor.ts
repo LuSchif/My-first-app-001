@@ -60,7 +60,13 @@ import { enterPage, renderScene, setDeskColor, type View } from '../render/Scene
 import { PAPER_STYLE, paperGrid } from '../render/paper.ts'
 import { inkAlpha, paintStroke, setInkStyle, strokeBounds } from '../render/strokes.ts'
 import { perfectShape, recognizeShape, regionAt, type Shape } from '../geometry/shapes.ts'
-import { curveStart, finishPoints, traceSegments, traceStroke } from '../geometry/strokePath.ts'
+import {
+  curveStart,
+  finishPoints,
+  smoothAlong,
+  traceSegments,
+  traceStroke,
+} from '../geometry/strokePath.ts'
 import { boundsOfPoints } from '../geometry/rect.ts'
 import { drawBroom } from '../render/broomGlyph.ts'
 import { objectBounds, paintObject } from '../render/objects.ts'
@@ -2978,9 +2984,22 @@ export class Editor {
     return (b.maxX - b.minX) * zoom < TAP_SLOP_PX && (b.maxY - b.minY) * zoom < TAP_SLOP_PX
   }
 
-  /** The finished stroke's points: the ones drawn live, lightly finished, ending at the pen tip. */
+  /**
+   * The finished stroke's points, ending at the pen tip. Stabilized, they are the pen's actual
+   * positions smoothed both ways along the line (see `StrokeSampler.finishSigma`): what was
+   * drawn live trails the pen a little, this does not, so ends keep no hook and fast lines no
+   * wave. Otherwise the points drawn live, lightly finished.
+   */
   private drawnPoints(s: InkSession): number[] {
-    return finishPoints(this.rawPoints(s))
+    const sigma = s.sampler.finishSigma
+    if (sigma <= 0) return finishPoints(this.rawPoints(s))
+    const raw = s.sampler.finalRawPoints()
+    const local: number[] = []
+    for (let i = 0; i < raw.length; i += 2) {
+      const p = this.toPageLocal({ x: raw[i]!, y: raw[i + 1]! }, s.pageIndex)
+      local.push(p.x, p.y)
+    }
+    return smoothAlong(local, sigma / this.camera.zoom)
   }
 
   private rawPoints(s: InkSession): number[] {

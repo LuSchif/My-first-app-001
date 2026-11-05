@@ -20,7 +20,7 @@ const FALLBACK_SAMPLE_MS = 1000 / 240 // Apple Pencil reports at 240 Hz
  * taut, and an easing by distance, so the tremor of a slow hand and the sensor's pixel steps
  * never reach the line.
  */
-export const DEFAULT_STABILIZATION = 1.7
+export const DEFAULT_STABILIZATION = 1.4
 export const MAX_STABILIZATION = 2
 /** Each setting at stabilization 0, 1 and 2; in between it changes evenly. */
 /** 1€ filter: the cutoff (Hz) while the pen is still, ... */
@@ -35,6 +35,13 @@ const ROPE_PX = [0, 2, 3.5] as const
 const EASE_PX = [0, 2.5, 6] as const
 /** ... and keeps its points this far apart (px), so the curve between them is calm. */
 const MIN_STEPS = [MIN_STEP, MIN_STEP + 1, MIN_STEP + 2] as const
+/**
+ * When the pen lifts, the finished line is smoothed again, now looking both ways along it: a
+ * Gaussian over this much of its length (sigma, screen pixels). Being symmetric, it does not
+ * trail and leaves no hook at the ends; it takes out the small waves the live filter lets
+ * through when the pen moves fast.
+ */
+const FINISH_SIGMA = [0, 6, 16] as const
 /** Raw samples kept for estimating where the pen goes next. */
 const RECENT = 12
 
@@ -87,6 +94,10 @@ export class StrokeSampler {
   private sx = 0
   private sy = 0
   readonly stabilization: number
+  /** See `FINISH_SIGMA`. */
+  readonly finishSigma: number
+  /** Where the pen actually was for each point (x, y), before any filter. */
+  private readonly rawAt: number[] = []
 
   constructor(stabilization = DEFAULT_STABILIZATION) {
     const k = Math.min(MAX_STABILIZATION, Math.max(0, stabilization))
@@ -95,6 +106,7 @@ export class StrokeSampler {
     this.beta = level(BETA, k)
     this.rope = level(ROPE_PX, k)
     this.ease = level(EASE_PX, k)
+    this.finishSigma = level(FINISH_SIGMA, k)
     this.minStep = level(MIN_STEPS, k)
   }
 
@@ -135,6 +147,7 @@ export class StrokeSampler {
       this.sx = x
       this.sy = y
       this.points.push(sample)
+      this.rawAt.push(x, y)
       return true
     }
     const dt = Math.max(0.5, t - previous.t) / 1000
@@ -167,6 +180,7 @@ export class StrokeSampler {
       return false
     }
     this.points.push(point)
+    this.rawAt.push(x, y)
     return true
   }
 
@@ -211,6 +225,16 @@ export class StrokeSampler {
     const from = r[Math.max(0, r.length - 4)]
     if (!tip || !from || tip.t <= from.t) return 0
     return Math.hypot(tip.x - from.x, tip.y - from.y) / (tip.t - from.t)
+  }
+
+  /**
+   * Where the pen actually was at each point of `finalPoints` (x, y pairs, screen pixels), for
+   * the smoothing when it lifts.
+   */
+  finalRawPoints(): number[] {
+    const tip = this.tip
+    if (this.finalPoints().length > this.points.length && tip) return [...this.rawAt, tip.x, tip.y]
+    return this.rawAt.slice()
   }
 
   /** The stroke's points, ending exactly where the pen lifted. */
