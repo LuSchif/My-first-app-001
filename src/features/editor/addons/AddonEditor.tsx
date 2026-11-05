@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
 import {
   Button,
   ColorSwatch,
@@ -10,6 +10,8 @@ import {
   TextField,
 } from '../../../design/index.ts'
 import { formatDate, formatTime, pageNumberText } from '../../../engine/addons/decorations.ts'
+import { expandReplacement } from '../../../engine/addons/textCommands.ts'
+import { showNotice } from '../../../lib/notices.ts'
 import {
   SPOTS,
   type Addon,
@@ -19,6 +21,7 @@ import {
   type GestureStroke,
   type PageNumberSettings,
   type Spot,
+  type TextCommandSettings,
 } from '../../../engine/addons/types.ts'
 import type { Editor } from '../../../engine/editor/Editor.ts'
 import { cn } from '../../../lib/cn.ts'
@@ -44,7 +47,12 @@ export function AddonEditor({
   onCancel: () => void
 }) {
   const [draft, setDraft] = useState<Addon>(addon)
-  const ready = draft.kind !== 'gesture' || gestureReady(draft.settings)
+  const ready =
+    draft.kind === 'gesture'
+      ? gestureReady(draft.settings)
+      : draft.kind === 'textCommand'
+        ? draft.settings.trigger.trim().length > 0
+        : true
   return (
     <DialogContent
       title={isNew ? 'New addon' : `Edit “${addon.name}”`}
@@ -80,6 +88,11 @@ export function AddonEditor({
             editor={editor}
             onChange={(settings) => setDraft({ ...draft, settings })}
           />
+        ) : draft.kind === 'textCommand' ? (
+          <TextCommandForm
+            value={draft.settings}
+            onChange={(settings) => setDraft({ ...draft, settings })}
+          />
         ) : (
           <GestureForm
             value={draft.settings}
@@ -106,6 +119,8 @@ export function AddonEditor({
 }
 
 const DESCRIPTIONS: Record<Addon['kind'], string> = {
+  textCommand:
+    'Type a short word in a text box (or write it there with the Pencil), and it becomes the text you set here.',
   dateTime: 'Today’s date and the time on every page. Choose where they go and how they look.',
   pageNumbers: 'A number on every page, from the page you choose.',
   autoRotate:
@@ -359,11 +374,10 @@ function GestureForm({
             ? MARKER_COLORS
             : PRIMARY_COLORS.map(([, c]) => c).slice(0, 6)
           ).map((c) => (
-            <ColorSwatch
+            <DragSwatch
               key={c}
-              size="sm"
               label={c}
-              fill={{ type: 'solid', color: c }}
+              color={c}
               selected={color === c}
               onSelect={() => setColor(c)}
             />
@@ -371,6 +385,7 @@ function GestureForm({
         </div>
         <DrawPad
           label="It becomes"
+          fillable
           strokes={value.after}
           ghost={value.before}
           onChange={(after) => set({ after })}
@@ -378,7 +393,7 @@ function GestureForm({
         />
         <PadFooter
           count={value.after.length}
-          hint="Your first drawing shows faintly: draw the result in its place, e.g. a highlight between the brackets."
+          hint="Your first drawing shows faintly: draw the result in its place, e.g. a highlight between the brackets. Drag a color onto a closed shape to fill it."
           onUndo={() => set({ after: value.after.slice(0, -1) })}
           onClear={() => set({ after: [] })}
         />
@@ -436,6 +451,174 @@ function PadFooter({
 }
 
 // ---------- Parts ----------
+
+/**
+ * A color to choose with a tap, or to drag onto a closed shape in "It becomes", which fills it
+ * (like dragging a color onto a page).
+ */
+function DragSwatch({
+  color,
+  label,
+  selected,
+  onSelect,
+}: {
+  color: string
+  label: string
+  selected: boolean
+  onSelect: () => void
+}) {
+  const dragged = useRef(false)
+  const start = (e: React.PointerEvent) => {
+    const from = { x: e.clientX, y: e.clientY }
+    dragged.current = false
+    let ghost: HTMLDivElement | null = null
+    const move = (ev: PointerEvent) => {
+      if (!dragged.current && Math.hypot(ev.clientX - from.x, ev.clientY - from.y) < 8) return
+      ev.preventDefault()
+      if (!ghost) {
+        dragged.current = true
+        ghost = document.createElement('div')
+        Object.assign(ghost.style, {
+          position: 'fixed',
+          width: '30px',
+          height: '30px',
+          borderRadius: '50%',
+          background: color,
+          border: '3px solid var(--color-surface-raised)',
+          boxShadow: 'var(--shadow-raised)',
+          pointerEvents: 'none',
+          zIndex: '1000',
+        } satisfies Partial<CSSStyleDeclaration>)
+        document.body.append(ghost)
+      }
+      ghost.style.left = `${ev.clientX - 15}px`
+      ghost.style.top = `${ev.clientY - 15}px`
+    }
+    const end = (ev: PointerEvent) => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', end)
+      window.removeEventListener('pointercancel', end)
+      ghost?.remove()
+      if (!dragged.current || ev.type === 'pointercancel') return
+      const target = document
+        .elementFromPoint(ev.clientX, ev.clientY)
+        ?.closest('[data-fill-target]')
+      if (target) {
+        target.dispatchEvent(
+          new CustomEvent('broomit:fill', {
+            detail: { clientX: ev.clientX, clientY: ev.clientY, color },
+          }),
+        )
+      } else {
+        showNotice('Drop the color inside a closed shape in “It becomes”.')
+      }
+    }
+    window.addEventListener('pointermove', move, { passive: false })
+    window.addEventListener('pointerup', end)
+    window.addEventListener('pointercancel', end)
+  }
+  return (
+    <span
+      className="inline-flex touch-none"
+      onPointerDown={start}
+      onClickCapture={(e) => {
+        // A drag is not a tap.
+        if (dragged.current) {
+          e.stopPropagation()
+          e.preventDefault()
+          dragged.current = false
+        }
+      }}
+    >
+      <ColorSwatch
+        size="sm"
+        label={label}
+        fill={{ type: 'solid', color }}
+        selected={selected}
+        onSelect={onSelect}
+      />
+    </span>
+  )
+}
+
+function TextCommandForm({
+  value,
+  onChange,
+}: {
+  value: TextCommandSettings
+  onChange: (v: TextCommandSettings) => void
+}) {
+  const set = (patch: Partial<TextCommandSettings>) => onChange({ ...value, ...patch })
+  const [now] = useState(() => new Date())
+  const field = useRef<HTMLTextAreaElement>(null)
+  const insert = (token: string) => {
+    const el = field.current
+    const at = el ? el.selectionStart : value.replacement.length
+    const end = el ? el.selectionEnd : at
+    set({ replacement: value.replacement.slice(0, at) + token + value.replacement.slice(end) })
+  }
+  return (
+    <>
+      <Section title="When you type">
+        <TextField
+          label="Trigger"
+          hideLabel
+          placeholder="/date"
+          value={value.trigger}
+          maxLength={30}
+          autoCapitalize="off"
+          autoCorrect="off"
+          onChange={(e) => set({ trigger: e.target.value })}
+        />
+        <p className="text-xs text-ink-muted">
+          It works as soon as you finish typing it. Start it with a sign like / or # so it never
+          fires inside an ordinary word.
+        </p>
+        <Switch
+          label="Match capital letters"
+          hint="Off: /Date and /DATE work too."
+          checked={value.matchCase}
+          onChange={(matchCase) => set({ matchCase })}
+        />
+      </Section>
+      <Section title="It becomes">
+        <textarea
+          ref={field}
+          aria-label="It becomes"
+          value={value.replacement}
+          rows={3}
+          maxLength={2000}
+          onChange={(e) => set({ replacement: e.target.value })}
+          className="w-full rounded-control bg-surface-raised px-3 py-2 text-base ring-1 ring-line focus:ring-2 focus:ring-selected focus:outline-none"
+        />
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-xs text-ink-muted">Insert:</span>
+          {(
+            [
+              ['{date}', 'Date'],
+              ['{time}', 'Time'],
+              ['{page}', 'Page number'],
+            ] as const
+          ).map(([token, label]) => (
+            <button
+              key={token}
+              type="button"
+              onClick={() => insert(token)}
+              className="h-8 rounded-control px-2.5 text-sm font-semibold ring-1 ring-line hover:bg-hover"
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </Section>
+      <Preview>
+        {value.trigger
+          ? `${value.trigger} → ${expandReplacement(value.replacement, 1, now) || '(nothing)'}`
+          : 'Type a trigger first'}
+      </Preview>
+    </>
+  )
+}
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -535,11 +718,10 @@ function LookForm<T extends { color: string; size: number; marked: boolean; mark
     <Section title="Look">
       <div className="flex flex-wrap gap-1">
         {PRIMARY_COLORS.map(([name, c]) => (
-          <ColorSwatch
+          <DragSwatch
             key={c}
-            size="sm"
             label={name}
-            fill={{ type: 'solid', color: c }}
+            color={c}
             selected={value.color === c}
             onSelect={() => onChange({ color: c } as Partial<T>)}
           />
@@ -562,11 +744,10 @@ function LookForm<T extends { color: string; size: number; marked: boolean; mark
       {value.marked ? (
         <div className="flex flex-wrap gap-1">
           {MARKER_COLORS.map((c) => (
-            <ColorSwatch
+            <DragSwatch
               key={c}
-              size="sm"
               label={c}
-              fill={{ type: 'solid', color: c }}
+              color={c}
               selected={value.markColor === c}
               onSelect={() => onChange({ markColor: c } as Partial<T>)}
             />
@@ -579,7 +760,7 @@ function LookForm<T extends { color: string; size: number; marked: boolean; mark
 
 function Preview({ children }: { children: ReactNode }) {
   return (
-    <p className="rounded-card bg-surface-sunken px-3 py-2 text-sm text-ink-muted">
+    <p className="rounded-card bg-surface-sunken px-3 py-2 text-sm whitespace-pre-wrap text-ink-muted">
       Today it shows: <span className="font-semibold text-ink">{children}</span>
     </p>
   )

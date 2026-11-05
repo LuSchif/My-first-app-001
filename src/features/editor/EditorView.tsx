@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { AddonsPanel } from './addons/AddonsPanel.tsx'
 import { isOn, useAddonLibrary, useSwitchedOn } from './addons/store.ts'
 import { MAX_STABILIZATION } from '../../engine/input/StrokeSampler.ts'
@@ -148,6 +148,7 @@ function EditorSession({ doc, history, autosave }: Loaded) {
 
   const [insertOpen, setInsertOpen] = useState(false)
   const [addonsOpen, setAddonsOpen] = useState(false)
+  const closeAddons = useCallback(() => setAddonsOpen(false), [])
   // The addons that are on in this notebook go to the editor whenever they change.
   const addonLibrary = useAddonLibrary()
   const switchedOn = useSwitchedOn(doc.notebook.id)
@@ -222,11 +223,7 @@ function EditorSession({ doc, history, autosave }: Loaded) {
         ) : null}
       </div>
       {addonsOpen && editor ? (
-        <AddonsPanel
-          editor={editor}
-          notebookId={doc.notebook.id}
-          onClose={() => setAddonsOpen(false)}
-        />
+        <AddonsPanel editor={editor} notebookId={doc.notebook.id} onClose={closeAddons} />
       ) : null}
       {studying !== null && editor ? (
         <Study

@@ -1,10 +1,11 @@
-import { useState, type ReactNode } from 'react'
+import { memo, useState, type ReactNode } from 'react'
 import {
   ArrowDown,
   ArrowUp,
   CalendarDays,
   CopyPlus,
   Ellipsis,
+  Keyboard,
   PenLine,
   Plus,
   RotateCcw,
@@ -48,7 +49,7 @@ type Tab = 'mine' | 'browse'
  * this notebook (or marked always on) and an edit button; a browser of the addons Broomit
  * offers; and + to make a new one.
  */
-export function AddonsPanel({
+export const AddonsPanel = memo(function AddonsPanel({
   editor,
   notebookId,
   onClose,
@@ -170,7 +171,7 @@ export function AddonsPanel({
                     icon={<Plus size={16} />}
                     onClick={() => startNew(entry.kind)}
                   >
-                    {entry.kind === 'gesture' ? 'Make one' : 'Add'}
+                    {entry.kind === 'gesture' || entry.kind === 'textCommand' ? 'Make one' : 'Add'}
                   </Button>
                 </div>
               </li>
@@ -223,7 +224,7 @@ export function AddonsPanel({
       </Dialog>
     </aside>
   )
-}
+})
 
 function AddonRow({
   addon,
@@ -265,10 +266,9 @@ function AddonRow({
           type="button"
           role="switch"
           aria-checked={on}
-          aria-label={`${addon.name} ${addon.always ? '(always active)' : ''}`}
-          disabled={addon.always}
+          aria-label={`${addon.name}${addon.always ? ', always active' : ''}`}
           onClick={() => onSwitch(!on)}
-          className="relative h-7 w-12 shrink-0 rounded-full bg-line-strong transition-colors aria-checked:bg-ink disabled:opacity-60"
+          className="relative h-7 w-12 shrink-0 rounded-full bg-line-strong transition-colors aria-checked:bg-ink "
         >
           <span
             className={cn(
@@ -281,7 +281,7 @@ function AddonRow({
       <div className="flex items-center gap-1">
         {addon.always ? (
           <span className="rounded-full bg-accent/20 px-2 py-0.5 text-xs font-semibold">
-            Always active
+            {on ? 'Always active' : 'Always active · off here'}
           </span>
         ) : null}
         <span className="flex-1" />
@@ -355,6 +355,8 @@ function KindIcon({ kind }: { kind: AddonKind }) {
       <CalendarDays size={22} />
     ) : kind === 'pageNumbers' ? (
       <BroomitIcon name="pages" size={24} colored />
+    ) : kind === 'textCommand' ? (
+      <Keyboard size={22} />
     ) : kind === 'autoRotate' ? (
       <RotateCcw size={22} className="-scale-x-100" />
     ) : (
@@ -381,6 +383,8 @@ function summary(addon: Addon): string {
       return `From page ${addon.settings.startPage}, ${addon.settings.spot.replace('-', ' ')}`
     case 'autoRotate':
       return angleText(addon.settings.angle)
+    case 'textCommand':
+      return `${addon.settings.trigger || '…'} → ${addon.settings.replacement.replace(/\n/g, ' ') || '…'}`
     case 'gesture':
       return `${addon.settings.before.length} ${addon.settings.before.length === 1 ? 'stroke' : 'strokes'} → ${
         addon.settings.after.some((s) => s.tool === 'highlighter') ? 'highlight' : 'drawing'

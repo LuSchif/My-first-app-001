@@ -1,3 +1,4 @@
+import type { TextCommandSettings } from '../addons/types.ts'
 import type { History } from '../commands/History.ts'
 import type { NotebookDocument } from '../document/NotebookDocument.ts'
 import type { Camera, Point } from '../geometry/camera.ts'
@@ -35,4 +36,6 @@ export interface EditorContext {
   rememberColor(color: string): void
   /** A controller's state changed in a way the UI shows. */
   changed(): void
+  /** Text commands of the addons that are on (see engine/addons/textCommands.ts). */
+  textCommands(): readonly TextCommandSettings[]
 }

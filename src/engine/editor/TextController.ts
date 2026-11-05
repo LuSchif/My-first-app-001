@@ -1,3 +1,4 @@
+import { applyTextCommand } from '../addons/textCommands.ts'
 import { compound, setLayers, setPageObjects, type Command } from '../commands/commands.ts'
 import { createLayer } from '../model/factory.ts'
 import { newId } from '../model/ids.ts'
@@ -446,6 +447,21 @@ export class TextController {
   private onInput(): void {
     const e = this.editing
     if (!e) return
+    // A text command of an addon: its trigger, just typed, becomes its text.
+    const commands = this.ctx.textCommands()
+    if (commands.length) {
+      const area = this.textarea
+      const done = applyTextCommand(
+        area.value,
+        area.selectionStart,
+        commands,
+        this.ctx.doc.pageList.findIndex((p) => p.id === e.pageId) + 1,
+      )
+      if (done) {
+        area.value = done.value
+        area.setSelectionRange(done.caret, done.caret)
+      }
+    }
     e.draft = fitWidth(this.pageWidth, editText(e.draft, this.textarea.value))
     this.position()
     this.ensureVisible()

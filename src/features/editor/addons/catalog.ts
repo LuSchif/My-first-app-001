@@ -67,6 +67,19 @@ export const CATALOG: readonly CatalogEntry[] = [
     }),
   },
   {
+    kind: 'textCommand',
+    name: 'Text command',
+    description:
+      'Type a short word in a text box, and it becomes something else: e.g. /date becomes today’s date.',
+    make: () => ({
+      id: newId(),
+      kind: 'textCommand',
+      name: 'Today’s date',
+      always: false,
+      settings: { trigger: '/date', replacement: '{date}', matchCase: false },
+    }),
+  },
+  {
     kind: 'gesture',
     name: 'Draw a command',
     description:

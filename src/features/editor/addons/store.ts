@@ -11,7 +11,7 @@ const onKey = (notebookId: string) => `broomit.addons.on.${notebookId}`
 
 const listeners = new Set<() => void>()
 let library: Addon[] = read(LIBRARY_KEY, [])
-const switchedOn = new Map<string, string[]>()
+const switchedOn = new Map<string, Switched>()
 
 function read<T>(key: string, fallback: T): T {
   try {
@@ -69,32 +69,53 @@ export function moveAddon(id: string, by: -1 | 1): void {
   changed()
 }
 
-function onIn(notebookId: string): string[] {
-  let ids = switchedOn.get(notebookId)
-  if (!ids) {
-    ids = read<string[]>(onKey(notebookId), [])
-    switchedOn.set(notebookId, ids)
-  }
-  return ids
+/** Per notebook: addons switched on, and "always" addons switched off there. */
+export interface Switched {
+  on: string[]
+  off: string[]
 }
 
-/** Switches an addon on or off in one notebook. */
+const NONE: Switched = { on: [], off: [] }
+
+function switchedIn(notebookId: string): Switched {
+  let value = switchedOn.get(notebookId)
+  if (!value) {
+    const stored = read<unknown>(onKey(notebookId), null)
+    // Earlier versions kept only the list of addons switched on.
+    value = Array.isArray(stored)
+      ? { on: stored.filter((x): x is string => typeof x === 'string'), off: [] }
+      : stored && typeof stored === 'object'
+        ? { ...NONE, ...(stored as Partial<Switched>) }
+        : NONE
+    switchedOn.set(notebookId, value)
+  }
+  return value
+}
+
+/**
+ * Switches an addon on or off in one notebook. Switching off an "always active" addon switches
+ * it off in this notebook only; it stays always active elsewhere.
+ */
 export function switchAddon(notebookId: string, id: string, on: boolean): void {
-  const ids = onIn(notebookId).filter((x) => x !== id)
-  if (on) ids.push(id)
-  switchedOn.set(notebookId, ids)
-  write(onKey(notebookId), ids)
+  const now = switchedIn(notebookId)
+  const value: Switched = {
+    on: on ? [...now.on.filter((x) => x !== id), id] : now.on.filter((x) => x !== id),
+    off: on ? now.off.filter((x) => x !== id) : [...now.off.filter((x) => x !== id), id],
+  }
+  switchedOn.set(notebookId, value)
+  write(onKey(notebookId), value)
   changed()
 }
 
-/** The ids of the addons switched on in a notebook (not counting "always" ones). */
-export function useSwitchedOn(notebookId: string): string[] {
-  return useSyncExternalStore(subscribe, () => onIn(notebookId))
+/** Which addons were switched on or off in a notebook. */
+export function useSwitchedOn(notebookId: string): Switched {
+  return useSyncExternalStore(subscribe, () => switchedIn(notebookId))
 }
 
-/** Whether an addon is on in a notebook. */
-export function isOn(addon: Addon, switched: readonly string[]): boolean {
-  return addon.always || switched.includes(addon.id)
+/** Whether an addon is on in a notebook: switched on there, or always active and not off there. */
+export function isOn(addon: Addon, switched: Switched): boolean {
+  if (switched.off.includes(addon.id)) return false
+  return addon.always || switched.on.includes(addon.id)
 }
 
 /** A name not used by another addon in the library: "Name", "Name 2", … */

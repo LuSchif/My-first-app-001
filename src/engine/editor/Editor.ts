@@ -37,6 +37,7 @@ import { createPage, withPoints } from '../model/factory.ts'
 import { newId } from '../model/ids.ts'
 import {
   type CanvasObject,
+  type FillObject,
   type CardStudy,
   type DocumentKind,
   type Id,
@@ -1854,6 +1855,7 @@ export class Editor {
         this.requestRender()
       },
       requestRender: () => this.requestRender(),
+      textCommands: () => this.addonsOf('textCommand').map((a) => a.settings),
       scrollBy: (dx, dy) =>
         this.setCamera({
           ...this.camera,
@@ -2162,16 +2164,30 @@ export class Editor {
       if (!matchesGesture(drawing, addon.settings)) continue
       const bounds = drawingBounds(drawing)
       if (!bounds) continue
-      const made: StrokeObject[] = fitAfter(addon.settings, bounds).map((g) => ({
-        id: newId(),
-        type: 'stroke',
-        layerId: stroke.layerId,
-        tool: g.tool,
-        color: g.color,
-        width: g.width,
-        opacity: g.tool === 'highlighter' ? this._state.highlighter.opacity : 1,
-        points: g.points,
-      }))
+      const made: CanvasObject[] = fitAfter(addon.settings, bounds).flatMap((g) => {
+        const line: StrokeObject = {
+          id: newId(),
+          type: 'stroke',
+          layerId: stroke.layerId,
+          tool: g.tool,
+          color: g.color,
+          width: g.width,
+          opacity: g.tool === 'highlighter' ? this._state.highlighter.opacity : 1,
+          points: g.points,
+        }
+        if (!g.fill) return [line]
+        // A filled shape: the fill under its outline.
+        const fill: FillObject = {
+          id: newId(),
+          type: 'fill',
+          layerId: stroke.layerId,
+          color: g.fill,
+          opacity: 1,
+          points: g.points,
+          smooth: true,
+        }
+        return [fill, line]
+      })
       const used = new Set(strokes.map((x) => x.id))
       const kept = addon.settings.keepBefore
         ? [...page.objects, stroke]

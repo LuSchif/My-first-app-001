@@ -3,7 +3,7 @@
  * to their library is an `Addon`: a kind, its settings, a name of their own, and whether it is
  * always on. The engine only sees the addons that are on right now (see `Editor.setAddons`).
  */
-export type AddonKind = 'dateTime' | 'pageNumbers' | 'autoRotate' | 'gesture'
+export type AddonKind = 'dateTime' | 'pageNumbers' | 'autoRotate' | 'gesture' | 'textCommand'
 
 /** Where on the page a label sits. */
 export type Spot =
@@ -67,6 +67,8 @@ export interface GestureStroke {
   color: string
   width: number
   points: number[]
+  /** A closed stroke filled with this color (dropped onto it in the addon's editor). */
+  fill?: string
 }
 
 /**
@@ -82,11 +84,23 @@ export interface GestureSettings {
   tolerance: number
 }
 
+/**
+ * A text command: typing `trigger` in a text box (or writing it there with Scribble) replaces
+ * it with `replacement`, in which {date}, {time} and {page} stand for today's date, the time
+ * and the page number.
+ */
+export interface TextCommandSettings {
+  trigger: string
+  replacement: string
+  matchCase: boolean
+}
+
 export type Addon =
   | AddonBase<'dateTime', DateTimeSettings>
   | AddonBase<'pageNumbers', PageNumberSettings>
   | AddonBase<'autoRotate', AutoRotateSettings>
   | AddonBase<'gesture', GestureSettings>
+  | AddonBase<'textCommand', TextCommandSettings>
 
 interface AddonBase<K extends AddonKind, S> {
   id: string

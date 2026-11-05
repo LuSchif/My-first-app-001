@@ -62,23 +62,42 @@ function dateTimeLabels(s: DateTimeSettings, now: Date, put: (spot: Spot, l: Lab
   if (time) put(s.timeSpot, labelOf(s, time))
 }
 
+/**
+ * Date and time formats, made once: building them is slow on iPad (it was done on every frame
+ * before), and the text itself is kept for the minute.
+ */
+const FORMATS = {
+  long: { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' },
+  short: { day: 'numeric', month: 'short', year: 'numeric' },
+  numeric: { day: '2-digit', month: '2-digit', year: 'numeric' },
+  time: { hour: '2-digit', minute: '2-digit' },
+} as const satisfies Record<string, Intl.DateTimeFormatOptions>
+
+const formatters = new Map<keyof typeof FORMATS, Intl.DateTimeFormat>()
+const texts = new Map<string, string>()
+
+function formatted(now: Date, kind: keyof typeof FORMATS): string {
+  const key = `${kind}:${Math.floor(now.getTime() / 60_000)}`
+  let text = texts.get(key)
+  if (text === undefined) {
+    let f = formatters.get(kind)
+    if (!f) {
+      f = new Intl.DateTimeFormat(undefined, FORMATS[kind])
+      formatters.set(kind, f)
+    }
+    text = f.format(now)
+    if (texts.size > 16) texts.clear()
+    texts.set(key, text)
+  }
+  return text
+}
+
 export function formatDate(now: Date, style: DateTimeSettings['dateStyle']): string {
-  if (style === 'numeric') {
-    return now.toLocaleDateString(undefined, { day: '2-digit', month: '2-digit', year: 'numeric' })
-  }
-  if (style === 'short') {
-    return now.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
-  }
-  return now.toLocaleDateString(undefined, {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  })
+  return formatted(now, style)
 }
 
 export function formatTime(now: Date): string {
-  return now.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+  return formatted(now, 'time')
 }
 
 /** The page number label of page `pageIndex` (0-based), or '' when it has none. */
@@ -106,10 +125,7 @@ function paintSpot(
   const gap = 10
   ctx.save()
   ctx.textBaseline = 'middle'
-  const widths = labels.map((l) => {
-    ctx.font = `600 ${l.size}px ${FONT_STACKS.sans}`
-    return ctx.measureText(l.text).width + (l.mark ? l.size * 0.8 : 0)
-  })
+  const widths = labels.map((l) => textWidth(ctx, l) + (l.mark ? l.size * 0.8 : 0))
   const total = widths.reduce((a, b) => a + b, 0) + gap * (labels.length - 1)
   const height = Math.max(...labels.map((l) => l.size)) * 1.5
   const [vertical, horizontal] = spot.split('-') as ['top' | 'bottom', 'left' | 'center' | 'right']
@@ -140,3 +156,18 @@ function paintSpot(
 }
 
 export type DateTimeAddon = AddonOf<'dateTime'>
+
+const widthCache = new Map<string, number>()
+
+/** The width of a label's text, measured once per text and size. */
+function textWidth(ctx: CanvasRenderingContext2D, l: Label): number {
+  const key = `${l.size}|${l.text}`
+  let w = widthCache.get(key)
+  if (w === undefined) {
+    ctx.font = `600 ${l.size}px ${FONT_STACKS.sans}`
+    w = ctx.measureText(l.text).width
+    if (widthCache.size > 200) widthCache.clear()
+    widthCache.set(key, w)
+  }
+  return w
+}
