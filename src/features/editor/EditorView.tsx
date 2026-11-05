@@ -1,4 +1,6 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { AddonsPanel } from './addons/AddonsPanel.tsx'
+import { isOn, useAddonLibrary, useSwitchedOn } from './addons/store.ts'
 import { MAX_STABILIZATION } from '../../engine/input/StrokeSampler.ts'
 import { listenToPencil } from './pencilGestures.ts'
 import { navigate, routeToHash } from '../../app/router.ts'
@@ -145,6 +147,17 @@ function EditorSession({ doc, history, autosave }: Loaded) {
   )
 
   const [insertOpen, setInsertOpen] = useState(false)
+  const [addonsOpen, setAddonsOpen] = useState(false)
+  // The addons that are on in this notebook go to the editor whenever they change.
+  const addonLibrary = useAddonLibrary()
+  const switchedOn = useSwitchedOn(doc.notebook.id)
+  const activeAddons = useMemo(
+    () => addonLibrary.filter((a) => isOn(a, switchedOn)),
+    [addonLibrary, switchedOn],
+  )
+  useEffect(() => {
+    editor?.setAddons(activeAddons)
+  }, [editor, activeAddons])
 
   return (
     <div data-editor="" className="fixed inset-0 flex overflow-hidden bg-desk">
@@ -202,9 +215,19 @@ function EditorSession({ doc, history, autosave }: Loaded) {
             }
             insertOpen={insertOpen}
             onToggleInsert={() => setInsertOpen((open) => !open)}
+            addonsOpen={addonsOpen}
+            addonsOn={activeAddons.length}
+            onToggleAddons={() => setAddonsOpen((open) => !open)}
           />
         ) : null}
       </div>
+      {addonsOpen && editor ? (
+        <AddonsPanel
+          editor={editor}
+          notebookId={doc.notebook.id}
+          onClose={() => setAddonsOpen(false)}
+        />
+      ) : null}
       {studying !== null && editor ? (
         <Study
           deck={doc.notebook}

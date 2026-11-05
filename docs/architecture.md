@@ -421,6 +421,34 @@ The ink pipeline, from pen to storage, each part in its own module:
   so a fling never adds one. The new page's paper is asked for, or every new page gets one
   chosen paper from then on.
 
+## Addons
+
+- Addons are building blocks that change how the workspace behaves. The addons bar (the blocks
+  button in the top right; `features/editor/addons/AddonsPanel.tsx`) sits on the right beside the
+  page: "My addons" lists the person's own addons, each with a switch for this notebook, Edit,
+  and a menu (save a copy as a preset, move, remove); "Browse" offers the kinds Broomit has;
+  - makes a new one of any kind. Every addon has its own name and can be "Always active": then it
+    is on in every notebook without switching it on.
+- Kept on the device (`addons/store.ts`): the library in localStorage (`broomit.addons`), and per
+  notebook which addons were switched on (`broomit.addons.on.<notebook id>`). EditorView hands
+  the addons that are on to `Editor.setAddons`; the engine never reads the library itself.
+- Kinds (`engine/addons/types.ts`):
+  - Date and time: today's date and/or the time, each in one of six places on every page, with
+    date style, color, size and an optional marker band. Page numbers: place, style, the page
+    numbering starts on and its number. Both are drawn over the pages after each frame
+    (`engine/addons/decorations.ts`), never into the page pictures or the notebook, and the time
+    is redrawn every 15 seconds. Exports do not include them yet.
+  - Turn what you add: pages added from other notebooks, pictures and elements (shapes,
+    stickers, tables, charts, extracted objects) are turned by an angle as they are inserted;
+    "Turn this page" turns what is already on the page in view (one undo step).
+  - Draw a command: the person draws a "before" (e.g. two brackets) and an "after" (e.g. a
+    highlighter stroke between them) in two small sheets. When the strokes just drawn on a page
+    (each within 4 s of the next) match the before drawing, they are replaced by the after
+    drawing, stretched to where they were drawn (one undo step). Matching
+    (`engine/addons/gesture.ts`) compares point clouds ($P recognizer): stroke order and
+    direction do not matter, and each axis is stretched on its own, so brackets match however
+    far apart they are drawn. A tolerance setting makes it stricter or looser.
+
 ## Calendar
 
 - The home screen shows today's calendar in a time grid that scrolls through the day

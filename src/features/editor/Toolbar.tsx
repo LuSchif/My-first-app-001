@@ -69,6 +69,9 @@ export function Toolbar({
   onPresent,
   insertOpen,
   onToggleInsert,
+  addonsOpen,
+  addonsOn,
+  onToggleAddons,
 }: {
   editor: Editor
   autosave: Autosave
@@ -80,6 +83,10 @@ export function Toolbar({
   /** The panel of things to add (shapes, tables, stickers, photos, pages) is open. */
   insertOpen: boolean
   onToggleInsert: () => void
+  /** The addons bar is open, and how many addons are on. */
+  addonsOpen: boolean
+  addonsOn: number
+  onToggleAddons: () => void
 }) {
   const state = useSyncExternalStore(
     (fn) => editor.subscribe(fn),
@@ -259,6 +266,20 @@ export function Toolbar({
               )}
             </button>
           ) : null}
+          <button
+            type="button"
+            aria-label={addonsOpen ? 'Close addons' : `Addons, ${addonsOn} on`}
+            aria-expanded={addonsOpen}
+            onClick={onToggleAddons}
+            className={cn(
+              'bicon-host flex h-11 items-center gap-1.5 rounded-control px-3 text-sm font-semibold tabular-nums hover:bg-hover',
+              addonsOpen && 'bg-hover',
+            )}
+            aria-pressed={addonsOpen}
+          >
+            <BroomitIcon name="addons" size={22} />
+            {addonsOn ? <span>{addonsOn}</span> : null}
+          </button>
           <Popover
             open={panel === 'layers'}
             onOpenChange={(open) => setPanel(open ? 'layers' : null)}

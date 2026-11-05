@@ -69,6 +69,10 @@ import { PageCache } from '../render/pageCache.ts'
 import { invalidateTextLayouts, layoutText } from '../render/text.ts'
 import type { EditorContext } from './context.ts'
 import { boundsOf, hitsObject, recolor, transformObject, type Transform } from './selection.ts'
+import { paintPageLabels, showsTime } from '../addons/decorations.ts'
+import { drawingBounds, fitAfter, matchesGesture } from '../addons/gesture.ts'
+import type { Addon, AddonOf } from '../addons/types.ts'
+import { visibleWorld } from '../render/SceneRenderer.ts'
 import {
   applySuggestion,
   around,
@@ -205,6 +209,8 @@ const PREDICT_AHEAD_MS = 10
 const RAW_TIP_UP_TO = 0.5
 /** How quickly the fountain pen's width follows pressure and direction (0 to 1, per point). */
 const WIDTH_EASE = 0.35
+/** Strokes of one drawn command follow each other within this time. */
+const GESTURE_GAP_MS = 4000
 /** After writing, pictures wait this long, so a pause between words is never spent on them. */
 const CACHE_AFTER_INK_MS = 1500
 /** Space kept free above the first page for the floating toolbar. */
@@ -421,6 +427,12 @@ export class Editor {
   private hostRect: DOMRect
   private renderQueued = false
   private paintedByEditor = false
+  /** The addons that are on (see `setAddons`). */
+  private addons: Addon[] = []
+  /** Redraws the page labels while an addon shows the time. */
+  private clockTimer: ReturnType<typeof setInterval> | null = null
+  /** Strokes just drawn, newest last, for addons that react to a drawing of several strokes. */
+  private recentInk: { id: Id; pageId: Id; at: number }[] = []
   /** Pictures of finished pages, for fast panning and zooming (see pageCache.ts). */
   private readonly pageCache = new PageCache()
   private graphOfferAt: { pageId: Id; id: Id } | null = null
@@ -1334,10 +1346,12 @@ export class Editor {
       : this.toPageLocal({ x: this.view.width / 2, y: this.view.height / 2 }, index)
     const cx = Math.min(this.layout.size.width - w / 2, Math.max(w / 2, center.x))
     const cy = Math.min(this.layout.size.height - h / 2, Math.max(h / 2, center.y))
-    const object = make(
-      { x: cx - w / 2, y: cy - h / 2, width: w, height: h, rotation: 0 },
-      layer.id,
-    )
+    const made = make({ x: cx - w / 2, y: cy - h / 2, width: w, height: h, rotation: 0 }, layer.id)
+    // An auto-rotate addon turns what is inserted.
+    const turn = this.insertTurn(made.type === 'image' ? 'pictures' : 'elements')
+    const object = turn
+      ? transformObject(made, { cx, cy, dx: 0, dy: 0, scale: 1, angle: turn })
+      : made
     this.history.execute(setPageObjects('Insert', page.id, page.objects, [...page.objects, object]))
     this.setTool('lasso')
     this.selection.select(page.id, [object.id])
@@ -1412,7 +1426,14 @@ export class Editor {
     const half = { w: (width * scale) / 2, h: (height * scale) / 2 }
     const x = Math.min(this.layout.size.width - half.w, Math.max(half.w, target.x))
     const y = Math.min(this.layout.size.height - half.h, Math.max(half.h, target.y))
-    const t: Transform = { cx, cy, dx: x - cx, dy: y - cy, scale, angle: 0 }
+    const t: Transform = {
+      cx,
+      cy,
+      dx: x - cx,
+      dy: y - cy,
+      scale,
+      angle: this.insertTurn('elements'),
+    }
     const copies = objects.map((o) => ({
       ...transformObject(o, t),
       id: newId(),
@@ -1436,9 +1457,16 @@ export class Editor {
   addPageCopy(source: Page, at = this._state.pageIndex + 1): void {
     const layer = this.activeLayer()
     if (!layer) return
+    const turn = this.insertTurn('pages')
+    const { width, height } = this.layout.size
+    const t: Transform = { cx: width / 2, cy: height / 2, dx: 0, dy: 0, scale: 1, angle: turn }
     const copy = {
       ...createPage(this.doc.notebook.id, source.paper),
-      objects: source.objects.map((o) => ({ ...o, id: newId(), layerId: layer.id })),
+      objects: source.objects.map((o) => ({
+        ...(turn ? transformObject(o, t) : o),
+        id: newId(),
+        layerId: layer.id,
+      })),
       ...(source.background ? { background: source.background } : {}),
     }
     const index = Math.max(0, Math.min(this.doc.notebook.pageIds.length, at))
@@ -1726,6 +1754,7 @@ export class Editor {
 
   dispose(): void {
     this.text.finish()
+    if (this.clockTimer) clearInterval(this.clockTimer)
     if (this.cacheTimer) clearTimeout(this.cacheTimer)
     if (this.noticeTimer) clearTimeout(this.noticeTimer)
     this.cancelLongPress()
@@ -2032,6 +2061,128 @@ export class Editor {
     }
   }
 
+  // ---------- Addons ----------
+
+  /**
+   * The addons that are on right now: page labels (date and time, page numbers) are drawn on
+   * every page, inserted things may be turned, and drawn commands are recognized.
+   */
+  setAddons(addons: readonly Addon[]): void {
+    this.addons = [...addons]
+    if (this.clockTimer) clearInterval(this.clockTimer)
+    this.clockTimer = null
+    if (showsTime(this.addons)) this.clockTimer = setInterval(() => this.requestRender(), 15_000)
+    this.requestRender()
+  }
+
+  private addonsOf<K extends Addon['kind']>(kind: K): AddonOf<K>[] {
+    return this.addons.filter((a): a is AddonOf<K> => a.kind === kind)
+  }
+
+  /** Labels of addons on every visible page, over the pages (never part of them). */
+  private paintAddonLabels(): void {
+    const labelled = this.addons.filter((a) => a.kind === 'dateTime' || a.kind === 'pageNumbers')
+    if (labelled.length === 0) return
+    const pages = this.doc.pageList
+    const world = visibleWorld(this.camera, this.view)
+    const { width, height } = this.layout.size
+    const now = new Date()
+    pages.forEach((_, index) => {
+      if (this.layout.focus !== null && index !== this.layout.focus) return
+      const o = this.layout.origin(index)
+      if (!intersects({ minX: o.x, minY: o.y, maxX: o.x + width, maxY: o.y + height }, world)) {
+        return
+      }
+      this.scene.save()
+      enterPage(this.scene, this.camera, this.view.dpr, index, this.layout)
+      paintPageLabels(this.scene, labelled, index, pages.length, this.layout.size, now)
+      this.scene.restore()
+    })
+  }
+
+  /** The turn (radians, clockwise) an auto-rotate addon gives to what is inserted, or 0. */
+  private insertTurn(what: 'pages' | 'pictures' | 'elements'): number {
+    const addon = this.addonsOf('autoRotate').find((a) => a.settings[what])
+    return addon ? (addon.settings.angle * Math.PI) / 180 : 0
+  }
+
+  /**
+   * Turns everything on the page in view by `degrees` (clockwise) around the middle of the
+   * page, as one step to undo.
+   */
+  rotatePageContents(degrees: number): void {
+    const page = this.doc.pageList[this._state.pageIndex]
+    if (!page || page.objects.length === 0 || this.blockedByLayer()) return
+    const { width, height } = this.layout.size
+    const t: Transform = {
+      cx: width / 2,
+      cy: height / 2,
+      dx: 0,
+      dy: 0,
+      scale: 1,
+      angle: (degrees * Math.PI) / 180,
+    }
+    this.selection.clear()
+    this.history.execute(
+      setPageObjects(
+        'Rotate page',
+        page.id,
+        page.objects,
+        page.objects.map((o) => transformObject(o, t)),
+      ),
+    )
+  }
+
+  /**
+   * Drawn commands: when the strokes just drawn on a page (the newest `stroke` and the ones
+   * before it, drawn in quick succession) look like an addon's `before` drawing, they become
+   * its `after` drawing, fitted to where they were drawn. True when one did.
+   */
+  private runGestures(page: Page, stroke: StrokeObject): boolean {
+    const addons = this.addonsOf('gesture')
+    if (addons.length === 0) return false
+    const now = performance.now()
+    const present = new Set(page.objects.map((o) => o.id))
+    // Earlier strokes of the same drawing: on this page, each within a few seconds of the next.
+    const earlier: StrokeObject[] = []
+    let last = now
+    for (let i = this.recentInk.length - 1; i >= 0; i--) {
+      const r = this.recentInk[i]!
+      if (r.pageId !== page.id || last - r.at > GESTURE_GAP_MS || !present.has(r.id)) break
+      const o = page.objects.find((x) => x.id === r.id)
+      if (o?.type !== 'stroke') break
+      earlier.unshift(o)
+      last = r.at
+    }
+    for (const addon of addons) {
+      const k = addon.settings.before.length
+      if (k === 0 || k - 1 > earlier.length) continue
+      const strokes = [...earlier.slice(earlier.length - (k - 1)), stroke]
+      const drawing = strokes.map((x) => x.points)
+      if (!matchesGesture(drawing, addon.settings)) continue
+      const bounds = drawingBounds(drawing)
+      if (!bounds) continue
+      const made: StrokeObject[] = fitAfter(addon.settings, bounds).map((g) => ({
+        id: newId(),
+        type: 'stroke',
+        layerId: stroke.layerId,
+        tool: g.tool,
+        color: g.color,
+        width: g.width,
+        opacity: g.tool === 'highlighter' ? this._state.highlighter.opacity : 1,
+        points: g.points,
+      }))
+      const used = new Set(strokes.map((x) => x.id))
+      const kept = addon.settings.keepBefore
+        ? [...page.objects, stroke]
+        : page.objects.filter((o) => !used.has(o.id))
+      this.history.execute(setPageObjects(addon.name, page.id, page.objects, [...kept, ...made]))
+      this.recentInk = []
+      return true
+    }
+    return false
+  }
+
   private requestRender(): void {
     if (this.renderQueued) return
     this.renderQueued = true
@@ -2049,6 +2200,7 @@ export class Editor {
         this.layout.focus,
         this.pageCache,
       )
+      this.paintAddonLabels()
       this.scheduleCacheBuild(stale)
     })
   }
@@ -3180,6 +3332,14 @@ export class Editor {
         this.clearTip()
         return
       }
+      // A drawn command of an addon.
+      if (!snapped && this.runGestures(page, stroke)) {
+        this.rememberColor(stroke.color)
+        this.lastInkAt = performance.now()
+        this.clearArea(this.wet, s.wetDirty)
+        this.clearTip()
+        return
+      }
       const layers = this.doc.notebook.layers.filter((l) => l.visible)
       const top = layers[layers.length - 1]
       const onTop = top?.id === stroke.layerId && top.opacity >= 1 && !top.clip
@@ -3192,6 +3352,8 @@ export class Editor {
       }
       this.paintedByEditor = onTop
       this.history.execute(setPageObjects('Draw', page.id, page.objects, [...page.objects, stroke]))
+      this.recentInk.push({ id: stroke.id, pageId: page.id, at: performance.now() })
+      if (this.recentInk.length > 12) this.recentInk.shift()
       this.rememberColor(stroke.color)
       this.paintedByEditor = false
       this.lastInkAt = performance.now()
