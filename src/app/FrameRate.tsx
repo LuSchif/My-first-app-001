@@ -22,10 +22,22 @@ export function FrameRate() {
     let lastPen = 0
     let penHz = 0
     let coalesced = true
+    let distinct = 0
+    let distinctHz = 0
+    let px = NaN
+    let py = NaN
     const onMove = (e: PointerEvent) => {
       if (e.pointerType !== 'pen' || e.buttons === 0) return
       coalesced = typeof e.getCoalescedEvents === 'function'
-      const count = coalesced ? Math.max(1, e.getCoalescedEvents().length) : 1
+      const list = coalesced ? e.getCoalescedEvents() : []
+      const all = list.length ? list : [e]
+      const count = all.length
+      // Samples at a new position: a browser may repeat positions, which add nothing to follow.
+      for (const s of all) {
+        if (s.clientX !== px || s.clientY !== py) distinct++
+        px = s.clientX
+        py = s.clientY
+      }
       // The first event of a second only starts the clock; later ones count their samples.
       if (samples === 0) {
         firstPen = e.timeStamp
@@ -43,11 +55,16 @@ export function FrameRate() {
       if (now - start >= 1000) {
         const fps = Math.round((frames * 1000) / (now - start))
         // Written directly: a React update every second would itself cost a frame.
-        if (samples > 1 && lastPen - firstPen > 100)
+        if (samples > 1 && lastPen - firstPen > 100) {
           penHz = Math.round(((samples - 1) * 1000) / (lastPen - firstPen))
+          distinctHz = Math.round((distinct * 1000) / (lastPen - firstPen))
+        }
         samples = 0
+        distinct = 0
         if (label.current) {
-          const pen = penHz ? ` · pen ${penHz} Hz${coalesced ? '' : ' (no coalesced)'}` : ''
+          const pen = penHz
+            ? ` · pen ${penHz} Hz, ${distinctHz} new${coalesced ? '' : ' (no coalesced)'}`
+            : ''
           label.current.textContent = `${fps} fps · slowest ${Math.round(worst)} ms${pen}`
           label.current.dataset.state = fps >= 55 ? 'good' : fps >= 40 ? 'fair' : 'poor'
         }

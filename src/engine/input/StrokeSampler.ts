@@ -100,6 +100,12 @@ export class StrokeSampler {
       this.filtered++
       return false
     }
+    // A repeat of the last position (Safari sends many) is no movement: fed to the filter it
+    // would read as the pen stopping and starting, and the line would go in straight jumps.
+    if (this.tip && x === this.tip.x && y === this.tip.y) {
+      this.filtered++
+      return false
+    }
     // Some browsers give all samples of one frame the same time stamp; space those evenly.
     const t =
       timeStamp > this.lastStamp
