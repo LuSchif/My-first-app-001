@@ -280,7 +280,7 @@ function AddonRow({
       </div>
       <div className="flex items-center gap-1">
         {addon.always ? (
-          <span className="rounded-full bg-accent/20 px-2 py-0.5 text-xs font-semibold">
+          <span className="rounded-full bg-accent/20 px-2 py-0.5 text-xs font-semibold whitespace-nowrap">
             {on ? 'Always active' : 'Always active · off here'}
           </span>
         ) : null}

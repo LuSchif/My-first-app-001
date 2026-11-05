@@ -47,6 +47,17 @@ export function gestureDistance(drawing: Drawing, template: Drawing): number {
 /** Whether `drawing` matches the addon's `before` drawing. */
 export function matchesGesture(drawing: Drawing, settings: GestureSettings): boolean {
   if (settings.before.length === 0 || settings.after.length === 0) return false
+  // One stroke has no spacing that may vary (unlike a pair of brackets): its proportions must
+  // fit too, or every loop would look like every other loop once stretched to a square.
+  if (
+    drawing.length === 1 &&
+    !similarShape(
+      drawing,
+      settings.before.map((s) => s.points),
+    )
+  ) {
+    return false
+  }
   const t = Math.min(1, Math.max(0, settings.tolerance))
   const limit = THRESHOLD[0] + (THRESHOLD[1] - THRESHOLD[0]) * t
   return (
@@ -55,6 +66,16 @@ export function matchesGesture(drawing: Drawing, settings: GestureSettings): boo
       settings.before.map((s) => s.points),
     ) <= limit
   )
+}
+
+/** Whether two drawings have about the same proportions (width to height). */
+function similarShape(a: Drawing, b: Drawing): boolean {
+  const ra = drawingBounds(a)
+  const rb = drawingBounds(b)
+  if (!ra || !rb) return false
+  const aspect = (r: Rect) => (r.maxX - r.minX + 1) / (r.maxY - r.minY + 1)
+  const k = aspect(ra) / aspect(rb)
+  return k < 1.8 && k > 1 / 1.8
 }
 
 /**

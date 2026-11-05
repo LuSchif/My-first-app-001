@@ -3,6 +3,7 @@ import type { Rect } from '../geometry/rect.ts'
 import type { LayerDef, Page } from '../model/types.ts'
 import type { PageLayout } from './layout.ts'
 import { paintLayers } from './layers.ts'
+import { paintObject } from './objects.ts'
 import { drawPaper, PAPER_STYLE } from './paper.ts'
 
 /**
@@ -214,6 +215,8 @@ export class PageCache {
     background: string | undefined,
   ): Entry | null {
     const entry = this.entries.get(page.id)
+    // Something just drawn on top: painted into the pictures, which stay sharp.
+    if (entry && entry.objects !== page.objects) appendTo(entry, page, layers)
     if (
       !entry ||
       entry.objects !== page.objects ||
@@ -226,6 +229,47 @@ export class PageCache {
     }
     return entry
   }
+}
+
+/**
+ * When the only change to a page is objects added at the end, on the topmost layer (shown in
+ * full, no clipping), and none of them is a highlighter (those go under the ink), paints them
+ * into the entry's pictures and marks the entry current: a stroke just written then costs one
+ * stroke, not a redraw of the whole page.
+ */
+function appendTo(entry: Entry, page: Page, layers: readonly LayerDef[]): void {
+  const before = entry.objects
+  const after = page.objects
+  if (
+    after.length <= before.length ||
+    entry.layers !== layers ||
+    entry.paper !== page.paper ||
+    entry.pageBackground !== page.background ||
+    !entry.base
+  ) {
+    return
+  }
+  for (let i = 0; i < before.length; i++) if (before[i] !== after[i]) return
+  const top = layers[layers.length - 1]
+  if (!top || !top.visible || top.opacity < 1 || top.clip) return
+  const added = after.slice(before.length)
+  for (const o of added) {
+    if (o.layerId !== top.id) return
+    if (o.type === 'stroke' && o.tool === 'highlighter') return
+  }
+  for (const picture of [entry.base, entry.sharp]) {
+    if (!picture) continue
+    const ctx = picture.canvas.getContext('2d')!
+    ctx.save()
+    const { scale, area, fx, fy } = picture
+    ctx.setTransform(scale, 0, 0, scale, fx - area.minX * scale, fy - area.minY * scale)
+    ctx.beginPath()
+    ctx.rect(area.minX, area.minY, area.maxX - area.minX, area.maxY - area.minY)
+    ctx.clip()
+    for (const o of added) paintObject(ctx, o)
+    ctx.restore()
+  }
+  entry.objects = after
 }
 
 /** Gives a picture's memory back right away (WebKit keeps it until collected otherwise). */

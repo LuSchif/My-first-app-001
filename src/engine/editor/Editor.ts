@@ -3373,8 +3373,8 @@ export class Editor {
       this.rememberColor(stroke.color)
       this.paintedByEditor = false
       this.lastInkAt = performance.now()
-      // The page's picture no longer matches; a new one is made in the next pause.
-      if (onTop) this.scheduleCacheBuild([s.pageIndex], CACHE_AFTER_INK_MS)
+      // The page's pictures take the stroke as it is (see pageCache.ts); where they cannot, the
+      // next frame finds the page stale and new pictures are made in the next pause.
       // A line made perfectly straight can still complete a table.
       if (this._state.features.suggestions)
         this.scheduleSuggestion(page.id, stroke, Boolean(snapped))

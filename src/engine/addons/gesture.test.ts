@@ -66,3 +66,24 @@ describe('gestures', () => {
     expect(mark!.width).toBeCloseTo(30 * (30 / 40), 0)
   })
 })
+
+describe('one-stroke commands', () => {
+  it('need the same proportions, not just the same kind of curve', () => {
+    const loop = (w: number, h: number) => {
+      const out: number[] = []
+      for (let i = 0; i <= 30; i++) {
+        const a = (i / 30) * Math.PI * 2
+        out.push(Math.cos(a) * w, Math.sin(a) * h)
+      }
+      return out
+    }
+    const s: GestureSettings = {
+      before: [{ tool: 'pen', color: '#000', width: 2, points: loop(40, 40) }],
+      after: [{ tool: 'pen', color: '#000', width: 2, points: [0, 0, 1, 1] }],
+      keepBefore: false,
+      tolerance: 0.5,
+    }
+    expect(matchesGesture([loop(60, 55)], s)).toBe(true)
+    expect(matchesGesture([loop(120, 20)], s)).toBe(false)
+  })
+})
