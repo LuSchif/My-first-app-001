@@ -208,7 +208,8 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
     The menu always has the same width, whatever the kind or tool, so the dock never jumps. It
     holds the kind's tools (tapping the tool in use opens its settings, as + does: for pens
     stabilization and opacity), three line widths (tapping the width in use opens the stroke's
-    settings: size, line style, for the fountain pen pressure), and three colors with + for any
+    settings: size, line style, for the fountain pen pressure; one menu for the three widths,
+    anchored to them, so it stays open while the size changes), and three colors with + for any
     color. Colors can be dragged onto ink, text or paper. Icons have white lines; a tool in use
     is filled, a pen or highlighter in its own ink color, so it shows the color chosen.
   - The dock, the recent colors bar (eyedropper and the five colors used last, on the right)
@@ -274,8 +275,9 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
 - Colors (`tokens.css`): deep blue-grey surfaces, light text, and blue (#4f8ef7) as the accent
   for what is chosen, active or primary (`bg-accent text-on-accent`). Pages stay white paper.
   The theme presets and design packs in Appearance still override this.
-- Outside the editor the background drifts slowly through grey-blue (an animated gradient,
-  `index.css`), and panels, cards, popovers and dialogs are frosted glass, so it shows through.
+- Outside the editor the background drifts slowly: soft blue glows over deep blue-grey (an
+  animated gradient, `index.css`). Panels and cards are clearly see-through frosted glass (about
+  60 % of the background shows through), popovers and dialogs less so, to stay readable.
 
 ## Colors
 

@@ -11,7 +11,13 @@ export {
 } from './components/Dialog.tsx'
 export { Fold } from './components/Fold.tsx'
 export { IconButton } from './components/IconButton.tsx'
-export { Popover, PopoverClose, PopoverContent, PopoverTrigger } from './components/Popover.tsx'
+export {
+  Popover,
+  PopoverAnchor,
+  PopoverClose,
+  PopoverContent,
+  PopoverTrigger,
+} from './components/Popover.tsx'
 export { PopoverSideContext, useClosePopover } from './components/popoverContext.ts'
 export { Slider } from './components/Slider.tsx'
 export { SwatchGrid } from './components/SwatchGrid.tsx'

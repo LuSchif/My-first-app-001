@@ -34,7 +34,7 @@ export function Slider({
         <span className="text-ink-muted tabular-nums">{format ? format(value) : value}</span>
       </div>
       <RadixSlider.Root
-        className="relative flex h-8 touch-none items-center select-none"
+        className="relative flex h-10 touch-none items-center select-none"
         value={[value]}
         min={min}
         max={max}
@@ -44,11 +44,11 @@ export function Slider({
         aria-labelledby={id}
       >
         <RadixSlider.Track className="relative h-1.5 grow rounded-full bg-surface-sunken">
-          <RadixSlider.Range className="absolute h-full rounded-full bg-mocha" />
+          <RadixSlider.Range className="absolute h-full rounded-full bg-accent" />
         </RadixSlider.Track>
         <RadixSlider.Thumb
           aria-labelledby={id}
-          className="block size-6 rounded-full bg-surface-raised shadow-raised ring-1 ring-line-strong transition-transform duration-150 ease-gentle active:scale-110"
+          className="block size-7 rounded-full bg-white shadow-raised ring-1 ring-line-strong transition-[scale] duration-150 ease-gentle will-change-transform active:scale-110"
         />
       </RadixSlider.Root>
     </div>

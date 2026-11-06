@@ -5,6 +5,7 @@ import {
   ColorPicker,
   Popover,
   PopoverContent,
+  PopoverAnchor,
   PopoverTrigger,
   Slider,
 } from '../../design/index.ts'
@@ -88,6 +89,7 @@ function DockBody({ editor, state }: { editor: Editor; state: EditorState }) {
   }, [kind, state.tool])
   // Folded away to the four kinds until one is tapped.
   const [open, setOpen] = useState(false)
+  const [strokeOpen, setStrokeOpen] = useState(false)
   const { features } = state
 
   const writeTools: {
@@ -332,16 +334,31 @@ function DockBody({ editor, state }: { editor: Editor; state: EditorState }) {
             {widths ? (
               <>
                 <Divider />
-                {widths.map((w, i) => (
-                  <WidthButton
-                    key={w}
-                    index={i}
-                    width={w}
-                    on={Math.abs(width - w) < 0.01}
-                    onClick={() => setWidth(editor, state.tool, w)}
-                    settings={strokeSettingsFor(state.tool, editor, state)}
-                  />
-                ))}
+                {/* One stroke menu for the three widths: it stays open while the size changes. */}
+                <Popover open={strokeOpen} onOpenChange={setStrokeOpen}>
+                  <PopoverAnchor asChild>
+                    <div className={cn('flex items-center gap-1', vertical && 'flex-col')}>
+                      {widths.map((w, i) => {
+                        const on = Math.abs(width - w) < 0.01
+                        return (
+                          <WidthButton
+                            key={w}
+                            index={i}
+                            width={w}
+                            on={on}
+                            onClick={() => {
+                              if (on) setStrokeOpen(true)
+                              else setWidth(editor, state.tool, w)
+                            }}
+                          />
+                        )
+                      })}
+                    </div>
+                  </PopoverAnchor>
+                  <PopoverContent className="grid w-80 gap-5">
+                    {strokeSettingsFor(state.tool, editor, state)}
+                  </PopoverContent>
+                </Popover>
               </>
             ) : null}
             {hasColors ? (
@@ -428,8 +445,9 @@ function strokeSettingsFor(tool: ToolId, editor: Editor, state: EditorState): Re
         value={state.highlighter.width}
         min={4}
         max={40}
+        step={0.5}
         onChange={(width) => editor.setHighlighter({ width })}
-        format={(v) => `${v} pt`}
+        format={(v) => `${Math.round(v * 10) / 10} pt`}
       />
     )
   }
@@ -440,8 +458,9 @@ function strokeSettingsFor(tool: ToolId, editor: Editor, state: EditorState): Re
         value={state.broom.size}
         min={4}
         max={80}
+        step={0.5}
         onChange={(size) => editor.setBroom({ size })}
-        format={(v) => `${v} pt`}
+        format={(v) => `${Math.round(v * 10) / 10} pt`}
       />
     )
   }
@@ -518,43 +537,28 @@ function DockButton({
   )
 }
 
-/** A line width: the first tap takes it; tapping the width in use opens the stroke's settings. */
+/** A line width: the first tap takes it; tapping the width in use opens the stroke menu. */
 function WidthButton({
   index,
   width,
   on,
   onClick,
-  settings,
 }: {
   index: number
   width: number
   on: boolean
   onClick: () => void
-  settings: ReactNode
 }) {
-  const [open, setOpen] = useState(false)
-  const button = (
+  return (
     <button
       type="button"
       aria-label={`${['Thin', 'Medium', 'Thick'][index]} (${width} pt)`}
       aria-pressed={on}
-      onClick={(e) => {
-        if (on && settings) return
-        e.preventDefault()
-        setOpen(false)
-        onClick()
-      }}
+      onClick={onClick}
       className="grid size-10 shrink-0 place-items-center rounded-full hover:bg-hover aria-pressed:ring-2 aria-pressed:ring-selected"
     >
       <span className="block w-5 rounded-full bg-ink" style={{ height: `${2 + index * 2.5}px` }} />
     </button>
-  )
-  if (!settings) return button
-  return (
-    <Popover open={on && open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>{button}</PopoverTrigger>
-      <PopoverContent className="grid w-80 gap-5">{settings}</PopoverContent>
-    </Popover>
   )
 }
 

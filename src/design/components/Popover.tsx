@@ -15,6 +15,8 @@ import { CloseContext, PopoverSideContext, useClosePopover } from './popoverCont
 
 export const PopoverTrigger = RadixPopover.Trigger
 export const PopoverClose = RadixPopover.Close
+/** Something other than the trigger the menu opens next to. */
+export const PopoverAnchor = RadixPopover.Anchor
 
 /** A popover that can be closed from inside (`useClosePopover`); controlled or not. */
 export function Popover({

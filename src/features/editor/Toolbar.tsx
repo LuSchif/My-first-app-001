@@ -523,11 +523,11 @@ export function StrokeSettings({ editor, state }: { editor: Editor; state: Edito
       <Slider
         label="Size"
         value={pen.width}
-        min={0.5}
-        max={10}
-        step={0.5}
-        onChange={(width) => editor.setPen({ width })}
-        format={(v) => `${v} pt`}
+        min={0.3}
+        max={12}
+        step={0.05}
+        onChange={(width) => editor.setPen({ width: Math.round(width * 100) / 100 })}
+        format={(v) => `${v.toFixed(1)} pt`}
       />
       {pen.nib === 'fountain' ? (
         <Slider

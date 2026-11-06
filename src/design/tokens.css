@@ -83,7 +83,7 @@
   --animate-slide-in-right: slide-in-right 260ms var(--ease-gentle);
   --animate-slide-out-right: slide-out-right 200ms ease-in both;
   /* The library's background: a slow drift of grey-blue. */
-  --animate-backdrop-drift: backdrop-drift 28s ease-in-out infinite alternate;
+  --animate-backdrop-drift: backdrop-drift 24s ease-in-out infinite alternate;
   /* Notebooks sliding out of an opened folder. */
   --animate-slide-out: slide-out 420ms var(--ease-gentle) both;
   /* Pages coming out of an opened notebook, to its right. */
@@ -134,10 +134,13 @@
   }
   @keyframes backdrop-drift {
     from {
-      background-position: 0% 30%;
+      background-position: 0% 0%;
+    }
+    50% {
+      background-position: 100% 40%;
     }
     to {
-      background-position: 100% 70%;
+      background-position: 30% 100%;
     }
   }
   @keyframes fade-in {
