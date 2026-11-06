@@ -163,3 +163,14 @@ body::before {
   --bi-accent: var(--color-icon-accent);
   --bi-accent-line: var(--color-icon-accent);
 }
+
+/*
+ * Frosted glass for the editor's bars (tool dock, corner buttons, the bar top right, the page
+ * navigator): a little of the page and its colors shows through. Only these few small bars, so
+ * the blur stays cheap while drawing and zooming.
+ */
+.glass {
+  background-color: color-mix(in srgb, var(--color-surface-raised) 76%, transparent);
+  -webkit-backdrop-filter: blur(16px) saturate(1.25);
+  backdrop-filter: blur(16px) saturate(1.25);
+}

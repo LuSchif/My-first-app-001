@@ -215,6 +215,9 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
   - The tool wheel (`ToolWheel.tsx`) only opens with the Apple Pencil Pro's squeeze; holding
     still on the page no longer opens it (`LONG_PRESS_WHEEL` in Editor.ts).
   - The eraser shows a blue ring as wide as what it erases; the laser pointer a glowing dot.
+  - The bars over the page (dock, corner buttons, the bar top right, page navigator, selection
+    and path menus, format bar) are frosted glass (`.glass` in index.css): slightly see-through
+    with a blur, so the page and its colors show a little.
 - The selection bar shows delete, duplicate, copy, scale (and editing a table, chart, graph or
   text); everything else (cut, mirroring, color, outline, layer, rows, chart, animate) is in the
   menu behind the three dots (`SelectionMenu.tsx`).

@@ -240,7 +240,7 @@ export function FloatingPanel({
         {...rest}
         style={{ ...style, maxHeight: vertical ? bottom - CORNER_ROW - EDGE : undefined }}
         className={cn(
-          'pointer-events-auto fixed z-20 flex items-center gap-1 rounded-panel bg-surface-raised p-1.5 shadow-raised',
+          'pointer-events-auto fixed z-20 flex items-center gap-1 rounded-panel glass p-1.5 shadow-raised ring-1 ring-line',
           vertical ? 'flex-col overflow-y-auto' : 'flex-row',
           drag && 'opacity-90 shadow-overlay',
           className,

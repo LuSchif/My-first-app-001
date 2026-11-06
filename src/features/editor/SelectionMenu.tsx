@@ -145,7 +145,7 @@ export function SelectionMenu({ editor, state }: { editor: Editor; state: Editor
       ref={ref}
       role="toolbar"
       aria-label={`${sel.count} selected`}
-      className="absolute z-10 flex w-max max-w-[calc(100%-24px)] -translate-x-1/2 items-center gap-0.5 rounded-panel bg-surface-raised ring-1 ring-line p-1 text-ink shadow-overlay"
+      className="absolute z-10 flex w-max max-w-[calc(100%-24px)] -translate-x-1/2 items-center gap-0.5 rounded-panel glass ring-1 ring-line p-1 text-ink shadow-overlay"
       style={{ top, left }}
     >
       {primary.map((item) => (
@@ -162,7 +162,7 @@ export function SelectionMenu({ editor, state }: { editor: Editor; state: Editor
               role="menu"
               aria-label="More actions"
               className={cn(
-                'absolute right-0 grid min-w-56 animate-pop-in gap-0.5 rounded-panel bg-surface-raised ring-1 ring-line p-1 shadow-overlay [&_button]:w-full [&_button]:justify-start',
+                'absolute right-0 grid min-w-56 animate-pop-in gap-0.5 rounded-panel glass ring-1 ring-line p-1 shadow-overlay [&_button]:w-full [&_button]:justify-start',
                 menuUp ? 'bottom-full mb-2' : 'top-full mt-2',
               )}
             >

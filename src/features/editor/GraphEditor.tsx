@@ -182,7 +182,7 @@ export function GraphOfferChip({ editor, state }: { editor: Editor; state: Edito
     <>
       {offer && graph && !state.selection ? (
         <div
-          className="absolute z-10 flex w-max -translate-x-1/2 animate-pop-in items-center gap-0.5 rounded-panel bg-surface-raised ring-1 ring-line p-1 text-ink shadow-overlay"
+          className="absolute z-10 flex w-max -translate-x-1/2 animate-pop-in items-center gap-0.5 rounded-panel glass ring-1 ring-line p-1 text-ink shadow-overlay"
           style={{
             top:
               offer.rect.y - CHIP_HEIGHT - GAP > 72

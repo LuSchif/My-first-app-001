@@ -187,7 +187,7 @@ export function ToolDock({ editor, state }: { editor: Editor; state: EditorState
     <div
       role="toolbar"
       aria-label="Tools"
-      className="pointer-events-auto grid max-w-[calc(100vw-24px)] justify-items-center gap-1 rounded-panel bg-surface-raised px-2 pt-1.5 pb-2 shadow-raised ring-1 ring-line"
+      className="pointer-events-auto grid max-w-[calc(100vw-24px)] justify-items-center gap-1 rounded-panel glass px-2 pt-1.5 pb-2 shadow-raised ring-1 ring-line"
     >
       <div className="flex w-full items-center justify-around gap-1 px-2">
         {KINDS.map((k) => (

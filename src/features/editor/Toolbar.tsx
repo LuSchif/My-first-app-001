@@ -163,7 +163,7 @@ export function Toolbar({
 
         <div
           ref={rightCorner}
-          className="pointer-events-auto ml-auto flex items-center gap-0.5 rounded-panel bg-surface-raised p-1.5 shadow-raised ring-1 ring-line"
+          className="pointer-events-auto ml-auto flex items-center gap-0.5 rounded-panel glass p-1.5 shadow-raised ring-1 ring-line"
         >
           <SaveProblem autosave={autosave} />
           <IconButton
@@ -730,7 +730,7 @@ function CornerButton({
       aria-label={label}
       aria-pressed={active}
       onClick={onClick}
-      className="bicon-host grid size-14 place-items-center rounded-panel bg-surface-raised text-ink shadow-raised ring-1 ring-line hover:bg-hover aria-pressed:bg-pressed"
+      className="bicon-host grid size-14 place-items-center rounded-panel glass text-ink shadow-raised ring-1 ring-line hover:bg-hover aria-pressed:bg-pressed"
     >
       {children}
     </button>
@@ -743,7 +743,7 @@ function PageNavigator({ editor, state }: { editor: Editor; state: EditorState }
   return (
     <nav
       aria-label="Pages"
-      className="pointer-events-auto absolute right-[max(12px,env(safe-area-inset-right))] bottom-[calc(16px+env(safe-area-inset-bottom))] z-10 grid w-16 justify-items-center rounded-panel bg-surface-raised py-1 shadow-raised ring-1 ring-line"
+      className="pointer-events-auto absolute right-[max(12px,env(safe-area-inset-right))] bottom-[calc(16px+env(safe-area-inset-bottom))] z-10 grid w-16 justify-items-center rounded-panel glass py-1 shadow-raised ring-1 ring-line"
     >
       <button
         type="button"
