@@ -216,7 +216,7 @@ const GESTURE_GAP_MS = 4000
 /** After writing, pictures wait this long, so a pause between words is never spent on them. */
 const CACHE_AFTER_INK_MS = 1500
 /** Space kept free above the first page for the floating toolbar. */
-const TOP_INSET = 144
+const TOP_INSET = 100
 const SIDE_MARGIN = 24
 /** Room around a slide in a presentation. */
 const SLIDE_MARGIN = 32

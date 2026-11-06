@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Plus } from '../../design/icons/icons.tsx'
 import {
   BroomitIcon,
@@ -10,6 +10,8 @@ import {
 import type { GlyphName } from '../../design/icons/glyphs.tsx'
 import type { Editor, EditorState, ToolId } from '../../engine/editor/Editor.ts'
 import { cn } from '../../lib/cn.ts'
+import { FloatingPanel, PanelDivider } from './FloatingPanel.tsx'
+import { VerticalContext } from './panelLayout.ts'
 import {
   BroomSettings,
   HighlighterSettings,
@@ -62,6 +64,15 @@ const STARTER_COLORS: Partial<Record<ToolId, readonly string[]>> = {
 }
 
 export function ToolDock({ editor, state }: { editor: Editor; state: EditorState }) {
+  return (
+    <FloatingPanel id="dock" label="Tools" defaultDock="top" order={0}>
+      <DockBody editor={editor} state={state} />
+    </FloatingPanel>
+  )
+}
+
+function DockBody({ editor, state }: { editor: Editor; state: EditorState }) {
+  const vertical = useContext(VerticalContext)
   const kind = kindOf(state.tool)
   // The tool last used of each kind, so going back to a kind picks it up again.
   const last = useRef<Record<Kind, ToolId>>({
@@ -184,12 +195,13 @@ export function ToolDock({ editor, state }: { editor: Editor; state: EditorState
   const hasColors = Boolean(STARTER_COLORS[colorTool])
 
   return (
-    <div
-      role="toolbar"
-      aria-label="Tools"
-      className="pointer-events-auto grid max-w-[calc(100vw-24px)] justify-items-center gap-1 rounded-panel glass px-2 pt-1.5 pb-2 shadow-raised ring-1 ring-line"
-    >
-      <div className="flex w-full items-center justify-around gap-1 px-2">
+    <DockRows>
+      <div
+        className={cn(
+          'flex items-center justify-around gap-1',
+          vertical ? 'flex-col py-1' : 'w-full px-2',
+        )}
+      >
         {KINDS.map((k) => (
           <button
             key={k.kind}
@@ -203,11 +215,24 @@ export function ToolDock({ editor, state }: { editor: Editor; state: EditorState
           </button>
         ))}
       </div>
-      <div className="h-px w-[calc(100%-16px)] bg-line" />
-      <div className="flex max-w-full items-center gap-1 overflow-x-auto px-1">
+      <div
+        className={cn(
+          'shrink-0 bg-line',
+          vertical ? 'w-px self-stretch' : 'h-px w-[calc(100%-16px)]',
+        )}
+      />
+      <div
+        className={cn('flex items-center gap-1', vertical ? 'flex-col py-1' : 'max-w-full px-1')}
+      >
         {kind === 'write'
           ? writeTools.map((t) => (
-              <DockButton key={t.id} label={t.label} on={t.on} onClick={t.pick}>
+              <DockButton
+                key={t.id}
+                label={t.label}
+                on={t.on}
+                onClick={t.pick}
+                settings={t.on ? settings : undefined}
+              >
                 {t.icon}
               </DockButton>
             ))
@@ -234,6 +259,7 @@ export function ToolDock({ editor, state }: { editor: Editor; state: EditorState
                   key={`${t.tool}-${t.lasso ?? ''}`}
                   label={t.label}
                   on={on}
+                  settings={on ? settings : undefined}
                   onClick={() => {
                     if (t.lasso) editor.setLassoMode(t.lasso)
                     editor.setTool(t.tool)
@@ -274,6 +300,21 @@ export function ToolDock({ editor, state }: { editor: Editor; state: EditorState
           </>
         ) : null}
       </div>
+    </DockRows>
+  )
+}
+
+/** The dock's two rows; side by side as columns when the dock stands at the left or right. */
+function DockRows({ children }: { children: ReactNode }) {
+  const vertical = useContext(VerticalContext)
+  return (
+    <div
+      className={cn(
+        'flex items-center gap-1',
+        vertical ? 'flex-row items-start' : 'flex-col pt-0.5 pb-1',
+      )}
+    >
+      {children}
     </div>
   )
 }
@@ -348,28 +389,49 @@ function currentColor(state: EditorState): string {
   return state.pen.color
 }
 
+/**
+ * A tool in the dock. The first tap takes the tool; tapping the tool in use again opens its
+ * settings (as + does).
+ */
 function DockButton({
   label,
   on,
   onClick,
+  settings,
   children,
 }: {
   label: string
   on: boolean
   onClick: () => void
+  settings?: ReactNode
   children: ReactNode
 }) {
-  return (
+  const [open, setOpen] = useState(false)
+  const button = (
     <button
       type="button"
       aria-label={label}
       title={label}
       aria-pressed={on}
-      onClick={onClick}
+      onClick={(e) => {
+        if (on && settings) return
+        e.preventDefault()
+        setOpen(false)
+        onClick()
+      }}
       className="bicon-host grid size-11 shrink-0 place-items-center rounded-control text-ink-muted hover:bg-hover aria-pressed:bg-pressed aria-pressed:text-ink"
     >
       {children}
     </button>
+  )
+  if (!settings) return button
+  return (
+    <Popover open={on && open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>{button}</PopoverTrigger>
+      <PopoverContent className="grid max-h-[min(40rem,calc(100dvh-8rem))] w-80 gap-5 overflow-y-auto">
+        {settings}
+      </PopoverContent>
+    </Popover>
   )
 }
 
@@ -386,9 +448,7 @@ function DockText({ label, on, onClick }: { label: string; on: boolean; onClick:
   )
 }
 
-function Divider() {
-  return <span aria-hidden="true" className="mx-1 h-7 w-px shrink-0 bg-line" />
-}
+const Divider = PanelDivider
 
 /** + for the rest of a tool's settings. */
 function MoreButton({ label, children }: { label: string; children: ReactNode }) {

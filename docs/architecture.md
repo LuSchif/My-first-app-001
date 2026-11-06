@@ -197,27 +197,30 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
 
 ## Workspace
 
-- Broome's editor (since version 40; the earlier tool bar, mini tool bar, recent colors bar and
-  long-press tool wheel are gone):
+- Broome's editor (since version 40; the earlier mini tool bar and the long-press tool wheel
+  are gone):
   - Top left: two square buttons of their own, back and the insert panel (shapes, stickers and
     more). Top right, one bar: undo, redo | addons, layers, pages, control center (and Present
-    or Study for slides and cards). Bottom right: the page navigator (previous, "n / N", next).
-  - Top middle, the tool dock (`ToolDock.tsx`), two rows. The first chooses a kind: write
-    (ballpoint, fountain pen, highlighter, magic pen), eraser, tools (lasso, rectangle
-    selection, magnifier, anchor tool, laser pointer, tape, color picker) and text. The second
-    shows what that kind offers: its tools, + for the rest of the tool's settings (the same
-    settings as before), three line widths, and three colors (the last used in the notebook, or
-    a few to start with) with + for any color. Colors can still be dragged onto ink, text or
-    paper to color them. Each kind remembers the tool last used in it.
+    or Study for slides and cards).
+  - The tool dock (`ToolDock.tsx`), centered at the top by default, two rows. The first chooses
+    a kind: write (ballpoint, fountain pen, highlighter, magic pen), eraser, tools (lasso,
+    rectangle selection, magnifier, anchor tool, laser pointer, tape, color picker) and text.
+    The second shows what that kind offers: its tools (tapping the tool in use again opens its
+    settings, as + does), three line widths, and three colors with + for any color. Colors can
+    be dragged onto ink, text or paper. Each kind remembers the tool last used in it.
+  - The dock, the recent colors bar (eyedropper and the five colors used last, on the right)
+    and the format bar while typing can be dragged by their grip anywhere, or dropped near an
+    edge to snap to its middle; at the left and right they stand upright (the dock's two rows
+    become two columns). Positions are remembered per device (`FloatingPanel.tsx`,
+    `panelLayout.ts`).
   - The notebook's name is shown at the top left of each page, over the paper (never part of
     it, not in exports).
-  - The format bar while typing can still be dragged by its grip (`FloatingPanel.tsx`).
   - The tool wheel (`ToolWheel.tsx`) only opens with the Apple Pencil Pro's squeeze; holding
     still on the page no longer opens it (`LONG_PRESS_WHEEL` in Editor.ts).
   - The eraser shows a blue ring as wide as what it erases; the laser pointer a glowing dot.
-  - The bars over the page (dock, corner buttons, the bar top right, page navigator, selection
-    and path menus, format bar) are frosted glass (`.glass` in index.css): slightly see-through
-    with a blur, so the page and its colors show a little.
+  - The bars over the page are frosted glass (`.glass` in index.css): see-through by about a
+    third, with a blur, so the page and its colors show a little; the first page starts just
+    under the dock so it shows there.
 - The selection bar shows delete, duplicate, copy, scale (and editing a table, chart, graph or
   text); everything else (cut, mirroring, color, outline, layer, rows, chart, animate) is in the
   menu behind the three dots (`SelectionMenu.tsx`).

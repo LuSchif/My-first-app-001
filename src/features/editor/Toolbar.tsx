@@ -2,8 +2,6 @@ import { MAX_STABILIZATION } from '../../engine/input/StrokeSampler.ts'
 import {
   Check,
   ArrowLeft,
-  ChevronDown,
-  ChevronUp,
   CloudAlert,
   EyeOff,
   Lock,
@@ -51,6 +49,7 @@ import { PenPreview } from './PenPreview.tsx'
 import { PasteButton, SelectionMenu } from './SelectionMenu.tsx'
 import { ToolWheel } from './ToolWheel.tsx'
 import { ToolDock } from './ToolDock.tsx'
+import { RecentColors } from './RecentColors.tsx'
 import { SuggestionChip } from './SuggestionChip.tsx'
 import { GraphOfferChip } from './GraphEditor.tsx'
 import { TextFormatControls } from './TextFormatControls.tsx'
@@ -273,7 +272,7 @@ export function Toolbar({
       {state.editingText ? <FormatBar editor={editor} state={state} /> : null}
       <SelectionMenu editor={editor} state={state} />
       <PathMenu editor={editor} state={state} />
-      <PageNavigator editor={editor} state={state} />
+      <RecentColors editor={editor} state={state} />
       <SuggestionChip editor={editor} state={state} />
       <GraphOfferChip editor={editor} state={state} />
       <InspectCard editor={editor} state={state} />
@@ -734,38 +733,5 @@ function CornerButton({
     >
       {children}
     </button>
-  )
-}
-
-/** Bottom right: the page in view, with the pages before and after it. */
-function PageNavigator({ editor, state }: { editor: Editor; state: EditorState }) {
-  const unit = editor.kind === 'presentation' ? 'slide' : 'page'
-  return (
-    <nav
-      aria-label="Pages"
-      className="pointer-events-auto absolute right-[max(12px,env(safe-area-inset-right))] bottom-[calc(16px+env(safe-area-inset-bottom))] z-10 grid w-16 justify-items-center rounded-panel glass py-1 shadow-raised ring-1 ring-line"
-    >
-      <button
-        type="button"
-        aria-label={`Previous ${unit}`}
-        disabled={state.pageIndex === 0}
-        onClick={() => editor.goToPage(state.pageIndex - 1)}
-        className="grid h-11 w-full place-items-center rounded-control text-ink hover:bg-hover disabled:opacity-35"
-      >
-        <ChevronUp size={22} strokeWidth={1.8} />
-      </button>
-      <span className="py-1 text-sm font-semibold tabular-nums">
-        {state.pageIndex + 1} / {state.pageCount}
-      </span>
-      <button
-        type="button"
-        aria-label={`Next ${unit}`}
-        disabled={state.pageIndex >= state.pageCount - 1}
-        onClick={() => editor.goToPage(state.pageIndex + 1)}
-        className="grid h-11 w-full place-items-center rounded-control text-ink hover:bg-hover disabled:opacity-35"
-      >
-        <ChevronDown size={22} strokeWidth={1.8} />
-      </button>
-    </nav>
   )
 }

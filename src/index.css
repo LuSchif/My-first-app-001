@@ -170,7 +170,7 @@ body::before {
  * the blur stays cheap while drawing and zooming.
  */
 .glass {
-  background-color: color-mix(in srgb, var(--color-surface-raised) 76%, transparent);
+  background-color: color-mix(in srgb, var(--color-surface-raised) 62%, transparent);
   -webkit-backdrop-filter: blur(16px) saturate(1.25);
   backdrop-filter: blur(16px) saturate(1.25);
 }
