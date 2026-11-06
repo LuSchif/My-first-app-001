@@ -57,23 +57,21 @@ const lean = (children: ReactNode, angle = 45) => (
 const ballpoint = (p: Paint) =>
   lean(
     <>
-      <rect x="9.5" y="1.8" width="5" height="13.4" rx="2.5" fill={p.fill} />
-      <path d="M15.7 3.2v6.4" />
-      <path d="M9.6 10.8h4.8M9.6 12.6h4.8" stroke={p.accentLine} />
-      <path d="M9.6 15.2 11 18.6h2l1.4-3.4Z" fill={p.fill} />
-      <path d="M11 18.6 12 21.6l1-3Z" fill={p.tip} />
+      <rect x="8.6" y="1.4" width="6.8" height="14" rx="3.2" fill={p.fill} />
+      <path d="M13.4 2.6v8.2" strokeWidth="1.4" />
+      <path d="M8.6 15.4 10.4 20h3.2l1.8-4.6Z" fill={p.fill} />
+      <path d="M10.4 20 12 22.8l1.6-2.8Z" fill={p.tip} />
     </>,
   )
 
 const fountain = (p: Paint) =>
   lean(
     <>
-      <rect x="9.5" y="1.8" width="5" height="10.6" rx="2.5" fill={p.fill} />
-      <path d="M9.6 8.6h4.8M9.6 10.3h4.8" stroke={p.accentLine} />
-      <path d="M9.6 12.4c0 3 1.2 6 2.4 9.4 1.2-3.4 2.4-6.4 2.4-9.4Z" fill={p.fill} />
-      <path d="M11.1 18.4 12 21.8l.9-3.4Z" fill={p.tip} stroke="none" />
-      <path d="M12 21.4v-4.2" />
-      <circle cx="12" cy="16.2" r="0.9" fill="currentColor" stroke="none" />
+      <rect x="8.4" y="1.2" width="7.2" height="11.6" rx="3.4" fill={p.fill} />
+      <rect x="8.9" y="12.8" width="6.2" height="2.2" rx="0.6" fill={p.fill} />
+      <path d="M9.1 15 9.6 19 12 22.8 14.4 19l.5-4Z" fill={p.tip} />
+      <path d="M12 22.6v-3.6" />
+      <circle cx="12" cy="18.2" r="0.9" fill="currentColor" stroke="none" />
     </>,
   )
 
@@ -99,35 +97,13 @@ const plusBadge = () => (
 
 const picture = (p: Paint, x: number, y: number, w: number, h: number) => (
   <>
-    <rect x={x} y={y} width={w} height={h} rx="1.6" fill={p.fill} />
+    <rect x={x} y={y} width={w} height={h} rx="1.8" fill={p.fill} />
     <path
-      d={`M${x} ${y + h - 1.5}l${w * 0.3} -${h * 0.42} ${w * 0.22} ${h * 0.3} ${w * 0.14} -${h * 0.16} ${w * 0.34} ${h * 0.28}`}
-    />
-    <circle
-      cx={x + w * 0.72}
-      cy={y + h * 0.3}
-      r={Math.min(w, h) * 0.12}
-      fill={p.solid}
-      stroke="none"
-    />
-  </>
-)
-
-const folderBack = (p: Paint) => (
-  <>
-    <path
-      d="M7.5 3.5h3.4l1.8 2.1h6.8A1.5 1.5 0 0 1 21 7.1v9.1a1.5 1.5 0 0 1-1.5 1.5h-12A1.5 1.5 0 0 1 6 16.2V5a1.5 1.5 0 0 1 1.5-1.5Z"
+      d={`M${x + 0.6} ${y + h - 0.6}l${w * 0.3} -${h * 0.44} ${w * 0.2} ${h * 0.26} ${w * 0.14} -${h * 0.16} ${w * 0.34} ${h * 0.34}Z`}
       fill={p.soft}
     />
-    <path d="M7.5 3.5h3.4l1.8 2.1H6V5a1.5 1.5 0 0 1 1.5-1.5Z" fill={p.accent} />
+    <circle cx={x + w * 0.72} cy={y + h * 0.3} r={Math.min(w, h) * 0.14} fill={p.soft} />
   </>
-)
-
-const folderFront = (p: Paint) => (
-  <path
-    d="M4.5 7.6h3.4l1.8 2.1h7.8a1.5 1.5 0 0 1 1.5 1.5v8.3a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 3 19.5V9.1a1.5 1.5 0 0 1 1.5-1.5Z"
-    fill={p.fill}
-  />
 )
 
 /** The eraser: a block leaning to the right, with its rubber end in a lighter grey. */
@@ -189,36 +165,38 @@ export const GLYPHS = {
   fountain,
   magic: (p) => (
     <>
-      {fountain(p)}
-      {sparkle(p, 19.2, 13.6, 2.8)}
-    </>
-  ),
-  highlighter: (p) => (
-    <>
       {lean(
         <>
-          <rect x="9" y="1.6" width="6" height="11.4" rx="2" fill={p.fill} />
-          <path d="M9.1 8.4h5.8M9.1 10.2h5.8" stroke={p.accentLine} />
-          <path d="M9 13h6v2.2H9Z" fill={p.fill} />
-          <path d="M10.3 15.2v3.6l3.4-1.6v-2Z" fill={p.tip} />
+          <rect x="8.6" y="1.4" width="6.8" height="14" rx="3.4" fill={p.fill} />
+          <path d="M8.6 15.4 10.4 20h3.2l1.8-4.6Z" fill={p.fill} />
+          <path d="M10.4 20 12 22.8l1.6-2.8Z" fill={p.tip} />
         </>,
       )}
-      <path d="M2.6 21.4h5.6" stroke={p.accentLine} strokeWidth="2.4" />
+      {sparkle(p, 18.6, 19.2, 3)}
     </>
   ),
+  highlighter: (p) =>
+    lean(
+      <>
+        <rect x="8" y="1.2" width="8" height="12.4" rx="3" fill={p.fill} />
+        <path d="M8.6 13.6h6.8l-.8 3.2H9.4Z" fill={p.fill} />
+        <path d="M9.6 16.8h4.8l-1.2 4.8-3.6-1.2Z" fill={p.tip} />
+      </>,
+    ),
   broom: (p) => eraser(p),
   magnifier: (p) => (
     <>
-      <path d="m15.2 15.2 5.6 5.6" strokeWidth="2.6" />
-      <circle cx="10.2" cy="10.2" r="7" fill={p.fill} />
-      <path d="M10.2 6.8v6.8M6.8 10.2h6.8" strokeWidth="1.9" />
+      <path d="m8.4 15.6-5 5" strokeWidth="2.8" />
+      <circle cx="14" cy="10" r="7.4" fill={p.fill} />
+      <path d="M14 6.6v6.8M10.6 10h6.8" strokeWidth="1.9" />
     </>
   ),
   tape: (p) => (
     <>
-      <path d="M6.4 14.4 2.6 19.2l1.5.5.5-1 1 1.3.9-1.2.9 1.1.8-1.1 1.6-2.4" fill={p.accent} />
-      <circle cx="13.4" cy="10.8" r="7.6" fill={p.fill} />
-      <ellipse cx="14.6" cy="10.8" rx="3" ry="3.8" fill={p.soft} />
+      <path d="M8.6 17.6 4.4 19l-1.8 1.4.9.5-.4.9 1 .3-.2 1 5.6-2.4 2.4-1.8Z" fill={p.accent} />
+      <ellipse cx="13.6" cy="10.6" rx="8" ry="8.2" fill={p.fill} />
+      <ellipse cx="15" cy="10.6" rx="3.4" ry="4.2" fill={p.soft} />
+      <ellipse cx="15.3" cy="10.6" rx="1.6" ry="2.2" fill="var(--icon-hole, #0d1016)" />
     </>
   ),
   laser: (p) => (
@@ -280,7 +258,7 @@ export const GLYPHS = {
   // Interface
   addons: (p) => (
     <path
-      d="M4.6 7.2h3.6a2.4 2.4 0 1 1 4.8 0h3.6v3.6a2.4 2.4 0 1 1 0 4.8v3.8h-3.8a2.4 2.4 0 1 0-4.8 0H4.6a1 1 0 0 1-1-1v-3.4a2.4 2.4 0 1 0 0-4.8V8.2a1 1 0 0 1 1-1Z"
+      d="M4.6 7h4.2a3.2 3.2 0 1 1 6.4 0h3.6a1.4 1.4 0 0 1 1.4 1.4v4a3 3 0 1 0 0 5.6v1.6a1.4 1.4 0 0 1-1.4 1.4h-4.2a3 3 0 1 0-5.6 0H4.6a1.4 1.4 0 0 1-1.4-1.4V8.4A1.4 1.4 0 0 1 4.6 7Z"
       fill={p.fill}
     />
   ),
@@ -316,7 +294,7 @@ export const GLYPHS = {
         d="M12.2 2h-.4a2 2 0 0 0-2 2v.2a2 2 0 0 1-1 1.7l-.4.3a2 2 0 0 1-2 0l-.2-.1a2 2 0 0 0-2.7.7l-.2.4a2 2 0 0 0 .7 2.7l.2.1a2 2 0 0 1 1 1.7v.5a2 2 0 0 1-1 1.7l-.2.1a2 2 0 0 0-.7 2.7l.2.4a2 2 0 0 0 2.7.7l.2-.1a2 2 0 0 1 2 0l.4.3a2 2 0 0 1 1 1.7v.2a2 2 0 0 0 2 2h.4a2 2 0 0 0 2-2v-.2a2 2 0 0 1 1-1.7l.4-.3a2 2 0 0 1 2 0l.2.1a2 2 0 0 0 2.7-.7l.2-.4a2 2 0 0 0-.7-2.7l-.2-.1a2 2 0 0 1-1-1.7v-.5a2 2 0 0 1 1-1.7l.2-.1a2 2 0 0 0 .7-2.7l-.2-.4a2 2 0 0 0-2.7-.7l-.2.1a2 2 0 0 1-2 0l-.4-.3a2 2 0 0 1-1-1.7V4a2 2 0 0 0-2-2Z"
         fill={p.fill}
       />
-      <circle cx="12" cy="12" r="3.2" fill={p.accent} />
+      <circle cx="12" cy="12" r="3.2" fill="var(--icon-hole, #0d1016)" />
     </>
   ),
   eyedropper: (p) => (
@@ -340,18 +318,18 @@ export const GLYPHS = {
     <>
       <rect
         x="3.4"
-        y="3.6"
-        width="7.2"
-        height="7.2"
-        rx="1.6"
+        y="2.8"
+        width="8"
+        height="8"
+        rx="1.8"
         fill={p.fill}
-        transform="rotate(-16 7 7.2)"
+        transform="rotate(-14 7.4 6.8)"
       />
-      <circle cx="17.2" cy="7.4" r="3.9" fill={p.accent} />
       <path
-        d="M12.6 11.8a1 1 0 0 1 1.7 0l4.6 8a1 1 0 0 1-.9 1.5H8.8a1 1 0 0 1-.9-1.5Z"
+        d="M17.2 8.2a1 1 0 0 1 1.7 0l3.2 5.6a1 1 0 0 1-.9 1.5h-6.3a1 1 0 0 1-.9-1.5Z"
         fill={p.fill}
       />
+      <circle cx="9.2" cy="17" r="4.8" fill={p.fill} />
     </>
   ),
   table: (p) => (
@@ -439,8 +417,7 @@ export const GLYPHS = {
   ),
   'new-folder': (p) => (
     <>
-      {folderBack(p)}
-      {folderFront(p)}
+      {folderShape(p, -0.6, -0.4)}
       {plusBadge()}
     </>
   ),
