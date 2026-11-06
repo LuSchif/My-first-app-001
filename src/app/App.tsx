@@ -25,7 +25,7 @@ import { TrashZone } from '../features/library/TrashZone.tsx'
 export function App() {
   const route = useRoute()
   usePencilTaps()
-  // On iPad, Broomit's own keyboard takes over text fields; elsewhere fields only take focus
+  // On iPad, Broome's own keyboard takes over text fields; elsewhere fields only take focus
   // when tapped.
   const ownKeyboard = useVirtualKeyboard()
   useRequestedFocus(!ownKeyboard)

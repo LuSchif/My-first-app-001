@@ -168,7 +168,7 @@ function EditTextButton({
     <IconButton
       label={`Edit text: ${layer.name}`}
       icon={<TextCursorInput size={18} />}
-      className={cn(active && 'text-ink-inverse hover:bg-white/10')}
+      className={cn(active && 'text-on-accent hover:bg-white/10')}
       onClick={() => {
         close()
         editor.editLayerText(layer.id)
@@ -196,7 +196,7 @@ function LayerRow({
       data-layer-row={layer.id}
       className={cn(
         'relative flex items-center gap-1 rounded-control pr-1 ring-1 ring-line',
-        active ? 'bg-ink text-ink-inverse ring-ink' : 'bg-surface-raised',
+        active ? 'bg-accent text-on-accent ring-ink' : 'bg-surface-raised',
         offset !== 0 && 'z-10 shadow-overlay',
       )}
       style={offset ? { transform: `translateY(${offset}px)` } : undefined}
@@ -235,13 +235,13 @@ function LayerRow({
       <IconButton
         label={layer.visible ? `Hide ${layer.name}` : `Show ${layer.name}`}
         icon={layer.visible ? <Eye size={18} /> : <EyeOff size={18} />}
-        className={cn(active && 'text-ink-inverse hover:bg-white/10')}
+        className={cn(active && 'text-on-accent hover:bg-white/10')}
         onClick={() => editor.updateLayer(layer.id, { visible: !layer.visible })}
       />
       <IconButton
         label={layer.locked ? `Unlock ${layer.name}` : `Lock ${layer.name}`}
         icon={layer.locked ? <Lock size={18} /> : <LockOpen size={18} className="opacity-55" />}
-        className={cn(active && 'text-ink-inverse hover:bg-white/10')}
+        className={cn(active && 'text-on-accent hover:bg-white/10')}
         onClick={() => editor.updateLayer(layer.id, { locked: !layer.locked })}
       />
     </li>

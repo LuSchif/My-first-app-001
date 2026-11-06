@@ -4,7 +4,7 @@ import { isUpdateReady, onUpdateReady } from '../lib/install.ts'
 import { publishedRelease } from '../lib/release.ts'
 import { releaseLabel } from '../release.ts'
 
-/** Offers to reload once a newer version of Broomit is installed, and names it. */
+/** Offers to reload once a newer version of Broome is installed, and names it. */
 export function UpdateBanner() {
   const ready = useSyncExternalStore(onUpdateReady, isUpdateReady)
   const [next, setNext] = useState<string | null>(null)
@@ -23,7 +23,7 @@ export function UpdateBanner() {
     <button
       type="button"
       onClick={() => window.location.reload()}
-      className="fixed bottom-[calc(16px+env(safe-area-inset-bottom))] left-1/2 z-[60] flex -translate-x-1/2 animate-pop-in items-center gap-2 rounded-full bg-ink px-5 py-3 text-sm font-semibold text-ink-inverse shadow-overlay"
+      className="fixed bottom-[calc(16px+env(safe-area-inset-bottom))] left-1/2 z-[60] flex -translate-x-1/2 animate-pop-in items-center gap-2 rounded-full bg-surface-raised ring-1 ring-line px-5 py-3 text-sm font-semibold text-ink shadow-overlay"
     >
       <RefreshCw size={16} /> {next ?? 'New version'} ready · Tap to update
     </button>

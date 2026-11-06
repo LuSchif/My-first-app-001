@@ -19,7 +19,7 @@ const GROUPS: { title: string; items: [keyof Features, string, string][] }[] = [
     items: [
       ['gestureUndo', 'Finger undo and redo', 'Double tap with two fingers to undo, three to redo'],
       ['askPaper', 'Ask for paper', 'Pulling past the last page asks which paper it gets'],
-      ['broomDust', 'Broom dust', 'A little dust flies where the broom sweeps'],
+      ['broomDust', 'Eraser crumbs', 'A few crumbs fly where the eraser rubs'],
     ],
   },
   {
@@ -36,7 +36,7 @@ const GROUPS: { title: string; items: [keyof Features, string, string][] }[] = [
   },
 ]
 
-/** Switches Broomit's features on and off; the choice stays on this device. */
+/** Switches Broome's features on and off; the choice stays on this device. */
 export function ControlCenter({ editor, state }: { editor: Editor; state: EditorState }) {
   return (
     <div className="grid gap-4">

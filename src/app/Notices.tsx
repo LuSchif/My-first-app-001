@@ -12,7 +12,7 @@ export function Notices() {
         <div
           key={n.id}
           role="status"
-          className="pointer-events-auto flex max-w-md animate-pop-in items-center gap-2 rounded-panel bg-ink py-1.5 pr-1.5 pl-4 text-sm text-ink-inverse shadow-overlay"
+          className="pointer-events-auto flex max-w-md animate-pop-in items-center gap-2 rounded-panel bg-surface-raised ring-1 ring-line py-1.5 pr-1.5 pl-4 text-sm text-ink shadow-overlay"
         >
           <span className="min-w-0 flex-1">{n.text}</span>
           {n.action ? (

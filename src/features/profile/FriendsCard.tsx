@@ -15,7 +15,7 @@ import {
 import { Avatar } from './Avatar.tsx'
 import { ProfileCard } from './ProfileCard.tsx'
 
-/** Adding friends by Broomit ID, answering requests, and the list of friends. */
+/** Adding friends by Broome ID, answering requests, and the list of friends. */
 export function FriendsCard() {
   const account = useAccount()
   const friends = useFriends()
@@ -53,7 +53,7 @@ export function FriendsCard() {
         <FriendList title={mine.length ? `Your friends (${mine.length})` : 'Your friends'}>
           {mine.length === 0 ? (
             <li className="py-2 text-sm text-ink-muted">
-              No friends yet. Share your Broomit ID, or add a friend's above.
+              No friends yet. Share your Broome ID, or add a friend's above.
             </li>
           ) : null}
           {mine.map((f) => (
@@ -114,7 +114,7 @@ function AddFriend() {
     >
       <div className="min-w-[12rem] flex-1">
         <TextField
-          label="Add a friend by Broomit ID"
+          label="Add a friend by Broome ID"
           placeholder="ABCD-1234"
           autoCapitalize="characters"
           autoComplete="off"

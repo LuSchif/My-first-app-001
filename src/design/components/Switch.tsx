@@ -30,7 +30,7 @@ export function Switch({
       <span
         className={cn(
           'relative h-7 w-12 shrink-0 rounded-full transition-colors duration-150',
-          checked ? 'bg-ink' : 'bg-line-strong',
+          checked ? 'bg-accent' : 'bg-line-strong',
         )}
       >
         <span

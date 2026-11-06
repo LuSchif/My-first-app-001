@@ -1,4 +1,4 @@
-# Broomit architecture
+# Broome architecture (formerly Broomit)
 
 This document records the decisions agreed before implementation. Change it when a decision changes.
 
@@ -197,23 +197,24 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
 
 ## Workspace
 
-- The tool bar, the text format bar and the recent colors bar can be dragged by their grip
-  anywhere, or dropped near an edge to snap to its middle (top, bottom, left, right). At the
-  left and right a bar stands upright; bars at the same edge stack; menus open away from the
-  edge. Positions are remembered per device (`FloatingPanel.tsx`, `panelLayout.ts`).
-- The editor's top row: back and the insert panel button on the left; in the middle the
-  notebook's title with a mini tool bar (the tool last taken from the wheel, lasso, magnifier,
-  path editing); undo, redo, layers, pages and the control center on the right. Bars keep to
-  the page area beside the insert panel (`setBarArea`). Saving is silent unless it fails.
-- The tool wheel (`ToolWheel.tsx`, `wheelTools.tsx`): holding a pen or finger still on the page
-  (500 ms) opens an inventory of the drawing tools around that spot: pen, magic pen,
-  highlighter, broom, text, tape, laser (those switched off in the control center are left
-  out). It does not turn. Slide to a tool and lift, or tap one; tools with choices (pen or
-  fountain pen, precise or whole-stroke broom) show them on an arc above. The chosen tool goes
-  into the mini tool bar, where a second tap opens its settings as before. The wheel stays
-  until the page is tapped; its middle offers Paste when something was copied. Tools that work
-  by holding (laser, magnifier, eyedropper) and a press on the selection keep their own meaning.
-- The eyedropper sits on top of the recent colors bar; the color in use is ringed tightly.
+- Broome's editor (since version 40; the earlier tool bar, mini tool bar, recent colors bar and
+  long-press tool wheel are gone):
+  - Top left: two square buttons of their own, back and the insert panel (shapes, stickers and
+    more). Top right, one bar: undo, redo | addons, layers, pages, control center (and Present
+    or Study for slides and cards). Bottom right: the page navigator (previous, "n / N", next).
+  - Top middle, the tool dock (`ToolDock.tsx`), two rows. The first chooses a kind: write
+    (ballpoint, fountain pen, highlighter, magic pen), eraser, tools (lasso, rectangle
+    selection, magnifier, anchor tool, laser pointer, tape, color picker) and text. The second
+    shows what that kind offers: its tools, + for the rest of the tool's settings (the same
+    settings as before), three line widths, and three colors (the last used in the notebook, or
+    a few to start with) with + for any color. Colors can still be dragged onto ink, text or
+    paper to color them. Each kind remembers the tool last used in it.
+  - The notebook's name is shown at the top left of each page, over the paper (never part of
+    it, not in exports).
+  - The format bar while typing can still be dragged by its grip (`FloatingPanel.tsx`).
+  - The tool wheel (`ToolWheel.tsx`) only opens with the Apple Pencil Pro's squeeze; holding
+    still on the page no longer opens it (`LONG_PRESS_WHEEL` in Editor.ts).
+  - The eraser shows a blue ring as wide as what it erases; the laser pointer a glowing dot.
 - The selection bar shows delete, duplicate, copy, scale (and editing a table, chart, graph or
   text); everything else (cut, mirroring, color, outline, layer, rows, chart, animate) is in the
   menu behind the three dots (`SelectionMenu.tsx`).
@@ -243,18 +244,24 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
 
 ## Icons
 
-- Broomit draws its own icons (`design/icons/glyphs.tsx`, shown by `BroomitIcon`): tools,
-  interface and library, on a 24 px grid with round lines. Each has two looks: lines only (the
-  usual one) and in color for a tool in use (cream body, caramel details, tokens
-  `--color-icon-*`). Pens (pen, fountain pen, magic pen, highlighter) always show their current
-  ink at the tip. Buttons for tools take the light "soft" chosen look so the color shows.
-- Every other icon is a Broomit line icon too (`icons.tsx`, shapes in `lineGlyphs.ts`, adapted
-  from Lucide under its ISC license), imported under the usual names; there is no icon library
-  at run time any more. Their parts carry roles (body, detail, dot), so they color the same way.
+- Broome draws its own icons (`design/icons/glyphs.tsx`, shown by `BroomitIcon`): tools,
+  interface and library, on a 24 px grid: round white lines over soft grey bodies (opaque, so
+  lines behind them stay hidden). For a tool in use the bodies turn blue-tinted and details blue
+  (tokens `--color-icon-*`). Pens (ballpoint, fountain pen, magic pen, highlighter) always show
+  their current ink at the tip.
+- Every other icon is a line icon in the same style (`icons.tsx`, shapes in `lineGlyphs.ts`,
+  adapted from Lucide under its ISC license), imported under the usual names; there is no icon
+  library at run time.
 - The colored look is switched by CSS variables (`--bi-*`): by `colored`, or by a chosen icon
-  button (`IconButton`, cream with the icon in color, its usual chosen look).
-- Shapes are filled with the background behind them (`--icon-bg`), so lines underneath stay
-  hidden; dark and accent backgrounds set it themselves (`index.css`).
+  button (`.bicon-host[aria-pressed=true]`, index.css).
+
+## Look
+
+- Name: Broome (app name, home screen, logo). Code names (`BroomitIcon`, `broomit.*` storage
+  keys, the database) keep the old name so nothing stored is lost.
+- Colors (`tokens.css`): deep blue-grey surfaces, light text, and blue (#4f8ef7) as the accent
+  for what is chosen, active or primary (`bg-accent text-on-accent`). Pages stay white paper.
+  The theme presets and design packs in Appearance still override this.
 
 ## Colors
 

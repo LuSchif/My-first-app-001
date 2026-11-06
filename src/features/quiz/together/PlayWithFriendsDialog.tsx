@@ -40,7 +40,7 @@ export function PlayWithFriendsDialog({ quiz, onDone }: { quiz: Notebook; onDone
     return (
       <DialogContent
         title="Play with friends"
-        description="Sign in to your Broomit account first; then add friends by their Broomit ID."
+        description="Sign in to your Broome account first; then add friends by their Broome ID."
       >
         <DialogFooter>
           <Button
@@ -98,7 +98,7 @@ export function PlayWithFriendsDialog({ quiz, onDone }: { quiz: Notebook; onDone
           ) : null}
           {friends !== null && mine.length === 0 ? (
             <p className="text-sm text-ink-muted">
-              You have no friends in Broomit yet. Add them by Broomit ID in your profile.
+              You have no friends in Broome yet. Add them by Broome ID in your profile.
             </p>
           ) : null}
           <ul className="grid gap-1">

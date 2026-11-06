@@ -1,5 +1,5 @@
 /**
- * The calendar's stored data: events made in Broomit, days marked as important, and calendars
+ * The calendar's stored data: events made in Broome, days marked as important, and calendars
  * subscribed to by link (WebUntis, Google, iCloud…), with their last loaded content so they show
  * offline too.
  */

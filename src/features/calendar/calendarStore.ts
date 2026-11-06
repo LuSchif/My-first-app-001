@@ -18,7 +18,7 @@ import {
 } from './model.ts'
 
 /**
- * The calendar's data for the whole app: Broomit's own events and marked days, and the
+ * The calendar's data for the whole app: Broome's own events and marked days, and the
  * subscribed calendars. Components read a snapshot and are told when it changes.
  */
 
@@ -30,14 +30,14 @@ export interface CalendarData {
   device: {
     connected: boolean
     calendars: DeviceCalendar[]
-    /** Calendars switched off in Broomit. */
+    /** Calendars switched off in Broome. */
     hidden: string[]
     events: DeviceEvent[]
   }
   loaded: boolean
 }
 
-/** One entry on the calendar, from Broomit's own events or a subscribed calendar. */
+/** One entry on the calendar, from Broome's own events or a subscribed calendar. */
 export interface Entry {
   key: string
   title: string
@@ -47,7 +47,7 @@ export interface Entry {
   color: string
   location?: string
   description?: string
-  /** The Broomit event it comes from; absent for subscribed calendars (read only). */
+  /** The Broome event it comes from; absent for subscribed calendars (read only). */
   ownId?: string
   source?: string
 }
@@ -96,7 +96,7 @@ export function loadCalendar(): Promise<void> {
   return loading
 }
 
-// ---------- Broomit's own events and marked days ----------
+// ---------- Broome's own events and marked days ----------
 
 export async function saveEvent(event: OwnEvent): Promise<void> {
   await db.calendarEvents.put(event)
@@ -405,7 +405,7 @@ export function ownAsEvent(e: OwnEvent): CalendarEvent {
   }
 }
 
-/** Every entry overlapping the range, from Broomit and the calendars shown. */
+/** Every entry overlapping the range, from Broome and the calendars shown. */
 export function entriesIn(d: CalendarData, from: Date, to: Date): Entry[] {
   const out: Entry[] = []
   for (const o of occurrences(d.events.map(ownAsEvent), from, to)) {

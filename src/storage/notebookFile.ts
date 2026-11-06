@@ -53,13 +53,13 @@ export async function importNotebookFile(
   try {
     file = JSON.parse(text) as Partial<NotebookFile> | null
   } catch {
-    throw new NotebookFileError('This file is not a Broomit notebook.')
+    throw new NotebookFileError('This file is not a Broome notebook.')
   }
   if (!file || file.format !== 'broomit-notebook' || !file.notebook || !Array.isArray(file.pages)) {
-    throw new NotebookFileError('This file is not a Broomit notebook.')
+    throw new NotebookFileError('This file is not a Broome notebook.')
   }
   if (file.version !== 1) {
-    throw new NotebookFileError('This notebook was made by a newer version of Broomit.')
+    throw new NotebookFileError('This notebook was made by a newer version of Broome.')
   }
   const notebookId = newId()
   const pageIds = new Map(file.pages.map((p) => [p.id, newId()]))

@@ -13,7 +13,7 @@ export function Avatar({
   return (
     <span
       aria-hidden="true"
-      className="grid shrink-0 place-items-center overflow-hidden rounded-full bg-accent font-bold text-ink-inverse ring-2 ring-surface-raised"
+      className="grid shrink-0 place-items-center overflow-hidden rounded-full bg-accent font-bold text-on-accent ring-2 ring-surface-raised"
       style={{ width: size, height: size, fontSize: size * 0.38 }}
     >
       {profile.picture ? (

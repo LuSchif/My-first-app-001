@@ -1,7 +1,7 @@
 import { SWATCH_ROWS } from '../palette.ts'
 import { ColorSwatch } from './ColorSwatch.tsx'
 
-/** The full Broomit color palette, one hue family per row. */
+/** The full Broome color palette, one hue family per row. */
 export function SwatchGrid({
   value,
   onChange,

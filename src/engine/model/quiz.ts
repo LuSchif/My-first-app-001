@@ -2,7 +2,7 @@ import { newId } from './ids.ts'
 import type { Id } from './types.ts'
 
 /**
- * Broomit quizzes: questions on cards, each with a time limit; a right answer earns points,
+ * Broome quizzes: questions on cards, each with a time limit; a right answer earns points,
  * and a quick one a little more.
  */
 

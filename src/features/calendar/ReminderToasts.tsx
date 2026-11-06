@@ -9,7 +9,7 @@ import {
   subscribeReminders,
 } from './reminders.ts'
 
-/** Reminders that are due, shown on top of whatever is open while Broomit runs. */
+/** Reminders that are due, shown on top of whatever is open while Broome runs. */
 export function ReminderToasts() {
   const reminders = useSyncExternalStore(subscribeReminders, currentReminders)
   useEffect(() => {
@@ -22,7 +22,7 @@ export function ReminderToasts() {
         <div
           key={r.key}
           role="alert"
-          className="pointer-events-auto flex w-full max-w-sm animate-pop-in items-center gap-3 rounded-panel bg-ink py-2 pr-2 pl-4 text-ink-inverse shadow-overlay"
+          className="pointer-events-auto flex w-full max-w-sm animate-pop-in items-center gap-3 rounded-panel bg-surface-raised ring-1 ring-line py-2 pr-2 pl-4 text-ink shadow-overlay"
         >
           <Bell size={18} className="shrink-0" />
           <span className="min-w-0 flex-1">

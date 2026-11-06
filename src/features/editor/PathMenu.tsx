@@ -56,8 +56,8 @@ export function PathMenu({ editor, state }: { editor: Editor; state: EditorState
       aria-label="Path point"
       className={
         info.anchor
-          ? 'absolute z-10 flex w-max -translate-x-1/2 items-center gap-0.5 rounded-panel bg-ink p-1 text-ink-inverse shadow-overlay'
-          : 'absolute inset-x-0 bottom-[calc(20px+env(safe-area-inset-bottom))] z-10 mx-auto flex w-fit items-center gap-0.5 rounded-panel bg-ink p-1 text-ink-inverse shadow-overlay'
+          ? 'absolute z-10 flex w-max -translate-x-1/2 items-center gap-0.5 rounded-panel bg-surface-raised ring-1 ring-line p-1 text-ink shadow-overlay'
+          : 'absolute inset-x-0 bottom-[calc(20px+env(safe-area-inset-bottom))] z-10 mx-auto flex w-fit items-center gap-0.5 rounded-panel bg-surface-raised ring-1 ring-line p-1 text-ink shadow-overlay'
       }
       style={style}
     >

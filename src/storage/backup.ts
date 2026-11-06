@@ -6,7 +6,7 @@ import type { Profile } from '../features/profile/profile.ts'
 import { db, type BroomitDatabase } from './db.ts'
 
 /**
- * A backup is one JSON file with everything Broomit stores: folders, notebooks and pages. It is
+ * A backup is one JSON file with everything Broome stores: folders, notebooks and pages. It is
  * the user's safety net against lost devices and cleared browser data, so restoring never deletes
  * anything: items from the backup are added, and items with the same id are replaced.
  */
@@ -105,14 +105,14 @@ export function parseBackup(text: string): Backup {
   try {
     data = JSON.parse(text)
   } catch {
-    throw new BackupError('This file is not a Broomit backup.')
+    throw new BackupError('This file is not a Broome backup.')
   }
   const b = data as Partial<Backup> | null
   if (!b || b.format !== 'broomit-backup') {
-    throw new BackupError('This file is not a Broomit backup.')
+    throw new BackupError('This file is not a Broome backup.')
   }
   if (b.version !== 1) {
-    throw new BackupError('This backup was made by a newer version of Broomit.')
+    throw new BackupError('This backup was made by a newer version of Broome.')
   }
   if (!Array.isArray(b.notebooks) || !Array.isArray(b.pages) || !Array.isArray(b.folders)) {
     throw new BackupError('This backup is incomplete.')

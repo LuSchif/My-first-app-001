@@ -2,7 +2,7 @@ import { styledRanges, type StyledCss } from '../../engine/editor/styledField.ts
 import { keyboardState, select, type Field, type Selection } from './keyboardStore.ts'
 
 /**
- * The field Broomit's keyboard types into is never focused, so the browser draws no caret and no
+ * The field Broome's keyboard types into is never focused, so the browser draws no caret and no
  * selection in it. A mirror takes over its text instead: an element with the same box, font and
  * wrapping, placed exactly on the field, that draws the text with the caret or the selection.
  * The field's own text is hidden meanwhile (index.css), so nothing can drift apart.

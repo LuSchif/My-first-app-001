@@ -119,7 +119,7 @@ export function ExtractView({
                 role="radio"
                 aria-checked={chosen === i}
                 onClick={() => setChosen(i)}
-                className="h-10 rounded-full px-3 text-sm font-semibold ring-1 ring-line hover:bg-hover aria-checked:bg-ink aria-checked:text-ink-inverse aria-checked:ring-ink"
+                className="h-10 rounded-full px-3 text-sm font-semibold ring-1 ring-line hover:bg-hover aria-checked:bg-accent aria-checked:text-on-accent aria-checked:ring-accent"
               >
                 {item.label}
               </button>

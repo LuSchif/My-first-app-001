@@ -48,7 +48,7 @@ export async function insertPicture(
 }
 
 /**
- * Adds a picture made by Broomit (a sticker, a page as a picture) from an image blob of the
+ * Adds a picture made by Broome (a sticker, a page as a picture) from an image blob of the
  * given size, `share` being the most of the page's width it takes.
  */
 export async function insertImageBlob(

@@ -27,7 +27,7 @@ const TABS: { id: Tab; label: string; icon: GlyphName }[] = [
   { id: 'tables', label: 'Tables', icon: 'table' },
   { id: 'stickers', label: 'Stickers', icon: 'sticker' },
   { id: 'photos', label: 'Photos', icon: 'photo' },
-  { id: 'folders', label: 'Folders', icon: 'folder' },
+  { id: 'folders', label: 'Folders', icon: 'folders' },
 ]
 
 type Source = ReturnType<typeof useDragToPage>['source']
@@ -110,7 +110,7 @@ function Ghost({ ghost }: { ghost: DragGhost }) {
   return (
     <span
       aria-hidden="true"
-      className="pointer-events-none fixed z-50 -translate-x-1/2 -translate-y-1/2 rounded-full bg-ink px-3 py-1.5 text-sm font-semibold whitespace-nowrap text-ink-inverse shadow-overlay"
+      className="pointer-events-none fixed z-50 -translate-x-1/2 -translate-y-1/2 rounded-full bg-surface-raised ring-1 ring-line px-3 py-1.5 text-sm font-semibold whitespace-nowrap text-ink shadow-overlay"
       style={{ left: ghost.x, top: ghost.y }}
     >
       {ghost.label}
@@ -229,7 +229,7 @@ function TablesTab({
           <Switch label="Header row" checked={header} onChange={setHeader} />
           <button
             type="button"
-            className="flex h-11 items-center justify-center gap-2 rounded-control bg-ink text-sm font-semibold text-ink-inverse"
+            className="flex h-11 items-center justify-center gap-2 rounded-control bg-surface-raised ring-1 ring-line text-sm font-semibold text-ink"
             {...add(`Table ${rows} × ${cols}`, table(rows, cols))}
           >
             <BroomitIcon name="table" size={20} /> Table {rows} × {cols}

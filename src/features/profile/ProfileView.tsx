@@ -32,7 +32,7 @@ import { ProfileCard } from './ProfileCard.tsx'
 import { avatarPicture } from './avatarPicture.ts'
 import { saveProfile, useProfile } from './profile.ts'
 
-/** The profile: name and picture, the Broomit plan, and settings. */
+/** The profile: name and picture, the Broome plan, and settings. */
 export function ProfileView() {
   return (
     <div className="min-h-full px-4 pt-[calc(2rem+env(safe-area-inset-top))] pb-16 sm:px-8">
@@ -72,7 +72,7 @@ function You() {
           className="group relative rounded-full"
         >
           <Avatar profile={profile} size={96} />
-          <span className="absolute right-0 bottom-0 grid size-9 place-items-center rounded-full bg-ink text-ink-inverse shadow-soft ring-2 ring-surface-raised">
+          <span className="absolute right-0 bottom-0 grid size-9 place-items-center rounded-full bg-accent text-on-accent shadow-soft ring-2 ring-surface-raised">
             <BroomitIcon name="camera" size={20} />
           </span>
         </button>
@@ -134,7 +134,7 @@ function You() {
   )
 }
 
-/** The Broomit plan: what is active, and buying it once or yearly. */
+/** The Broome plan: what is active, and buying it once or yearly. */
 function Plan() {
   const purchases = usePurchases()
   const prices = useStorePrices()
@@ -164,13 +164,13 @@ function Plan() {
         <span
           className={cn(
             'grid size-12 place-items-center rounded-full',
-            active ? 'bg-accent text-ink-inverse' : 'bg-surface-sunken text-ink-muted',
+            active ? 'bg-accent text-on-accent' : 'bg-surface-sunken text-ink-muted',
           )}
         >
           <Crown size={24} />
         </span>
         <div>
-          <p className="text-lg font-bold">{active ? active.name : 'Broomit Free'}</p>
+          <p className="text-lg font-bold">{active ? active.name : 'Broome Free'}</p>
           <p className="text-sm text-ink-muted">
             {active
               ? active.yearly
@@ -248,7 +248,7 @@ function Plan() {
       ) : (
         <p className="text-xs text-ink-muted">
           In the browser, buying is a test that charges nothing. Real purchases are made in the
-          Broomit app from the App Store.
+          Broome app from the App Store.
         </p>
       )}
     </ProfileCard>

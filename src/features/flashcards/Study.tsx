@@ -172,7 +172,7 @@ export function Study({
                 <button
                   type="button"
                   onClick={() => respond(true)}
-                  className="flex h-14 items-center justify-center gap-2 rounded-card bg-ink font-semibold text-ink-inverse shadow-soft hover:bg-mocha"
+                  className="flex h-14 items-center justify-center gap-2 rounded-card bg-accent font-semibold text-on-accent shadow-soft hover:brightness-110"
                 >
                   <Check size={20} /> Know it
                 </button>

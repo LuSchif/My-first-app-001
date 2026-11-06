@@ -177,7 +177,7 @@ export function BackupMenu({ onRestored }: { onRestored: () => void }) {
 }
 
 /**
- * Asks to add Broomit to the Home Screen. Installed, it starts offline, and iPadOS no longer
+ * Asks to add Broome to the Home Screen. Installed, it starts offline, and iPadOS no longer
  * clears its storage after a week without visits.
  */
 export function InstallHint() {
@@ -189,10 +189,10 @@ export function InstallHint() {
         <Share size={20} />
       </span>
       <div className="grid flex-1 gap-1">
-        <p className="font-semibold">Install Broomit on your iPad</p>
+        <p className="font-semibold">Install Broome on your iPad</p>
         <p className="text-sm text-ink-muted">
           Tap <span className="font-semibold text-ink">Share</span>, then{' '}
-          <span className="font-semibold text-ink">Add to Home Screen</span>. Installed, Broomit
+          <span className="font-semibold text-ink">Add to Home Screen</span>. Installed, Broome
           opens full screen, works offline, and iPadOS keeps your notebooks even when you don’t open
           it for a while.
         </p>

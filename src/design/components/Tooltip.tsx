@@ -15,7 +15,7 @@ export function Tooltip({ label, children }: { label: string; children: ReactNod
       <RadixTooltip.Portal>
         <RadixTooltip.Content
           sideOffset={8}
-          className="z-50 animate-fade-in rounded-lg bg-ink px-2.5 py-1.5 text-xs font-medium text-ink-inverse shadow-raised"
+          className="z-50 animate-fade-in rounded-lg bg-surface-raised ring-1 ring-line px-2.5 py-1.5 text-xs font-medium text-ink shadow-raised"
         >
           {label}
         </RadixTooltip.Content>

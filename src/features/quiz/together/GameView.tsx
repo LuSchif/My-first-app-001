@@ -69,7 +69,7 @@ export function GameView({ id }: { id: string }) {
     return <Message text="Playing with friends is not available here." />
   if (account.status === 'signedOut') {
     return (
-      <Message text="Sign in to your Broomit account to play with friends.">
+      <Message text="Sign in to your Broome account to play with friends.">
         <Button variant="primary" onClick={() => navigate({ name: 'profile' })}>
           Open your profile
         </Button>

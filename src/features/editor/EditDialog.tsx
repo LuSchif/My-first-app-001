@@ -101,7 +101,7 @@ export function EditTabs<T extends string>({
           type="button"
           aria-selected={value === name}
           onClick={() => onChange(name)}
-          className="h-10 rounded-control px-4 text-sm font-semibold ring-1 ring-line aria-selected:bg-ink aria-selected:text-ink-inverse aria-selected:ring-ink"
+          className="h-10 rounded-control px-4 text-sm font-semibold ring-1 ring-line aria-selected:bg-accent aria-selected:text-on-accent aria-selected:ring-accent"
         >
           {text}
         </button>

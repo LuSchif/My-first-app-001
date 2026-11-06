@@ -2,11 +2,11 @@ import type { CapacitorConfig } from '@capacitor/cli'
 
 /**
  * The iPad app: the same web app, packaged by Capacitor. The bundle id is Apple's internal name
- * for the app; people only ever see "Broomit".
+ * for the app; people only ever see "Broome".
  */
 const config: CapacitorConfig = {
   appId: 'com.luisschiffter.broomit',
-  appName: 'Broomit',
+  appName: 'Broome',
   webDir: 'dist',
   ios: {
     // Pages scroll inside the app; the web view itself never bounces.

@@ -19,7 +19,7 @@ export function DragGhost() {
   return (
     <div
       aria-hidden="true"
-      className="pointer-events-none fixed z-[80] flex -translate-x-1/2 -translate-y-[130%] items-center gap-2 rounded-full bg-ink px-4 py-2 text-sm font-semibold whitespace-nowrap text-ink-inverse shadow-overlay"
+      className="pointer-events-none fixed z-[80] flex -translate-x-1/2 -translate-y-[130%] items-center gap-2 rounded-full bg-surface-raised ring-1 ring-line px-4 py-2 text-sm font-semibold whitespace-nowrap text-ink shadow-overlay"
       style={{ left: drag.x, top: drag.y }}
     >
       {drag.over?.kind === 'root' ? <Inbox size={16} /> : <FolderInput size={16} />}

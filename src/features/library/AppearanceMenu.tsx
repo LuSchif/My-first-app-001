@@ -110,7 +110,7 @@ function DesignPacks({
 }
 
 /**
- * Colors the interface: a design pack, one of Broomit's looks, or your own color or color gradient (which can
+ * Colors the interface: a design pack, one of Broome's looks, or your own color or color gradient (which can
  * be saved as named presets), light or dark.
  */
 export function AppearanceMenu() {

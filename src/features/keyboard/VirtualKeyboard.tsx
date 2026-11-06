@@ -55,7 +55,7 @@ async function paste(): Promise<void> {
   }
 }
 
-/** Broomit Keyboard, shown while a text field is its target (see keyboardStore). */
+/** Broome Keyboard, shown while a text field is its target (see keyboardStore). */
 export function VirtualKeyboard() {
   const state = useSyncExternalStore(onKeyboardChange, keyboardState)
   const ref = useRef<HTMLDivElement>(null)
@@ -87,13 +87,13 @@ export function VirtualKeyboard() {
       ref={ref}
       data-virtual-keyboard=""
       role="group"
-      aria-label="Broomit Keyboard"
+      aria-label="Broome Keyboard"
       // Stays usable while a dialog blocks the page behind it.
       style={{ pointerEvents: 'auto', touchAction: 'none', WebkitTouchCallout: 'none' }}
       className="fixed inset-x-0 bottom-0 z-[70] grid gap-1 bg-surface-sunken px-1 pt-1.5 pb-[calc(14px+env(safe-area-inset-bottom))] shadow-overlay select-none"
     >
       <div className="mx-auto flex w-full max-w-[64rem] items-center gap-1 px-1">
-        <span className="mr-auto truncate text-sm font-semibold text-ink">Broomit Keyboard</span>
+        <span className="mr-auto truncate text-sm font-semibold text-ink">Broome Keyboard</span>
         <StripButton label="Select all" onClick={selectAll}>
           Select all
         </StripButton>
@@ -527,9 +527,9 @@ function Key({
         className={cn(
           KEY_CLASS,
           accent
-            ? 'bg-ink text-ink-inverse group-data-[down]:bg-mocha'
+            ? 'bg-accent text-on-accent group-data-[down]:bg-mocha'
             : pressed
-              ? 'bg-ink text-ink-inverse'
+              ? 'bg-accent text-on-accent'
               : wide
                 ? 'bg-sand'
                 : 'bg-surface-raised',

@@ -11,10 +11,10 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const variants: Record<Variant, string> = {
-  primary: 'bg-ink text-ink-inverse shadow-soft hover:bg-mocha',
+  primary: 'bg-accent text-on-accent shadow-soft hover:brightness-110',
   secondary: 'bg-surface-raised text-ink ring-1 ring-line ring-inset hover:bg-surface-sunken',
   ghost: 'text-ink hover:bg-hover',
-  danger: 'bg-danger text-ink-inverse shadow-soft hover:brightness-110',
+  danger: 'bg-danger text-on-accent shadow-soft hover:brightness-110',
 }
 
 // Both sizes keep a hit area of at least 44 px, the minimum for touch.

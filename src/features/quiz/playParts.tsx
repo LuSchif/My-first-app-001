@@ -210,7 +210,7 @@ function AnswerInput({
                 <span
                   className={cn(
                     'grid size-9 shrink-0 place-items-center rounded-control font-bold',
-                    at >= 0 ? 'bg-accent text-ink-inverse' : 'bg-surface-sunken text-ink-subtle',
+                    at >= 0 ? 'bg-accent text-on-accent' : 'bg-surface-sunken text-ink-subtle',
                   )}
                 >
                   {at >= 0 ? at + 1 : '·'}
@@ -317,7 +317,7 @@ export function ResultMark({ correct }: { correct: boolean | null | undefined })
   return (
     <span
       className={cn(
-        'grid size-7 shrink-0 place-items-center rounded-full text-ink-inverse',
+        'grid size-7 shrink-0 place-items-center rounded-full text-on-accent',
         correct == null ? 'bg-ink-subtle' : correct ? 'bg-correct' : 'bg-incorrect',
       )}
     >

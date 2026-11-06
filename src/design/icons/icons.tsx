@@ -1,6 +1,6 @@
 /**
- * Every icon of the app in Broomit's style, under the names the code uses. Icons with a
- * Broomit drawing (glyphs.tsx) use it; the rest are line icons (lineGlyphs.ts). All show in
+ * Every icon of the app in Broome's style, under the names the code uses. Icons with a
+ * Broome drawing (glyphs.tsx) use it; the rest are line icons (lineGlyphs.ts). All show in
  * color when `colored`, or inside a chosen icon button.
  */
 import { LineIcon, type IconProps } from './LineIcon.tsx'
@@ -20,6 +20,7 @@ export const ArrowDownUp = (props: IconProps) => <LineIcon line="ArrowDownUp" {.
 export const ArrowDownWideNarrow = (props: IconProps) => (
   <LineIcon line="ArrowDownWideNarrow" {...props} />
 )
+export const ArrowLeft = (props: IconProps) => <LineIcon line="ArrowLeft" {...props} />
 export const ArrowLeftRight = (props: IconProps) => <LineIcon line="ArrowLeftRight" {...props} />
 export const ArrowRight = (props: IconProps) => <LineIcon line="ArrowRight" {...props} />
 export const ArrowUp = (props: IconProps) => <LineIcon line="ArrowUp" {...props} />

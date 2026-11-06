@@ -104,7 +104,7 @@ export function FrameRate() {
     <button
       type="button"
       onClick={copy}
-      className="fixed bottom-[calc(8px+env(safe-area-inset-bottom))] left-2 z-[90] rounded-full bg-ink px-2.5 py-1 font-mono text-[11px] font-semibold text-ink-inverse tabular-nums data-[state=fair]:bg-accent data-[state=poor]:bg-danger"
+      className="fixed bottom-[calc(8px+env(safe-area-inset-bottom))] left-2 z-[90] rounded-full bg-ink px-2.5 py-1 font-mono text-[11px] font-semibold text-on-accent tabular-nums data-[state=fair]:bg-accent data-[state=poor]:bg-danger"
     >
       <span ref={label} role="status">
         … fps

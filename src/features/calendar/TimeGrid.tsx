@@ -135,7 +135,7 @@ export function TimeGrid({
                   <span
                     className={cn(
                       'grid size-7 place-items-center rounded-full text-sm font-bold tabular-nums',
-                      isToday && 'bg-ink text-ink-inverse',
+                      isToday && 'bg-accent text-on-accent',
                     )}
                   >
                     {d.getDate()}

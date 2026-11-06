@@ -14,7 +14,7 @@ const ROLE_FILL = {
   s: 'currentColor',
 } as const
 
-/** One icon: a Broomit drawing (`glyph`) or a line icon (`line`), in Broomit's style. */
+/** One icon: a Broome drawing (`glyph`) or a line icon (`line`), in Broome's style. */
 export function LineIcon({
   glyph,
   line,

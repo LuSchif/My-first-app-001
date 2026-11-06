@@ -27,7 +27,7 @@ const TRANSITIONS: [SlideTransition['effect'], string][] = [
 ]
 
 const choice =
-  'min-h-11 rounded-control px-2 text-sm font-semibold ring-1 ring-line aria-pressed:bg-ink aria-pressed:text-ink-inverse aria-pressed:ring-ink disabled:opacity-40'
+  'min-h-11 rounded-control px-2 text-sm font-semibold ring-1 ring-line aria-pressed:bg-accent aria-pressed:text-on-accent aria-pressed:ring-accent disabled:opacity-40'
 
 /** Picks one of a few options, as a grid of buttons. */
 function Choices<T extends string>({

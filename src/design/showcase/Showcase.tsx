@@ -31,7 +31,7 @@ import {
 } from '../index.ts'
 
 /**
- * A living reference of the Broomit design system. Everything on this page is the real
+ * A living reference of the Broome design system. Everything on this page is the real
  * component, so it doubles as a manual test bench on the iPad.
  */
 export function Showcase() {
@@ -39,13 +39,11 @@ export function Showcase() {
     <div className="min-h-full px-4 pt-10 pb-24 sm:px-8">
       <div className="mx-auto grid max-w-4xl gap-14">
         <header className="grid gap-2">
-          <p className="text-xs font-semibold tracking-[0.14em] text-ink-muted uppercase">
-            Broomit
-          </p>
+          <p className="text-xs font-semibold tracking-[0.14em] text-ink-muted uppercase">Broome</p>
           <h1 className="text-4xl font-bold tracking-tight text-balance">Design system</h1>
           <p className="max-w-[60ch] text-ink-muted">
-            Colors, type, icons and the building blocks of every Broomit screen. All controls on
-            this page work, so you can try them with finger, pencil, mouse and keyboard.
+            Colors, type, icons and the building blocks of every Broome screen. All controls on this
+            page work, so you can try them with finger, pencil, mouse and keyboard.
           </p>
         </header>
         <ColorsSection />
@@ -158,7 +156,7 @@ function IconsSection() {
   return (
     <Section
       title="Icons"
-      note="Broomit's own icons on a 24 px grid. Lines as usual; in color for the tool in use, and pens show their ink at the tip."
+      note="Broome's own icons on a 24 px grid: white lines over grey bodies; blue for the tool in use, and pens show their ink at the tip."
     >
       <div className="grid gap-4">
         {[false, true].map((colored) => (
@@ -166,11 +164,8 @@ function IconsSection() {
             key={String(colored)}
             className={cn(
               'grid grid-cols-4 gap-2 rounded-panel p-4 sm:grid-cols-6 md:grid-cols-8',
-              colored ? 'bg-surface-raised ring-1 ring-line' : 'bg-ink text-ink-inverse',
+              colored ? 'bg-surface-raised ring-1 ring-line' : 'bg-surface-sunken',
             )}
-            style={
-              colored ? undefined : ({ '--icon-bg': 'var(--color-ink)' } as React.CSSProperties)
-            }
           >
             {names.map((name) => (
               <div key={name} className="grid justify-items-center gap-1.5 py-2 text-center">

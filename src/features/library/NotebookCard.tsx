@@ -40,7 +40,7 @@ export function PinMark({ inset = false }: { inset?: boolean }) {
     <span
       aria-label="Pinned"
       className={cn(
-        'absolute grid size-7 place-items-center rounded-full bg-accent text-ink-inverse shadow-soft',
+        'absolute grid size-7 place-items-center rounded-full bg-accent text-on-accent shadow-soft',
         inset ? 'top-2 right-2' : 'top-0 right-0',
       )}
     >
@@ -74,7 +74,7 @@ export function SelectMark({
             ? 'absolute top-2 left-2 shadow-soft'
             : 'absolute top-0 left-0 shadow-soft',
         selected
-          ? 'bg-accent text-ink-inverse ring-surface-raised'
+          ? 'bg-accent text-on-accent ring-surface-raised'
           : 'bg-surface-raised/90 text-transparent ring-line-strong',
       )}
     >
@@ -139,7 +139,7 @@ export function NotebookCard({
           >
             <SlideThumbnail notebook={notebook} />
             {/* A chart in the middle says "presentation" at a glance. */}
-            <span className="absolute grid size-12 place-items-center rounded-full bg-ink/80 text-ink-inverse shadow-raised">
+            <span className="absolute grid size-12 place-items-center rounded-full bg-surface-raised/80 text-ink shadow-raised">
               <BarChart3 size={24} />
             </span>
           </button>
@@ -263,7 +263,7 @@ function FolderBadge({ notebook, folders }: { notebook: Notebook; folders: reado
         className="grid size-4 shrink-0 place-items-center rounded-full"
         style={{ background: fillToCss(folder.fill) }}
       >
-        <FolderClosed size={10} className="text-ink-inverse" />
+        <FolderClosed size={10} className="text-on-accent" />
       </span>
       <span className="truncate">{path.map((f) => f.name).join(' › ')}</span>
     </button>

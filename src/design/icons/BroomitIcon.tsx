@@ -2,7 +2,7 @@ import type { CSSProperties, SVGProps } from 'react'
 import { COLORED_VARS, GLYPHS, paintFor, type GlyphName } from './glyphs.tsx'
 
 /**
- * One of Broomit's icons: lines only, or in color when `colored` (a tool in use). Pens show
+ * One of Broome's icons: lines only, or in color when `colored` (a tool in use). Pens show
  * `tip`, their current ink, at the tip.
  */
 export function BroomitIcon({

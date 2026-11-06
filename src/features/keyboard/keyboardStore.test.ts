@@ -14,7 +14,7 @@ import {
   type,
 } from './keyboardStore.ts'
 
-describe("Broomit's keyboard", () => {
+describe("Broome's keyboard", () => {
   it('types into a field without focusing it, with a capital at the start', () => {
     const input = document.createElement('input')
     document.body.append(input)

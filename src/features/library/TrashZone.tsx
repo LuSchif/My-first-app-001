@@ -56,7 +56,7 @@ function DropZone() {
       <span
         className={cn(
           'pointer-events-none flex items-center gap-2 rounded-full px-5 py-3 font-semibold shadow-overlay transition-transform duration-150 ease-gentle',
-          over ? 'scale-110 bg-danger text-ink-inverse' : 'bg-surface-raised text-danger',
+          over ? 'scale-110 bg-danger text-on-accent' : 'bg-surface-raised text-danger',
         )}
       >
         <Trash2 size={22} className={cn('transition-transform', over && '-rotate-12')} />

@@ -7,7 +7,7 @@
 import { designPack, packImage, type DesignPackId } from './packs.ts'
 
 export interface ThemeSetting {
-  /** The color the theme is built from; null for Broomit's own look. */
+  /** The color the theme is built from; null for Broome's own look. */
   accent: string | null
   dark: boolean
   /**
@@ -29,7 +29,7 @@ export interface ThemeGradient {
 export const DEFAULT_THEME: ThemeSetting = { accent: null, dark: false }
 
 export const THEME_PRESETS = [
-  ['Mocha', null],
+  ['Broome blue', null],
   ['Sage', '#6f9a5c'],
   ['Ocean', '#4a7fb5'],
   ['Rose', '#c4677f'],
@@ -38,8 +38,8 @@ export const THEME_PRESETS = [
   ['Graphite', '#6b6b6b'],
 ] as const
 
-/** Broomit's own accent: the default theme in dark is built from it. */
-const MOCHA = '#b98b65'
+/** Broome's own accent: the default theme in dark is built from it. */
+const MOCHA = '#4f8ef7'
 const KEY = 'broomit.theme'
 /** Fired on window after a theme was applied. */
 export const THEME_EVENT = 'broomit:theme'

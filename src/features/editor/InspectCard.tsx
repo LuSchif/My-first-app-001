@@ -56,7 +56,7 @@ export function InspectCard({ editor, state }: { editor: Editor; state: EditorSt
                   editor.setActiveLayer(item.layerId)
                   editor.closeInspect()
                 }}
-                className="h-9 shrink-0 rounded-control bg-ink px-3 text-xs font-semibold text-ink-inverse"
+                className="h-9 shrink-0 rounded-control bg-accent px-3 text-xs font-semibold text-on-accent"
               >
                 Go to layer
               </button>

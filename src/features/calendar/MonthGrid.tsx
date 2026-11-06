@@ -60,7 +60,7 @@ export function MonthGrid({
                 <span
                   className={cn(
                     'grid size-6 shrink-0 place-items-center rounded-full text-xs font-bold tabular-nums',
-                    key === today && 'bg-ink text-ink-inverse',
+                    key === today && 'bg-accent text-on-accent',
                   )}
                 >
                   {day.getDate()}

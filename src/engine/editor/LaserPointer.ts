@@ -1,5 +1,4 @@
 import type { Point } from '../geometry/camera.ts'
-import { drawBroom } from '../render/broomGlyph.ts'
 import type { EditorContext } from './context.ts'
 import type { FxPainter } from './FxLayer.ts'
 
@@ -8,7 +7,8 @@ const HOLD_MS = 1000
 const FADE_MS = 450
 const CORE_PX = 4
 const GLOW_PX = 14
-const BROOM_PX = 34
+/** The radius of the pointer's dot, in screen pixels. */
+const HEAD_PX = 6
 
 interface TrailPoint {
   /** World coordinates, so the trail stays on the page while it scrolls. */
@@ -141,7 +141,18 @@ export class LaserPointer implements FxPainter {
     ctx.lineWidth = CORE_PX
     ctx.stroke(path)
     ctx.globalAlpha = 1
-    if (this.head) drawBroom(ctx, this.head.x, this.head.y, BROOM_PX, this.color)
+    if (this.head) {
+      // The head: a bright dot with a soft glow.
+      ctx.fillStyle = this.color
+      ctx.globalAlpha = 0.25
+      ctx.beginPath()
+      ctx.arc(this.head.x, this.head.y, HEAD_PX * 1.8, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.globalAlpha = 1
+      ctx.beginPath()
+      ctx.arc(this.head.x, this.head.y, HEAD_PX, 0, Math.PI * 2)
+      ctx.fill()
+    }
     return this.trail.length > 0 || this.head !== null
   }
 }

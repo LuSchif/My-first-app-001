@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { accountNow, shareProfile, useAccount } from '../../storage/cloud/account.ts'
 import { db } from '../../storage/db.ts'
 
-/** The person using Broomit on this device: a name and a picture, kept in backups. */
+/** The person using Broome on this device: a name and a picture, kept in backups. */
 export interface Profile {
   id: 'me'
   name: string

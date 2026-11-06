@@ -1,7 +1,9 @@
 import { MAX_STABILIZATION } from '../../engine/input/StrokeSampler.ts'
 import {
   Check,
-  ChevronLeft,
+  ArrowLeft,
+  ChevronDown,
+  ChevronUp,
   CloudAlert,
   EyeOff,
   Lock,
@@ -10,7 +12,14 @@ import {
   Redo2,
   Undo2,
 } from '../../design/icons/icons.tsx'
-import { useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type ReactNode,
+} from 'react'
 import type { Editor, EditorState, ToolId } from '../../engine/editor/Editor.ts'
 import type { StrokeDash } from '../../engine/model/types.ts'
 import { dashPattern } from '../../engine/render/strokes.ts'
@@ -30,11 +39,10 @@ import {
 } from '../../design/index.ts'
 import type { Autosave } from '../../storage/Autosave.ts'
 import type { NotebookDocument } from '../../engine/document/NotebookDocument.ts'
-import { FloatingPanel, PanelDivider } from './FloatingPanel.tsx'
+import { FloatingPanel } from './FloatingPanel.tsx'
 import { setBarArea } from './panelLayout.ts'
 import { PagesOverview } from './PagesOverview.tsx'
 import { LayersPanel } from './LayersPanel.tsx'
-import { RecentColors } from './RecentColors.tsx'
 import { ControlCenter } from './ControlCenter.tsx'
 import { InspectCard } from './InspectCard.tsx'
 import { NewPageMenu, PullForPage } from './NewPage.tsx'
@@ -42,7 +50,7 @@ import { PathMenu } from './PathMenu.tsx'
 import { PenPreview } from './PenPreview.tsx'
 import { PasteButton, SelectionMenu } from './SelectionMenu.tsx'
 import { ToolWheel } from './ToolWheel.tsx'
-import { isWheelTool, wheelTools } from './wheelTools.tsx'
+import { ToolDock } from './ToolDock.tsx'
 import { SuggestionChip } from './SuggestionChip.tsx'
 import { GraphOfferChip } from './GraphEditor.tsx'
 import { TextFormatControls } from './TextFormatControls.tsx'
@@ -93,22 +101,15 @@ export function Toolbar({
     () => editor.state,
   )
   const [panel, setPanel] = useState<ToolId | 'pages' | 'layers' | 'control' | null>(null)
-  const { features } = state
   const unit = editor.kind === 'presentation' ? 'Slide' : 'Page'
   // A deck counts cards, each with a front and a back.
   const place =
     editor.kind === 'deck'
       ? `Card ${Math.floor(state.pageIndex / 2) + 1} · ${state.pageIndex % 2 ? 'Back' : 'Front'}`
       : `${unit} ${state.pageIndex + 1} of ${state.pageCount}`
-  const shortPlace =
-    editor.kind === 'deck'
-      ? `${Math.floor(state.pageIndex / 2) + 1}${state.pageIndex % 2 ? 'B' : 'F'}`
-      : `${state.pageIndex + 1}/${state.pageCount}`
   const activeLayer = state.layers.find((l) => l.id === state.activeLayerId)
-  // The tool last taken from the wheel sits in the toolbar, next to lasso, magnifier and paths.
-  const [slot, setSlot] = useState<ToolId>(isWheelTool(state.tool) ? state.tool : 'pen')
-  if (isWheelTool(state.tool) && state.tool !== slot) setSlot(state.tool)
-  const slotTool = wheelTools(features).find((t) => t.tool === slot) ?? wheelTools(features)[0]!
+  // The notebook's name shows at the top of its pages.
+  useEffect(() => editor.setPageTitle(title), [editor, title])
   const leftCorner = useRef<HTMLDivElement>(null)
   const rightCorner = useRef<HTMLDivElement>(null)
 
@@ -139,100 +140,30 @@ export function Toolbar({
     }
   }, [])
 
-  // The first tap selects a tool; tapping the selected tool again opens its settings.
-  const toolButton = (tool: ToolId, label: string, icon: ReactNode, settings?: ReactNode) =>
-    settings === undefined ? (
-      <IconButton
-        label={label}
-        icon={icon}
-        soft
-        active={state.tool === tool}
-        onClick={() => editor.setTool(tool)}
-      />
-    ) : (
-      <Popover open={panel === tool} onOpenChange={(open) => setPanel(open ? tool : null)}>
-        <PopoverTrigger asChild>
-          <IconButton
-            label={label}
-            icon={icon}
-            soft
-            active={state.tool === tool}
-            onClick={(e) => {
-              if (state.tool !== tool) {
-                e.preventDefault()
-                editor.setTool(tool)
-                setPanel(null)
-              }
-            }}
-          />
-        </PopoverTrigger>
-        <PopoverContent movable={`tool-${tool}`} className="grid w-80 gap-5">
-          {settings}
-        </PopoverContent>
-      </Popover>
-    )
-
   return (
     <>
       <div className="pointer-events-none absolute inset-x-0 top-0 flex flex-wrap items-start justify-between gap-2 px-[max(12px,env(safe-area-inset-left))] pt-[calc(10px+env(safe-area-inset-top))]">
-        <div
-          ref={leftCorner}
-          className="pointer-events-auto flex items-center gap-1 rounded-panel bg-surface-raised p-1.5 shadow-raised"
-        >
+        <div ref={leftCorner} className="pointer-events-auto flex items-center gap-2">
           {/* Hidden while the panel is open, so closing the panel never closes the notebook. */}
           {insertOpen ? null : (
-            <IconButton label="All notebooks" icon={<ChevronLeft {...ICON} />} onClick={onBack} />
+            <CornerButton label="All notebooks" onClick={onBack}>
+              <ArrowLeft size={24} strokeWidth={1.8} />
+            </CornerButton>
           )}
-          <IconButton
+          <CornerButton
             label={insertOpen ? 'Close shapes, stickers and more' : 'Shapes, stickers and more'}
-            icon={<BroomitIcon name="shapes" size={24} colored={insertOpen} />}
-            soft
             active={insertOpen}
-            aria-expanded={insertOpen}
             onClick={onToggleInsert}
-          />
+          >
+            <BroomitIcon name="shapes" size={26} colored={insertOpen} />
+          </CornerButton>
         </div>
 
-        <FloatingPanel id="tools" label="Tools" defaultDock="top" order={0}>
-          <span className="max-w-[14ch] truncate px-2 font-semibold sm:max-w-[24ch]" title={title}>
-            {title}
-          </span>
-          <PanelDivider />
-          {toolButton(
-            slotTool.tool,
-            slotTool.label(state),
-            slotTool.icon(state, 24, state.tool === slotTool.tool),
-            <SlotSettings tool={slotTool.tool} editor={editor} state={state} />,
-          )}
-          {toolButton(
-            'lasso',
-            state.lassoMode === 'rect' ? 'Rectangle lasso' : 'Lasso',
-            <BroomitIcon
-              name={state.lassoMode === 'rect' ? 'selection' : 'lasso'}
-              size={24}
-              colored={state.tool === 'lasso'}
-            />,
-            <LassoSettings editor={editor} state={state} />,
-          )}
-          {features.magnifier
-            ? toolButton(
-                'magnifier',
-                'Magnifier',
-                <BroomitIcon name="magnifier" size={24} colored={state.tool === 'magnifier'} />,
-              )
-            : null}
-          {features.pathTool
-            ? toolButton(
-                'path',
-                'Edit paths',
-                <BroomitIcon name="anchor" size={24} colored={state.tool === 'path'} />,
-              )
-            : null}
-        </FloatingPanel>
+        <ToolDock editor={editor} state={state} />
 
         <div
           ref={rightCorner}
-          className="pointer-events-auto flex items-center gap-1 rounded-panel bg-surface-raised p-1.5 shadow-raised"
+          className="pointer-events-auto ml-auto flex items-center gap-0.5 rounded-panel bg-surface-raised p-1.5 shadow-raised ring-1 ring-line"
         >
           <SaveProblem autosave={autosave} />
           <IconButton
@@ -247,11 +178,12 @@ export function Toolbar({
             disabled={!state.canRedo}
             onClick={() => editor.redo()}
           />
+          <span aria-hidden="true" className="mx-1 h-7 w-px bg-line" />
           {onPresent ? (
             <button
               type="button"
               onClick={onPresent}
-              className="flex h-11 items-center gap-1.5 rounded-control bg-ink px-3 text-sm font-semibold text-ink-inverse hover:opacity-90"
+              className="flex h-11 items-center gap-1.5 rounded-control bg-accent px-3 text-sm font-semibold text-on-accent hover:opacity-90"
             >
               {editor.kind === 'deck' ? (
                 <>
@@ -277,7 +209,7 @@ export function Toolbar({
             )}
             aria-pressed={addonsOpen}
           >
-            <BroomitIcon name="addons" size={22} />
+            <BroomitIcon name="addons" size={24} colored={addonsOpen} />
             {addonsOn ? <span>{addonsOn}</span> : null}
           </button>
           <Popover
@@ -290,10 +222,7 @@ export function Toolbar({
                 aria-label={`Layers, active: ${activeLayer?.name ?? ''}`}
                 className="flex h-11 max-w-[14ch] items-center gap-1.5 rounded-control px-3 text-sm font-semibold hover:bg-hover"
               >
-                <BroomitIcon name="layers" size={22} className="shrink-0" />
-                {state.layers.length > 1 ? (
-                  <span className="truncate">{activeLayer?.name}</span>
-                ) : null}
+                <BroomitIcon name="layers" size={24} className="shrink-0" />
                 {activeLayer && !activeLayer.visible ? (
                   <EyeOff size={14} className="shrink-0 text-danger" />
                 ) : activeLayer?.locked ? (
@@ -309,10 +238,10 @@ export function Toolbar({
             <DialogTrigger asChild>
               <button
                 type="button"
-                className="flex h-11 items-center gap-1.5 rounded-control px-3 text-sm font-semibold tabular-nums hover:bg-hover"
+                aria-label={`Pages, ${place}`}
+                className="grid size-11 place-items-center rounded-control hover:bg-hover"
               >
-                <BroomitIcon name="pages" size={22} />
-                <span aria-label={place}>{shortPlace}</span>
+                <BroomitIcon name="pages" size={24} />
               </button>
             </DialogTrigger>
             {panel === 'pages' ? (
@@ -329,7 +258,7 @@ export function Toolbar({
             onOpenChange={(open) => setPanel(open ? 'control' : null)}
           >
             <PopoverTrigger asChild>
-              <IconButton label="Control center" icon={<BroomitIcon name="settings" size={22} />} />
+              <IconButton label="Control center" icon={<BroomitIcon name="settings" size={24} />} />
             </PopoverTrigger>
             <PopoverContent
               movable="control"
@@ -344,7 +273,7 @@ export function Toolbar({
       {state.editingText ? <FormatBar editor={editor} state={state} /> : null}
       <SelectionMenu editor={editor} state={state} />
       <PathMenu editor={editor} state={state} />
-      <RecentColors editor={editor} state={state} />
+      <PageNavigator editor={editor} state={state} />
       <SuggestionChip editor={editor} state={state} />
       <GraphOfferChip editor={editor} state={state} />
       <InspectCard editor={editor} state={state} />
@@ -356,13 +285,13 @@ export function Toolbar({
           key={`${state.wheel.x},${state.wheel.y}`}
           editor={editor}
           state={state}
-          onPick={setSlot}
+          onPick={() => {}}
         />
       ) : null}
       {state.notice ? (
         <div
           role="status"
-          className="pointer-events-none absolute inset-x-0 bottom-[calc(84px+env(safe-area-inset-bottom))] z-20 mx-auto w-fit max-w-[calc(100%-24px)] rounded-panel bg-ink px-4 py-3 text-sm font-semibold text-ink-inverse shadow-overlay"
+          className="pointer-events-none absolute inset-x-0 bottom-[calc(84px+env(safe-area-inset-bottom))] z-20 mx-auto w-fit max-w-[calc(100%-24px)] rounded-panel bg-surface-raised ring-1 ring-line px-4 py-3 text-sm font-semibold text-ink shadow-overlay"
         >
           {state.notice}
         </div>
@@ -392,39 +321,6 @@ function FormatBar({ editor, state }: { editor: Editor; state: EditorState }) {
   )
 }
 
-/** The settings of the tool taken from the wheel. */
-function SlotSettings({
-  tool,
-  editor,
-  state,
-}: {
-  tool: ToolId
-  editor: Editor
-  state: EditorState
-}) {
-  switch (tool) {
-    case 'magic':
-      return <MagicPenSettings editor={editor} state={state} />
-    case 'highlighter':
-      return <HighlighterSettings editor={editor} state={state} />
-    case 'broom':
-      return <BroomSettings editor={editor} state={state} />
-    case 'text':
-      return (
-        <>
-          <p className="text-sm font-semibold">Style for new text</p>
-          <TextSettings editor={editor} state={state} />
-        </>
-      )
-    case 'tape':
-      return <TapeSettings editor={editor} state={state} />
-    case 'laser':
-      return <LaserSettings editor={editor} state={state} />
-    default:
-      return <PenSettings editor={editor} state={state} />
-  }
-}
-
 const TAPE_COLORS = [
   ['Caramel', '#d9b48f'],
   ['Sand', '#e8dcc6'],
@@ -436,7 +332,7 @@ const TAPE_COLORS = [
   ['Cocoa', '#8a6a55'],
 ] as const
 
-function TapeSettings({ editor, state }: { editor: Editor; state: EditorState }) {
+export function TapeSettings({ editor, state }: { editor: Editor; state: EditorState }) {
   return (
     <>
       <p className="text-sm text-ink-muted">
@@ -476,7 +372,7 @@ const LASER_COLORS = [
   ['Purple', '#9b5de5'],
 ] as const
 
-function LaserSettings({ editor, state }: { editor: Editor; state: EditorState }) {
+export function LaserSettings({ editor, state }: { editor: Editor; state: EditorState }) {
   return (
     <>
       <p className="text-sm text-ink-muted">
@@ -500,7 +396,7 @@ function LaserSettings({ editor, state }: { editor: Editor; state: EditorState }
   )
 }
 
-function TextSettings({ editor, state }: { editor: Editor; state: EditorState }) {
+export function TextSettings({ editor, state }: { editor: Editor; state: EditorState }) {
   return (
     <>
       <TextFormatControls editor={editor} style={state.textStyle} />
@@ -518,7 +414,7 @@ function TextSettings({ editor, state }: { editor: Editor; state: EditorState })
   )
 }
 
-function LassoSettings({ editor, state }: { editor: Editor; state: EditorState }) {
+export function LassoSettings({ editor, state }: { editor: Editor; state: EditorState }) {
   const modes = [
     [
       'freehand',
@@ -545,7 +441,7 @@ function LassoSettings({ editor, state }: { editor: Editor; state: EditorState }
           }}
           className={cn(
             'flex min-h-11 items-center gap-3 rounded-control px-3 py-2 text-left ring-1 ring-line',
-            'aria-pressed:bg-ink aria-pressed:text-ink-inverse aria-pressed:ring-ink',
+            'aria-pressed:bg-accent aria-pressed:text-on-accent aria-pressed:ring-accent',
           )}
         >
           {icon}
@@ -589,7 +485,7 @@ function dashArray(dash: StrokeDash | null, width: number): string | undefined {
   return pattern.length ? pattern.join(' ') : undefined
 }
 
-function PenSettings({ editor, state }: { editor: Editor; state: EditorState }) {
+export function PenSettings({ editor, state }: { editor: Editor; state: EditorState }) {
   const { pen } = state
   return (
     <>
@@ -609,7 +505,7 @@ function PenSettings({ editor, state }: { editor: Editor; state: EditorState }) 
             onClick={() => {
               editor.setPen({ nib })
             }}
-            className="flex min-h-11 flex-col items-start justify-center rounded-control px-3 py-1.5 text-left ring-1 ring-line aria-pressed:bg-ink aria-pressed:text-ink-inverse aria-pressed:ring-ink"
+            className="flex min-h-11 flex-col items-start justify-center rounded-control px-3 py-1.5 text-left ring-1 ring-line aria-pressed:bg-accent aria-pressed:text-on-accent aria-pressed:ring-accent"
           >
             <span className="text-sm font-semibold">{label}</span>
             <span className="text-xs opacity-75">{hint}</span>
@@ -626,7 +522,7 @@ function PenSettings({ editor, state }: { editor: Editor; state: EditorState }) 
               onClick={() => {
                 editor.setPen({ dash })
               }}
-              className="flex min-h-11 flex-col items-center justify-center gap-1 rounded-control px-2 text-xs font-semibold ring-1 ring-line aria-pressed:bg-ink aria-pressed:text-ink-inverse aria-pressed:ring-ink"
+              className="flex min-h-11 flex-col items-center justify-center gap-1 rounded-control px-2 text-xs font-semibold ring-1 ring-line aria-pressed:bg-accent aria-pressed:text-on-accent aria-pressed:ring-accent"
             >
               <svg aria-hidden="true" width="44" height="6" viewBox="0 0 44 6">
                 <line
@@ -688,7 +584,7 @@ function PenSettings({ editor, state }: { editor: Editor; state: EditorState }) 
 }
 
 /** The magic pen shares the pen's color, size and opacity. */
-function MagicPenSettings({ editor, state }: { editor: Editor; state: EditorState }) {
+export function MagicPenSettings({ editor, state }: { editor: Editor; state: EditorState }) {
   const { pen } = state
   return (
     <>
@@ -725,7 +621,7 @@ function MagicPenSettings({ editor, state }: { editor: Editor; state: EditorStat
   )
 }
 
-function HighlighterSettings({ editor, state }: { editor: Editor; state: EditorState }) {
+export function HighlighterSettings({ editor, state }: { editor: Editor; state: EditorState }) {
   const { highlighter } = state
   return (
     <>
@@ -754,23 +650,23 @@ function HighlighterSettings({ editor, state }: { editor: Editor; state: EditorS
   )
 }
 
-function BroomSettings({ editor, state }: { editor: Editor; state: EditorState }) {
+export function BroomSettings({ editor, state }: { editor: Editor; state: EditorState }) {
   const { broom } = state
   const modes = [
-    ['precise', 'Precise', 'Sweeps away only what it touches'],
+    ['precise', 'Precise', 'Erases only what it touches'],
     ['stroke', 'Whole strokes', 'Removes every stroke it touches'],
   ] as const
   return (
     <>
       <Slider
-        label="Broom size"
+        label="Eraser size"
         value={broom.size}
         min={4}
         max={80}
         onChange={(size) => editor.setBroom({ size })}
         format={(v) => `${v} pt`}
       />
-      <div role="group" aria-label="Broom mode" className="grid gap-1.5">
+      <div role="group" aria-label="Eraser mode" className="grid gap-1.5">
         {modes.map(([mode, label, hint]) => (
           <button
             key={mode}
@@ -781,7 +677,7 @@ function BroomSettings({ editor, state }: { editor: Editor; state: EditorState }
             }}
             className={cn(
               'flex min-h-11 items-center justify-between gap-3 rounded-control px-3 py-2 text-left ring-1 ring-line',
-              'aria-pressed:bg-ink aria-pressed:text-ink-inverse aria-pressed:ring-ink',
+              'aria-pressed:bg-accent aria-pressed:text-on-accent aria-pressed:ring-accent',
             )}
           >
             <span>
@@ -813,5 +709,63 @@ function SaveProblem({ autosave }: { autosave: Autosave }) {
     >
       <CloudAlert size={16} /> Not saved, retrying
     </span>
+  )
+}
+
+/** A square button of its own in a top corner (back, shapes). */
+function CornerButton({
+  label,
+  active = false,
+  onClick,
+  children,
+}: {
+  label: string
+  active?: boolean
+  onClick: () => void
+  children: ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      aria-pressed={active}
+      onClick={onClick}
+      className="bicon-host grid size-14 place-items-center rounded-panel bg-surface-raised text-ink shadow-raised ring-1 ring-line hover:bg-hover aria-pressed:bg-pressed"
+    >
+      {children}
+    </button>
+  )
+}
+
+/** Bottom right: the page in view, with the pages before and after it. */
+function PageNavigator({ editor, state }: { editor: Editor; state: EditorState }) {
+  const unit = editor.kind === 'presentation' ? 'slide' : 'page'
+  return (
+    <nav
+      aria-label="Pages"
+      className="pointer-events-auto absolute right-[max(12px,env(safe-area-inset-right))] bottom-[calc(16px+env(safe-area-inset-bottom))] z-10 grid w-16 justify-items-center rounded-panel bg-surface-raised py-1 shadow-raised ring-1 ring-line"
+    >
+      <button
+        type="button"
+        aria-label={`Previous ${unit}`}
+        disabled={state.pageIndex === 0}
+        onClick={() => editor.goToPage(state.pageIndex - 1)}
+        className="grid h-11 w-full place-items-center rounded-control text-ink hover:bg-hover disabled:opacity-35"
+      >
+        <ChevronUp size={22} strokeWidth={1.8} />
+      </button>
+      <span className="py-1 text-sm font-semibold tabular-nums">
+        {state.pageIndex + 1} / {state.pageCount}
+      </span>
+      <button
+        type="button"
+        aria-label={`Next ${unit}`}
+        disabled={state.pageIndex >= state.pageCount - 1}
+        onClick={() => editor.goToPage(state.pageIndex + 1)}
+        className="grid h-11 w-full place-items-center rounded-control text-ink hover:bg-hover disabled:opacity-35"
+      >
+        <ChevronDown size={22} strokeWidth={1.8} />
+      </button>
+    </nav>
   )
 }

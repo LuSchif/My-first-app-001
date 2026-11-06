@@ -518,7 +518,7 @@ function Answers({
                 className={cn(
                   'flex h-9 shrink-0 items-center gap-1 rounded-full px-3 text-sm font-semibold ring-1 transition-colors',
                   a.correct
-                    ? 'bg-correct text-ink-inverse ring-correct'
+                    ? 'bg-correct text-on-accent ring-correct'
                     : 'text-ink-muted ring-line hover:bg-hover',
                 )}
               >
@@ -690,7 +690,7 @@ function QuestionSettings({
               role="radio"
               aria-checked={question.time === t}
               onClick={() => onChange({ ...question, time: t })}
-              className="h-9 min-w-12 rounded-full px-3 text-sm font-semibold ring-1 ring-line hover:bg-hover aria-checked:bg-ink aria-checked:text-ink-inverse aria-checked:ring-ink"
+              className="h-9 min-w-12 rounded-full px-3 text-sm font-semibold ring-1 ring-line hover:bg-hover aria-checked:bg-accent aria-checked:text-on-accent aria-checked:ring-accent"
             >
               {t < 60 ? `${t} s` : `${t / 60} min`}
             </button>
@@ -715,7 +715,7 @@ function QuestionSettings({
               aria-checked={question.points === value}
               disabled={question.kind === 'poll'}
               onClick={() => onChange({ ...question, points: value })}
-              className="h-10 rounded-control text-sm font-semibold ring-1 ring-line hover:bg-hover disabled:opacity-40 aria-checked:bg-ink aria-checked:text-ink-inverse aria-checked:ring-ink"
+              className="h-10 rounded-control text-sm font-semibold ring-1 ring-line hover:bg-hover disabled:opacity-40 aria-checked:bg-accent aria-checked:text-on-accent aria-checked:ring-accent"
             >
               {label}
             </button>

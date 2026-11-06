@@ -40,7 +40,7 @@ interface Opened {
 }
 
 /**
- * Your Broomit folders and notebooks. Open a notebook to drag its pages onto your page (as a new
+ * Your Broome folders and notebooks. Open a notebook to drag its pages onto your page (as a new
  * page or as a picture), or take a single element out of it with the magnifier.
  */
 export function FoldersTab({

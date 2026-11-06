@@ -1,7 +1,7 @@
 import type { Fill, LinearGradientFill, RadialGradientFill } from './fill.ts'
 
 /**
- * The Broomit document model. Everything here is plain, serializable data with stable ids, so it
+ * The Broome document model. Everything here is plain, serializable data with stable ids, so it
  * can be stored in IndexedDB, undone, exported and later synced. Objects are treated as
  * immutable: a change replaces the object instead of mutating it.
  */
@@ -131,7 +131,7 @@ export interface ImageObject extends BoxFrame, Animatable {
   layerId: Id
   assetId: Id
   opacity: number
-  /** One of Broomit's stickers: handled like a drawing (no cropping or caption). */
+  /** One of Broome's stickers: handled like a drawing (no cropping or caption). */
   sticker?: boolean
   /** Mirrored left to right, or top to bottom. */
   flipX?: boolean

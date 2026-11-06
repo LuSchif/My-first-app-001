@@ -283,7 +283,7 @@ function AutoRotateForm({
               type="button"
               aria-pressed={value.angle === a}
               onClick={() => set({ angle: a })}
-              className="h-9 rounded-control px-3 text-sm font-semibold ring-1 ring-line hover:bg-hover aria-pressed:bg-ink aria-pressed:text-ink-inverse"
+              className="h-9 rounded-control px-3 text-sm font-semibold ring-1 ring-line hover:bg-hover aria-pressed:bg-accent aria-pressed:text-on-accent"
             >
               {a > 0 ? `${a}° ↻` : `${-a}° ↺`}
             </button>
@@ -364,7 +364,7 @@ function GestureForm({
                 setTool(t)
                 setColor(t === 'highlighter' ? '#f2cf4a' : '#3e2d25')
               }}
-              className="h-9 rounded-control px-3 text-sm font-semibold ring-1 ring-line hover:bg-hover aria-pressed:bg-ink aria-pressed:text-ink-inverse"
+              className="h-9 rounded-control px-3 text-sm font-semibold ring-1 ring-line hover:bg-hover aria-pressed:bg-accent aria-pressed:text-on-accent"
             >
               {label}
             </button>
@@ -649,7 +649,7 @@ function Choice<T extends string>({
           role="radio"
           aria-checked={value === v}
           onClick={() => onChange(v)}
-          className="min-h-9 rounded-control px-3 text-sm font-semibold ring-1 ring-line hover:bg-hover aria-checked:bg-ink aria-checked:text-ink-inverse"
+          className="min-h-9 rounded-control px-3 text-sm font-semibold ring-1 ring-line hover:bg-hover aria-checked:bg-accent aria-checked:text-on-accent"
         >
           {text}
         </button>

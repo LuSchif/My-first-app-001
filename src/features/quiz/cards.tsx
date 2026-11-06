@@ -1,7 +1,7 @@
 import { cn } from '../../lib/cn.ts'
 
 /**
- * Broomit's quiz look: questions are written on a ruled sheet, answers are paper cards
+ * Broome's quiz look: questions are written on a ruled sheet, answers are paper cards
  * marked A to F; the accent shows what is chosen.
  */
 
@@ -22,9 +22,9 @@ export function AnswerLetter({
       className={cn(
         'grid size-9 shrink-0 place-items-center rounded-control text-base font-bold transition-colors',
         state === 'idle' && 'bg-surface-sunken text-ink-muted',
-        state === 'chosen' && 'bg-accent text-ink-inverse',
-        state === 'right' && 'bg-correct text-ink-inverse',
-        state === 'wrong' && 'bg-incorrect text-ink-inverse',
+        state === 'chosen' && 'bg-accent text-on-accent',
+        state === 'right' && 'bg-correct text-on-accent',
+        state === 'wrong' && 'bg-incorrect text-on-accent',
         className,
       )}
     >

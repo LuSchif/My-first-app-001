@@ -1,12 +1,12 @@
 import type { DesignPackId } from '../../design/packs.ts'
 
 /**
- * What the Broomit shop offers: free and paid things, from design packs that restyle the
+ * What the Broome shop offers: free and paid things, from design packs that restyle the
  * whole app to planners, templates and design elements. Items not ready yet are listed as
  * "Coming soon" and cannot be bought.
  */
 
-/** `plan`: the Broomit plan (bought once, or yearly), shown in the profile, not the shop. */
+/** `plan`: the Broome plan (bought once, or yearly), shown in the profile, not the shop. */
 export type ProductKind = 'design-pack' | 'planner' | 'template' | 'elements' | 'plan'
 
 export interface Product {
@@ -54,7 +54,7 @@ export const PRODUCTS: Product[] = [
   {
     id: 'plan.lifetime',
     kind: 'plan',
-    name: 'Broomit Lifetime',
+    name: 'Broome Lifetime',
     description: 'Bought once, yours for good, with every update.',
     price: 1999,
     status: 'available',
@@ -63,7 +63,7 @@ export const PRODUCTS: Product[] = [
   {
     id: 'plan.yearly',
     kind: 'plan',
-    name: 'Broomit Yearly',
+    name: 'Broome Yearly',
     description: 'Renews every year; cancel any time in your Apple ID settings.',
     price: 699,
     status: 'available',
@@ -97,7 +97,7 @@ export const PRODUCTS: Product[] = [
     kind: 'design-pack',
     name: 'Nebula Night',
     description:
-      'Deep space with a glowing planet edge and violet nebulae. Clean, futuristic dark panels with Broomit blue accents, across the whole app and the calendar.',
+      'Deep space with a glowing planet edge and violet nebulae. Clean, futuristic dark panels with Broome blue accents, across the whole app and the calendar.',
     price: 499,
     status: 'available',
     pack: 'nebula-night',

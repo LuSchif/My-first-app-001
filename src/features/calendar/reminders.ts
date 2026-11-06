@@ -4,10 +4,10 @@ import { occurrences } from './ics.ts'
 import { calendarSnapshot, ownAsEvent, subscribeCalendar } from './calendarStore.ts'
 
 /**
- * Reminders for Broomit's own events. A website can only remind while it is open, so they are
- * checked every half minute while Broomit runs, shown in the app and, when allowed, as a system
+ * Reminders for Broome's own events. A website can only remind while it is open, so they are
+ * checked every half minute while Broome runs, shown in the app and, when allowed, as a system
  * notification. The installed app will schedule them with the system, so they also come when
- * Broomit is closed.
+ * Broome is closed.
  */
 
 export interface Reminder {
@@ -17,7 +17,7 @@ export interface Reminder {
 }
 
 const FIRED_KEY = 'broomit.remindersFired'
-/** A reminder missed by more than this (Broomit was closed) is not shown late. */
+/** A reminder missed by more than this (Broome was closed) is not shown late. */
 const LATE_MS = 10 * 60 * 1000
 
 let shown: Reminder[] = []
@@ -142,7 +142,7 @@ function notificationId(key: string): number {
 
 /**
  * In the App Store app, the upcoming reminders are handed to iOS, so they come even when
- * Broomit is closed. Called whenever events change.
+ * Broome is closed. Called whenever events change.
  */
 async function syncNativeReminders(): Promise<void> {
   try {

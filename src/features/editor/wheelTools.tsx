@@ -71,20 +71,20 @@ export function wheelTools(features: Features): WheelTool[] {
     },
     {
       tool: 'broom',
-      label: () => 'Broom',
-      icon: (_, size, colored) => <BroomitIcon name="broom" size={size} colored={colored} />,
+      label: () => 'Eraser',
+      icon: (_, size, colored) => <BroomitIcon name="eraser" size={size} colored={colored} />,
       variants: [
         {
           id: 'precise',
           label: 'Precise',
-          icon: () => <BroomitIcon name="broom" size={22} />,
+          icon: () => <BroomitIcon name="eraser" size={22} />,
           active: (s) => s.broom.mode === 'precise',
           choose: (e) => e.setBroom({ mode: 'precise' }),
         },
         {
           id: 'stroke',
           label: 'Whole strokes',
-          icon: () => <BroomitIcon name="broom" size={22} strokeWidth={2.4} />,
+          icon: () => <BroomitIcon name="eraser" size={22} strokeWidth={2.4} />,
           active: (s) => s.broom.mode === 'stroke',
           choose: (e) => e.setBroom({ mode: 'stroke' }),
         },

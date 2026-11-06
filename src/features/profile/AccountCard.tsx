@@ -13,14 +13,14 @@ import { cloudError } from '../../storage/cloud/client.ts'
 import { ProfileCard } from './ProfileCard.tsx'
 
 /**
- * The Broomit account: signing in with a code by email, then the Broomit ID friends use to
- * add you. Hidden when this build has no Broomit server.
+ * The Broome account: signing in with a code by email, then the Broome ID friends use to
+ * add you. Hidden when this build has no Broome server.
  */
 export function AccountCard() {
   const account = useAccount()
   if (account.status === 'unavailable') return null
   return (
-    <ProfileCard title="Broomit account">
+    <ProfileCard title="Broome account">
       {account.status === 'loading' ? (
         <p className="text-sm text-ink-muted">Loading your account…</p>
       ) : account.status === 'signedOut' ? (
@@ -58,7 +58,7 @@ function SignIn() {
         }}
       >
         <p className="text-sm text-ink-muted">
-          Sign in to get your Broomit ID, add friends and play quizzes together. No password: we
+          Sign in to get your Broome ID, add friends and play quizzes together. No password: we
           email you a code. Your notebooks stay on this iPad.
         </p>
         <TextField
@@ -136,7 +136,7 @@ function SignedIn({ email, broomitId }: { email: string; broomitId: string }) {
     <div className="grid gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-card bg-surface-sunken p-4">
         <div>
-          <p className="text-xs font-semibold text-ink-muted">Your Broomit ID</p>
+          <p className="text-xs font-semibold text-ink-muted">Your Broome ID</p>
           <p className="font-mono text-3xl font-bold tracking-wider" data-broomit-id={broomitId}>
             {broomitId}
           </p>
@@ -147,7 +147,7 @@ function SignedIn({ email, broomitId }: { email: string; broomitId: string }) {
           onClick={() =>
             navigator.clipboard
               .writeText(broomitId)
-              .then(() => showNotice('Your Broomit ID is copied.'))
+              .then(() => showNotice('Your Broome ID is copied.'))
               .catch(() => showNotice('Copying is not allowed here.'))
           }
         >
@@ -174,8 +174,8 @@ function SignedIn({ email, broomitId }: { email: string; broomitId: string }) {
       </div>
       <Dialog open={confirming} onOpenChange={setConfirming}>
         <DialogContent
-          title="Delete your Broomit account?"
-          description="Your Broomit ID, friends and games with friends are deleted for good. Your notebooks, quizzes and purchases on this iPad stay."
+          title="Delete your Broome account?"
+          description="Your Broome ID, friends and games with friends are deleted for good. Your notebooks, quizzes and purchases on this iPad stay."
         >
           <DialogFooter>
             <Button variant="ghost" onClick={() => setConfirming(false)}>

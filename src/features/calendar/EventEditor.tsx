@@ -47,7 +47,7 @@ function combine(date: string, time: string): Date {
   return new Date(y!, m! - 1, d!, h ?? 0, mi ?? 0)
 }
 
-/** Making or changing a Broomit event: title, time, color, repeat, reminder and a note. */
+/** Making or changing a Broome event: title, time, color, repeat, reminder and a note. */
 export function EventEditor({
   event,
   onDone,

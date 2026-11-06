@@ -146,7 +146,7 @@ export function NewNotebookDialog({
                     type="button"
                     aria-pressed={customCover}
                     onClick={() => setCustomCover(!customCover)}
-                    className="m-1 flex h-9 items-center gap-1.5 rounded-full px-3 text-sm font-semibold ring-1 ring-line hover:bg-hover aria-pressed:bg-ink aria-pressed:text-ink-inverse"
+                    className="m-1 flex h-9 items-center gap-1.5 rounded-full px-3 text-sm font-semibold ring-1 ring-line hover:bg-hover aria-pressed:bg-accent aria-pressed:text-on-accent"
                   >
                     <Paintbrush size={16} /> Design
                   </button>
@@ -217,7 +217,7 @@ export function NewNotebookDialog({
                     <span
                       className={cn(
                         'aspect-[3/4] w-full rounded-lg shadow-soft ring-1 ring-line transition-shadow',
-                        'group-aria-pressed:ring-2 group-aria-pressed:ring-ink',
+                        'group-aria-pressed:ring-2 group-aria-pressed:ring-accent',
                       )}
                       style={paperPreviewStyle(option.kind)}
                     />

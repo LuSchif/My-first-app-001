@@ -1,11 +1,11 @@
 import { Capacitor } from '@capacitor/core'
 
-/** Whether Broomit runs as the App Store app rather than in a browser. */
+/** Whether Broome runs as the App Store app rather than in a browser. */
 export function isNativeApp(): boolean {
   return Capacitor.isNativePlatform()
 }
 
-/** Whether Broomit runs as an installed app (opened from the Home Screen, or the App Store app). */
+/** Whether Broome runs as an installed app (opened from the Home Screen, or the App Store app). */
 export function isInstalled(): boolean {
   if (isNativeApp()) return true
   const nav = navigator as Navigator & { standalone?: boolean }

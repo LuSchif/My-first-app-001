@@ -6,7 +6,7 @@ import { drawPaper, PAPER_STYLE } from './paper.ts'
 import { paintLayers } from './layers.ts'
 import type { PageCache } from './pageCache.ts'
 
-export const DESK_COLOR = '#ede4d8'
+export const DESK_COLOR = '#1a202a'
 let deskColor = DESK_COLOR
 
 /** The color around the pages, following the interface theme. */

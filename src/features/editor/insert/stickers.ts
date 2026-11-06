@@ -1,5 +1,5 @@
 /**
- * Broomit's own stickers, drawn for the app: each is an SVG on a 120 × 120 grid with a white
+ * Broome's own stickers, drawn for the app: each is an SVG on a 120 × 120 grid with a white
  * die-cut edge and a soft shadow, added to the page as a picture.
  */
 export interface Sticker {

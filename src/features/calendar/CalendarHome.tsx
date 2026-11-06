@@ -55,7 +55,7 @@ function readSetUp(): boolean {
   }
 }
 
-/** A new Broomit event at `at` (or the next full hour today), one hour long. */
+/** A new Broome event at `at` (or the next full hour today), one hour long. */
 function draftEvent(at?: Date): OwnEvent {
   const start = at ? new Date(at) : new Date()
   if (!at) start.setHours(start.getHours() + 1, 0, 0, 0)
@@ -183,10 +183,10 @@ function Setup({ onOwn }: { onOwn: () => void }) {
         </p>
         <p className="text-sm text-ink-muted">
           See today, yesterday and tomorrow right here. Add your timetable or calendar by its link,
-          or simply use the Broomit calendar for events, reminders and important days.
+          or simply use the Broome calendar for events, reminders and important days.
         </p>
         <Button variant="primary" className="justify-self-start" onClick={onOwn}>
-          Use the Broomit calendar
+          Use the Broome calendar
         </Button>
       </div>
       <AddCalendar />
@@ -205,7 +205,7 @@ function AppSetup({ onOwn }: { onOwn: () => void }) {
         </p>
         <p className="max-w-[60ch] text-sm text-ink-muted">
           See today, yesterday and tomorrow right here: your timetable, iCloud, Google and every
-          other calendar on this iPad. Or use the Broomit calendar for events, reminders and
+          other calendar on this iPad. Or use the Broome calendar for events, reminders and
           important days.
         </p>
       </div>
@@ -221,11 +221,11 @@ function AppSetup({ onOwn }: { onOwn: () => void }) {
         >
           Connect your calendars
         </Button>
-        <Button onClick={onOwn}>Use the Broomit calendar</Button>
+        <Button onClick={onOwn}>Use the Broome calendar</Button>
       </div>
       {denied ? (
         <p className="text-sm text-danger">
-          Broomit may not see your calendars.{' '}
+          Broome may not see your calendars.{' '}
           <button type="button" className="font-semibold underline" onClick={openAppSettings}>
             Allow it in Settings
           </button>

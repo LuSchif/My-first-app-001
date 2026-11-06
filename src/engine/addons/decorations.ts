@@ -171,3 +171,13 @@ function textWidth(ctx: CanvasRenderingContext2D, l: Label): number {
   }
   return w
 }
+
+/** The notebook's name at the top left of a page, in the margin above its first line. */
+export function paintPageTitle(ctx: CanvasRenderingContext2D, title: string): void {
+  ctx.save()
+  ctx.font = `700 15px ${FONT_STACKS.sans}`
+  ctx.fillStyle = '#2a2622'
+  ctx.textBaseline = 'alphabetic'
+  ctx.fillText(title.length > 40 ? `${title.slice(0, 39)}…` : title, 18, 32)
+  ctx.restore()
+}

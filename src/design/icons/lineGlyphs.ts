@@ -1,5 +1,5 @@
 /**
- * The shapes of Broomit's line icons (everything not drawn in glyphs.tsx), on a 24 px grid.
+ * The shapes of Broome's line icons (everything not drawn in glyphs.tsx), on a 24 px grid.
  * Adapted from Lucide (ISC license, https://lucide.dev). Each part may carry a role for the
  * colored look: 'f' the body (cream), 'a' a detail (caramel), 's' a dot (solid).
  */
@@ -77,6 +77,10 @@ export const LINE_GLYPHS: Record<string, LineNode[]> = {
     ['path', { d: 'M4 7h16' }],
     ['path', { d: 'm16 21 4-4-4-4' }],
     ['path', { d: 'M20 17H4' }],
+  ],
+  ArrowLeft: [
+    ['path', { d: 'M19 12H5' }],
+    ['path', { d: 'm12 19-7-7 7-7' }],
   ],
   ArrowRight: [
     ['path', { d: 'M5 12h14' }],

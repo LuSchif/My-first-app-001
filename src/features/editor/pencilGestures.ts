@@ -5,7 +5,7 @@ import { isNativeApp } from '../../lib/install.ts'
 /**
  * The Apple Pencil's double tap and squeeze, which only the App Store app receives (see
  * `ios/App/App/Pencil.swift`). They do what the person chose in Settings › Apple Pencil: switch
- * to the eraser (Broomit's broom) and back, back to the previous tool, or open the tool wheel,
+ * to the eraser (Broome's broom) and back, back to the previous tool, or open the tool wheel,
  * where the pencil hovers.
  */
 

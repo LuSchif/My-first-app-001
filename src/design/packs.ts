@@ -124,7 +124,7 @@ export const DESIGN_PACKS: DesignPack[] = [
     palette: [
       { color: '#050814', name: 'Deep space' },
       { color: '#0f1b3d', name: 'Midnight blue' },
-      { color: '#3b82f6', name: 'Broomit blue' },
+      { color: '#3b82f6', name: 'Broome blue' },
       { color: '#a78bfa', name: 'Soft purple' },
       { color: '#e6edff', name: 'Starlight' },
     ],

@@ -182,7 +182,7 @@ export function GraphOfferChip({ editor, state }: { editor: Editor; state: Edito
     <>
       {offer && graph && !state.selection ? (
         <div
-          className="absolute z-10 flex w-max -translate-x-1/2 animate-pop-in items-center gap-0.5 rounded-panel bg-ink p-1 text-ink-inverse shadow-overlay"
+          className="absolute z-10 flex w-max -translate-x-1/2 animate-pop-in items-center gap-0.5 rounded-panel bg-surface-raised ring-1 ring-line p-1 text-ink shadow-overlay"
           style={{
             top:
               offer.rect.y - CHIP_HEIGHT - GAP > 72
@@ -206,7 +206,7 @@ export function GraphOfferChip({ editor, state }: { editor: Editor; state: Edito
             type="button"
             aria-label="Dismiss"
             onClick={() => editor.dismissGraphOffer()}
-            className="grid size-10 place-items-center rounded-control text-ink-inverse/70 hover:bg-white/10"
+            className="grid size-10 place-items-center rounded-control text-ink-muted hover:bg-white/10"
           >
             <X size={16} />
           </button>

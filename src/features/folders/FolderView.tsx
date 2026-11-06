@@ -233,7 +233,7 @@ function Crumb({
       className={cn(
         'max-w-[14rem] truncate rounded-control px-2.5 py-1.5 font-semibold hover:bg-hover',
         current ? 'text-ink' : 'text-ink-muted',
-        over && 'bg-accent text-ink-inverse',
+        over && 'bg-accent text-on-accent',
       )}
     >
       {label}

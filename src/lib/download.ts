@@ -29,5 +29,5 @@ export async function saveFiles(files: File[]): Promise<void> {
 
 /** A name safe to use for a file on any system. */
 export function fileName(title: string): string {
-  return title.replace(/[\\/:*?"<>|]+/g, '-').trim() || 'Broomit'
+  return title.replace(/[\\/:*?"<>|]+/g, '-').trim() || 'Broome'
 }

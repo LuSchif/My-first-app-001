@@ -145,7 +145,7 @@ export function SelectionMenu({ editor, state }: { editor: Editor; state: Editor
       ref={ref}
       role="toolbar"
       aria-label={`${sel.count} selected`}
-      className="absolute z-10 flex w-max max-w-[calc(100%-24px)] -translate-x-1/2 items-center gap-0.5 rounded-panel bg-ink p-1 text-ink-inverse shadow-overlay"
+      className="absolute z-10 flex w-max max-w-[calc(100%-24px)] -translate-x-1/2 items-center gap-0.5 rounded-panel bg-surface-raised ring-1 ring-line p-1 text-ink shadow-overlay"
       style={{ top, left }}
     >
       {primary.map((item) => (
@@ -162,7 +162,7 @@ export function SelectionMenu({ editor, state }: { editor: Editor; state: Editor
               role="menu"
               aria-label="More actions"
               className={cn(
-                'absolute right-0 grid min-w-56 animate-pop-in gap-0.5 rounded-panel bg-ink p-1 shadow-overlay [&_button]:w-full [&_button]:justify-start',
+                'absolute right-0 grid min-w-56 animate-pop-in gap-0.5 rounded-panel bg-surface-raised ring-1 ring-line p-1 shadow-overlay [&_button]:w-full [&_button]:justify-start',
                 menuUp ? 'bottom-full mb-2' : 'top-full mt-2',
               )}
             >
@@ -584,7 +584,7 @@ function OutlineControls({ editor, outline }: { editor: Editor; outline: Outline
                 type="button"
                 aria-pressed={(outline.position ?? 'outside') === position}
                 onClick={() => editor.setSelectionOutline({ ...outline, position })}
-                className="min-h-11 rounded-control text-sm font-semibold ring-1 ring-line aria-pressed:bg-ink aria-pressed:text-ink-inverse aria-pressed:ring-ink"
+                className="min-h-11 rounded-control text-sm font-semibold ring-1 ring-line aria-pressed:bg-accent aria-pressed:text-on-accent aria-pressed:ring-accent"
               >
                 {label}
               </button>

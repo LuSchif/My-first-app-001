@@ -29,7 +29,7 @@ const THUMB_WIDTH = 168
 const FORMATS: { format: ExportFormat; label: string; hint: string }[] = [
   { format: 'pdf', label: 'PDF', hint: 'To print or share' },
   { format: 'jpg', label: 'JPG', hint: 'One picture per page' },
-  { format: 'broomit', label: 'Broomit', hint: 'To keep editing in Broomit' },
+  { format: 'broomit', label: 'Broome', hint: 'To keep editing in Broome' },
 ]
 
 /**
@@ -96,7 +96,7 @@ export function PagesOverview({
                 role="radio"
                 aria-checked={flow === f}
                 onClick={() => editor.setPageFlow(f)}
-                className="flex h-10 items-center gap-1.5 rounded-full px-3.5 text-sm font-semibold text-ink-muted ring-1 ring-line hover:bg-hover aria-checked:bg-ink aria-checked:text-ink-inverse aria-checked:ring-ink"
+                className="flex h-10 items-center gap-1.5 rounded-full px-3.5 text-sm font-semibold text-ink-muted ring-1 ring-line hover:bg-hover aria-checked:bg-accent aria-checked:text-on-accent aria-checked:ring-accent"
               >
                 {icon}
                 {label}

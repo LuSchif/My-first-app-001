@@ -69,7 +69,7 @@ body::before {
   touch-action: none;
 }
 
-/* Broomit Keyboard: the mirror (fieldMirror.ts) draws the text, caret and selection instead. */
+/* Broome Keyboard: the mirror (fieldMirror.ts) draws the text, caret and selection instead. */
 [data-virtual-focus],
 [data-virtual-focus]::placeholder {
   -webkit-text-fill-color: transparent;
@@ -136,13 +136,13 @@ body::before {
   }
 }
 
-/* With a design pack, the "it" of the Broomit logo takes its accent, as in its design sheet. */
+/* With a design pack, the "it" of the Broome logo takes its accent, as in its design sheet. */
 [data-pack] .brand-it {
   color: var(--color-accent);
 }
 
 /*
- * Broomit's icons fill their shapes with the background behind them, so lines underneath stay
+ * Broome's icons fill their shapes with the background behind them, so lines underneath stay
  * hidden; on dark or accent backgrounds that background is the dark or accent color.
  */
 .bg-ink,

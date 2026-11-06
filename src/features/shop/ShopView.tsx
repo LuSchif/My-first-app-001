@@ -23,7 +23,7 @@ import { CATEGORIES, PRODUCTS, priceLabel, type Product, type ProductKind } from
 import { buy, realPayments, restorePurchases, usePurchases, useStorePrices } from './purchases.ts'
 
 /**
- * The Broomit shop: design packs that restyle the whole app, and (coming soon) planners,
+ * The Broome shop: design packs that restyle the whole app, and (coming soon) planners,
  * templates and design elements, free and paid.
  */
 export function ShopView() {
@@ -88,7 +88,7 @@ export function ShopView() {
                 <FlaskConical size={18} className="mt-0.5 shrink-0 text-accent" />
                 <span>
                   Test mode: in the browser, buying unlocks an item on this device without charging
-                  anything. Real purchases are made in the Broomit app from the App Store.
+                  anything. Real purchases are made in the Broome app from the App Store.
                 </span>
               </p>
             )}
@@ -129,7 +129,7 @@ export function ShopView() {
                     role="tab"
                     aria-selected={category === value}
                     onClick={() => setCategory(value)}
-                    className="h-9 rounded-full px-3 text-sm font-semibold text-ink-muted ring-1 ring-line hover:bg-hover aria-selected:bg-ink aria-selected:text-ink-inverse aria-selected:ring-ink"
+                    className="h-9 rounded-full px-3 text-sm font-semibold text-ink-muted ring-1 ring-line hover:bg-hover aria-selected:bg-accent aria-selected:text-on-accent aria-selected:ring-accent"
                   >
                     {label}
                   </button>
@@ -269,7 +269,7 @@ function PriceTag({ product, owned }: { product: Product; owned: boolean }) {
     )
   }
   return (
-    <span className="shrink-0 rounded-full bg-ink px-2.5 py-1 text-xs font-semibold text-ink-inverse">
+    <span className="shrink-0 rounded-full bg-accent px-2.5 py-1 text-xs font-semibold text-on-accent">
       {price}
     </span>
   )
@@ -410,7 +410,7 @@ function ProductDetails({
                   <span className="mr-auto flex items-center gap-1 text-sm font-semibold">
                     <Check size={16} /> In use
                   </span>
-                  <Button onClick={() => onUse(false)}>Back to Broomit's look</Button>
+                  <Button onClick={() => onUse(false)}>Back to Broome's look</Button>
                 </>
               ) : (
                 <Button variant="primary" onClick={() => onUse(true)}>

@@ -63,14 +63,13 @@ import { inkAlpha, paintStroke, setInkStyle, strokeBounds } from '../render/stro
 import { perfectShape, recognizeShape, regionAt, type Shape } from '../geometry/shapes.ts'
 import { curveStart, finishPoints, traceSegments, traceStroke } from '../geometry/strokePath.ts'
 import { boundsOfPoints } from '../geometry/rect.ts'
-import { drawBroom } from '../render/broomGlyph.ts'
 import { objectBounds, paintObject } from '../render/objects.ts'
 import { onImageLoaded } from '../render/images.ts'
 import { PageCache } from '../render/pageCache.ts'
 import { invalidateTextLayouts, layoutText } from '../render/text.ts'
 import type { EditorContext } from './context.ts'
 import { boundsOf, hitsObject, recolor, transformObject, type Transform } from './selection.ts'
-import { paintPageLabels, showsTime } from '../addons/decorations.ts'
+import { paintPageLabels, paintPageTitle, showsTime } from '../addons/decorations.ts'
 import { drawingBounds, fitAfter, matchesGesture } from '../addons/gesture.ts'
 import type { Addon, AddonOf } from '../addons/types.ts'
 import { visibleWorld } from '../render/SceneRenderer.ts'
@@ -210,12 +209,14 @@ const PREDICT_AHEAD_MS = 10
 const RAW_TIP_UP_TO = 0.5
 /** How quickly the fountain pen's width follows pressure and direction (0 to 1, per point). */
 const WIDTH_EASE = 0.35
+/** Holding a pen or finger still on the page opens the tool wheel (off since the tool dock). */
+const LONG_PRESS_WHEEL = false
 /** Strokes of one drawn command follow each other within this time. */
 const GESTURE_GAP_MS = 4000
 /** After writing, pictures wait this long, so a pause between words is never spent on them. */
 const CACHE_AFTER_INK_MS = 1500
 /** Space kept free above the first page for the floating toolbar. */
-const TOP_INSET = 84
+const TOP_INSET = 144
 const SIDE_MARGIN = 24
 /** Room around a slide in a presentation. */
 const SLIDE_MARGIN = 32
@@ -428,6 +429,8 @@ export class Editor {
   private hostRect: DOMRect
   private renderQueued = false
   private paintedByEditor = false
+  /** The notebook's name, shown at the top left of each page (not part of it). */
+  private pageTitle = ''
   /** The addons that are on (see `setAddons`). */
   private addons: Addon[] = []
   /** Redraws the page labels while an addon shows the time. */
@@ -910,12 +913,14 @@ export class Editor {
   }
 
   /**
-   * A pen or finger resting on the page opens the tool wheel. Moving more than a few pixels,
+   * A pen or finger resting on the page opens the tool wheel (if LONG_PRESS_WHEEL). Moving more than a few pixels,
    * or lifting, cancels it. Tools that work by holding (laser, magnifier, eyedropper) and a
    * press on the selection or on a path's anchor keep their own meaning.
    */
   private armLongPress(e: PointerEvent): void {
     this.cancelLongPress()
+    // Broome's tool dock holds every tool; the wheel opens only with the Pencil's squeeze.
+    if (!LONG_PRESS_WHEEL) return
     const tool = this._state.tool
     if (tool === 'laser' || tool === 'magnifier' || tool === 'eyedropper') return
     const p = this.screenPos(e)
@@ -2081,10 +2086,20 @@ export class Editor {
     return this.addons.filter((a): a is AddonOf<K> => a.kind === kind)
   }
 
-  /** Labels of addons on every visible page, over the pages (never part of them). */
+  /** Shows the notebook's name at the top left of each page. */
+  setPageTitle(title: string): void {
+    if (title === this.pageTitle) return
+    this.pageTitle = title
+    this.requestRender()
+  }
+
+  /**
+   * The notebook's name and the labels of addons on every visible page, over the pages (never
+   * part of them).
+   */
   private paintAddonLabels(): void {
     const labelled = this.addons.filter((a) => a.kind === 'dateTime' || a.kind === 'pageNumbers')
-    if (labelled.length === 0) return
+    if (labelled.length === 0 && !this.pageTitle) return
     const pages = this.doc.pageList
     const world = visibleWorld(this.camera, this.view)
     const { width, height } = this.layout.size
@@ -2097,6 +2112,7 @@ export class Editor {
       }
       this.scene.save()
       enterPage(this.scene, this.camera, this.view.dpr, index, this.layout)
+      if (this.pageTitle && !this.slides) paintPageTitle(this.scene, this.pageTitle)
       paintPageLabels(this.scene, labelled, index, pages.length, this.layout.size, now)
       this.scene.restore()
     })
@@ -3853,7 +3869,6 @@ export class Editor {
     this.history.record(compound('Erase', commands))
   }
 
-  /** The broom itself marks where it sweeps: its head is as wide as the sweep. */
   /** The pen's tip while it hovers: a faint dot of the line's color and width. */
   private drawInkCursor(screen: Point): void {
     this.clearTip()
@@ -3880,17 +3895,24 @@ export class Editor {
     }
   }
 
+  /** The eraser marks where it erases: a ring as wide as what it takes away. */
   private drawBroomCursor(screen: Point): void {
     this.clearTip()
     const { dpr } = this.view
-    const r = (this._state.broom.size / 2) * this.camera.zoom
-    // The head spans about half the icon's height.
-    const icon = Math.max(22, r * 4)
+    const r = Math.max(4, (this._state.broom.size / 2) * this.camera.zoom)
     this.inkLayer.style.opacity = '1'
     this.inkLayer.style.mixBlendMode = 'normal'
+    this.tip.save()
     this.tip.setTransform(dpr, 0, 0, dpr, 0, 0)
-    drawBroom(this.tip, screen.x, screen.y, icon)
-    const reach = icon + 6
+    this.tip.beginPath()
+    this.tip.arc(screen.x, screen.y, r, 0, Math.PI * 2)
+    this.tip.fillStyle = 'rgba(79, 142, 247, 0.12)'
+    this.tip.fill()
+    this.tip.lineWidth = 1.5
+    this.tip.strokeStyle = 'rgba(79, 142, 247, 0.9)'
+    this.tip.stroke()
+    this.tip.restore()
+    const reach = r + 3
     this.tipDirty = {
       x: Math.floor((screen.x - reach) * dpr),
       y: Math.floor((screen.y - reach) * dpr),

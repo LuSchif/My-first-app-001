@@ -3,7 +3,7 @@ import { isNativeApp } from '../../lib/install.ts'
 
 /**
  * The iPad's own calendars (iCloud, Google, Outlook, subscribed timetables… everything set up
- * in the Calendar app), read through the system once Broomit is allowed to. Only in the App
+ * in the Calendar app), read through the system once Broome is allowed to. Only in the App
  * Store app; a web page cannot reach them.
  */
 
@@ -73,7 +73,7 @@ export async function listDeviceEvents(from: Date, to: Date): Promise<DeviceEven
   }))
 }
 
-/** Opens the iPad's Settings for Broomit, where calendar access can be turned on again. */
+/** Opens the iPad's Settings for Broome, where calendar access can be turned on again. */
 export function openAppSettings(): void {
   window.location.href = 'app-settings:'
 }

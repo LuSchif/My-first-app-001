@@ -46,7 +46,7 @@ type Tab = 'mine' | 'browse'
 
 /**
  * The addons bar, on the right beside the page: the person's own addons, each with a switch for
- * this notebook (or marked always on) and an edit button; a browser of the addons Broomit
+ * this notebook (or marked always on) and an edit button; a browser of the addons Broome
  * offers; and + to make a new one.
  */
 export const AddonsPanel = memo(function AddonsPanel({
@@ -115,7 +115,7 @@ export const AddonsPanel = memo(function AddonsPanel({
           library.length === 0 ? (
             <div className="grid gap-3 rounded-card bg-surface-sunken p-4 text-sm text-ink-muted">
               <p>
-                No addons yet. Browse the addons Broomit offers and add the ones you like, or make
+                No addons yet. Browse the addons Broome offers and add the ones you like, or make
                 your own with +.
               </p>
               <Button className="justify-self-start" onClick={() => setTab('browse')}>
@@ -268,7 +268,7 @@ function AddonRow({
           aria-checked={on}
           aria-label={`${addon.name}${addon.always ? ', always active' : ''}`}
           onClick={() => onSwitch(!on)}
-          className="relative h-7 w-12 shrink-0 rounded-full bg-line-strong transition-colors aria-checked:bg-ink "
+          className="relative h-7 w-12 shrink-0 rounded-full bg-line-strong transition-colors aria-checked:bg-accent"
         >
           <span
             className={cn(

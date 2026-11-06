@@ -58,7 +58,7 @@ export function LibraryView() {
       <div className="mx-auto grid max-w-6xl gap-6">
         <header className="flex flex-wrap items-center gap-3">
           <h1 className="mr-2 text-3xl font-bold tracking-tight">
-            Broom<span className="brand-it">it</span>
+            Broom<span className="brand-it">e</span>
           </h1>
           <div className="order-last w-full sm:order-none sm:w-auto sm:min-w-[14rem] sm:flex-1">
             <SearchField value={query} onChange={setQuery} />
@@ -518,7 +518,7 @@ function CreateOptions({
           tiles ? 'h-full flex-col justify-center gap-2 p-4' : 'items-center gap-3 p-3',
         )}
       >
-        <span className="grid size-11 shrink-0 place-items-center rounded-control bg-accent text-ink-inverse shadow-soft">
+        <span className="grid size-11 shrink-0 place-items-center rounded-control bg-accent text-on-accent shadow-soft">
           <BroomitIcon name="shop" size={28} />
         </span>
         <span className={cn('min-w-0', !tiles && 'flex-1')}>
@@ -547,7 +547,7 @@ function CreateOptions({
               tiles ? 'h-full flex-col justify-center gap-2 p-4' : 'items-center gap-3 p-3',
             )}
           >
-            <span className="grid size-11 shrink-0 place-items-center rounded-control bg-ink text-ink-inverse shadow-soft">
+            <span className="grid size-11 shrink-0 place-items-center rounded-control bg-accent text-on-accent shadow-soft">
               {icon}
             </span>
             <span className={cn('min-w-0', !tiles && 'flex-1')}>

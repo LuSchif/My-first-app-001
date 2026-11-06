@@ -1,7 +1,7 @@
 import { setKeyboardInset } from '../../lib/keyboardInset.ts'
 
 /**
- * Broomit's own keyboard on iPad. iPadOS decides by itself what to show for a focused text field:
+ * Broome's own keyboard on iPad. iPadOS decides by itself what to show for a focused text field:
  * with a Pencil or a connected keyboard that is only a bar without keys, and a web page cannot
  * change that. So on iPad no text field is focused at all: a tapped field becomes the keyboard's
  * target, and keys edit its value directly. No system bar, no autofill bar.
@@ -9,7 +9,7 @@ import { setKeyboardInset } from '../../lib/keyboardInset.ts'
 
 export type Field = HTMLInputElement | HTMLTextAreaElement
 
-/** Whether Broomit Keyboard is used: on iPads and other touch tablets (or when forced on). */
+/** Whether Broome Keyboard is used: on iPads and other touch tablets (or when forced on). */
 export function virtualKeyboardEnabled(): boolean {
   try {
     // Forced on for testing on other devices; an old 'off' choice no longer exists.

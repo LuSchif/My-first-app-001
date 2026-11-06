@@ -311,7 +311,7 @@ function ChartEditorContent({
                   type="button"
                   aria-pressed={draft.kind === kind}
                   onClick={() => setDraft((c) => ({ ...c, kind }))}
-                  className="flex min-h-14 flex-col items-center justify-center gap-1 rounded-control text-xs font-semibold ring-1 ring-line aria-pressed:bg-ink aria-pressed:text-ink-inverse aria-pressed:ring-ink"
+                  className="flex min-h-14 flex-col items-center justify-center gap-1 rounded-control text-xs font-semibold ring-1 ring-line aria-pressed:bg-accent aria-pressed:text-on-accent aria-pressed:ring-accent"
                 >
                   {CHART_ICONS[kind]}
                   {label}

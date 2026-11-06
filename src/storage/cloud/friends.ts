@@ -79,7 +79,7 @@ export function useFriends(): Friend[] | null {
   return me ? friends : null
 }
 
-/** Asks for a friendship by Broomit ID; 'friends' when they had already asked. */
+/** Asks for a friendship by Broome ID; 'friends' when they had already asked. */
 export async function addFriend(code: string): Promise<'requested' | 'friends'> {
   const sb = await cloud()
   const { data, error } = await sb.rpc('add_friend', { code })

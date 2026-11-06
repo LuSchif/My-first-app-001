@@ -20,7 +20,7 @@ export function PullForPage({ state }: { state: EditorState }) {
     <div
       role="status"
       className={cn(
-        'pointer-events-none absolute z-20 flex w-fit animate-pop-in items-center gap-3 rounded-panel bg-ink py-2 pr-5 pl-2 text-sm font-semibold text-ink-inverse shadow-overlay',
+        'pointer-events-none absolute z-20 flex w-fit animate-pop-in items-center gap-3 rounded-panel bg-surface-raised ring-1 ring-line py-2 pr-5 pl-2 text-sm font-semibold text-ink shadow-overlay',
         side
           ? 'top-1/2 right-[max(20px,env(safe-area-inset-right))] -translate-y-1/2'
           : 'inset-x-0 bottom-[calc(28px+env(safe-area-inset-bottom))] mx-auto',
@@ -85,7 +85,7 @@ export function NewPageMenu({ editor, state }: { editor: Editor; state: EditorSt
                   <span
                     className={cn(
                       'aspect-[3/4] w-full rounded-lg shadow-soft ring-1 ring-line',
-                      'group-aria-pressed:ring-2 group-aria-pressed:ring-ink',
+                      'group-aria-pressed:ring-2 group-aria-pressed:ring-accent',
                     )}
                     style={paperPreviewStyle(option.kind)}
                   />

@@ -318,7 +318,7 @@ function PictureEditorContent({
                   role="radio"
                   aria-checked={shape === s.shape}
                   onClick={() => setShape(s.shape)}
-                  className="flex min-h-14 flex-col items-center justify-center gap-1 rounded-control text-xs font-semibold ring-1 ring-line aria-checked:bg-ink aria-checked:text-ink-inverse aria-checked:ring-ink"
+                  className="flex min-h-14 flex-col items-center justify-center gap-1 rounded-control text-xs font-semibold ring-1 ring-line aria-checked:bg-accent aria-checked:text-on-accent aria-checked:ring-accent"
                 >
                   {s.icon}
                   {s.label}

@@ -39,7 +39,7 @@ interface Press {
 }
 
 /**
- * Routes text input on iPad to Broomit's own keyboard: taps on text fields never focus them (so
+ * Routes text input on iPad to Broome's own keyboard: taps on text fields never focus them (so
  * iPadOS shows nothing), they make the field the keyboard's target instead. A connected hardware
  * keyboard types into the same field. Returns whether this mode is on.
  */

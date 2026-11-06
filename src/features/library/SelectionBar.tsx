@@ -13,7 +13,7 @@ export function SelectButton({ active, onClick }: { active: boolean; onClick: ()
       type="button"
       aria-pressed={active}
       onClick={onClick}
-      className="flex h-9 items-center gap-1.5 rounded-control px-2.5 text-sm font-semibold text-ink-muted hover:bg-hover aria-pressed:bg-ink aria-pressed:text-ink-inverse"
+      className="flex h-9 items-center gap-1.5 rounded-control px-2.5 text-sm font-semibold text-ink-muted hover:bg-hover aria-pressed:bg-accent aria-pressed:text-on-accent"
     >
       <CheckCheck size={16} />
       {active ? 'Done' : 'Select'}

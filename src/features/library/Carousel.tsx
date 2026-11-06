@@ -170,7 +170,7 @@ export function Carousel({
               type="button"
               aria-current={i === current}
               onClick={() => go(i)}
-              className="flex h-9 shrink-0 items-center gap-1.5 rounded-full px-3 text-sm font-semibold whitespace-nowrap text-ink-muted hover:bg-hover aria-current:bg-ink aria-current:text-ink-inverse"
+              className="flex h-9 shrink-0 items-center gap-1.5 rounded-full px-3 text-sm font-semibold whitespace-nowrap text-ink-muted hover:bg-hover aria-current:bg-accent aria-current:text-on-accent"
             >
               {page.group ? <FolderKanban size={14} aria-label="Group" /> : null}
               {page.title}

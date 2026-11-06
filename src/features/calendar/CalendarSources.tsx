@@ -133,7 +133,7 @@ export function CalendarSources({
         <section className="grid gap-2">
           {sources.length ? null : (
             <p className="text-sm text-ink-muted">
-              No calendar added yet. Your Broomit calendar works without one.
+              No calendar added yet. Your Broome calendar works without one.
             </p>
           )}
           {sources.map((s) => (
@@ -286,7 +286,7 @@ function DeviceSection() {
           </Button>
           {denied ? (
             <p className="text-sm text-danger">
-              Broomit may not see your calendars.{' '}
+              Broome may not see your calendars.{' '}
               <button type="button" className="font-semibold underline" onClick={openAppSettings}>
                 Allow it in Settings
               </button>

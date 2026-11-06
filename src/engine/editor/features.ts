@@ -1,6 +1,6 @@
 /**
  * Features that can be switched off in the control center. Everything defaults to on, so a
- * new user sees all of Broomit; the choice is kept on the device by the app.
+ * new user sees all of Broome; the choice is kept on the device by the app.
  */
 export interface Features {
   /** Offer Auto shape, Auto fill, tables and clefs after drawing. */

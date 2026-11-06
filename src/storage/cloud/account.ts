@@ -2,7 +2,7 @@ import { useSyncExternalStore } from 'react'
 import { cloud, cloudAvailable } from './client.ts'
 
 /**
- * The Broomit account: signed in with a code sent by email (no password), it has a Broomit
+ * The Broome account: signed in with a code sent by email (no password), it has a Broome
  * ID friends add each other with, and the name and picture from the profile.
  */
 

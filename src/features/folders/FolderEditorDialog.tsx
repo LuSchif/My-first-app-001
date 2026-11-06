@@ -120,7 +120,7 @@ export function FolderEditorDialog({
                           aria-label={iconName}
                           aria-pressed={icon === iconName}
                           onClick={() => setIcon(iconName)}
-                          className="grid size-11 place-items-center rounded-control hover:bg-hover aria-pressed:bg-ink aria-pressed:text-ink-inverse"
+                          className="grid size-11 place-items-center rounded-control hover:bg-hover aria-pressed:bg-accent aria-pressed:text-on-accent"
                         >
                           <Icon size={22} strokeWidth={1.75} />
                         </button>

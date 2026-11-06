@@ -182,7 +182,7 @@ export function FillEditor({ value, onChange }: { value: Fill; onChange: (fill: 
                     aria-label={`${angle}°`}
                     aria-pressed={Math.round(value.angle) === angle}
                     onClick={() => onChange({ ...value, angle })}
-                    className="grid size-9 place-items-center rounded-control hover:bg-hover aria-pressed:bg-ink aria-pressed:text-ink-inverse"
+                    className="grid size-9 place-items-center rounded-control hover:bg-hover aria-pressed:bg-accent aria-pressed:text-on-accent"
                   >
                     <ArrowUp size={16} style={{ transform: `rotate(${angle}deg)` }} />
                   </button>
