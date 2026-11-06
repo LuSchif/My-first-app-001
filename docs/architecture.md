@@ -202,12 +202,15 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
   - Top left: two square buttons of their own, back and the insert panel (shapes, stickers and
     more). Top right, one bar: undo, redo | addons, layers, pages, control center (and Present
     or Study for slides and cards).
-  - The tool dock (`ToolDock.tsx`), centered at the top by default, two rows. The first chooses
-    a kind: write (ballpoint, fountain pen, highlighter, magic pen), eraser, tools (lasso,
-    rectangle selection, magnifier, anchor tool, laser pointer, tape, color picker) and text.
-    The second shows what that kind offers: its tools (tapping the tool in use again opens its
-    settings, as + does), three line widths, and three colors with + for any color. Colors can
-    be dragged onto ink, text or paper. Each kind remembers the tool last used in it.
+  - The tool dock (`ToolDock.tsx`), centered at the top by default. Like GoodNotes it starts
+    folded: only the four kinds (write, eraser, tools, text), close together. Tapping a kind
+    opens its menu below (and takes its last used tool); tapping it again folds the menu away.
+    The menu always has the same width, whatever the kind or tool, so the dock never jumps. It
+    holds the kind's tools (tapping the tool in use opens its settings, as + does: for pens
+    stabilization and opacity), three line widths (tapping the width in use opens the stroke's
+    settings: size, line style, for the fountain pen pressure), and three colors with + for any
+    color. Colors can be dragged onto ink, text or paper. Icons have white lines; a tool in use
+    is filled, a pen or highlighter in its own ink color, so it shows the color chosen.
   - The dock, the recent colors bar (eyedropper and the five colors used last, on the right)
     and the format bar while typing can be dragged by their grip anywhere, or dropped near an
     edge to snap to its middle; at the left and right they stand upright (the dock's two rows
@@ -218,6 +221,9 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
   - The tool wheel (`ToolWheel.tsx`) only opens with the Apple Pencil Pro's squeeze; holding
     still on the page no longer opens it (`LONG_PRESS_WHEEL` in Editor.ts).
   - The eraser shows a blue ring as wide as what it erases; the laser pointer a glowing dot.
+  - Side panels (insert, addons) slide in and out; popovers and dialogs zoom in and out
+    (`usePresence`, keyframes in tokens.css). After the canvas is resized it is drawn at once,
+    so opening a side panel no longer shows a dark frame.
   - The bars over the page are frosted glass (`.glass` in index.css): see-through by about a
     third, with a blur, so the page and its colors show a little; the first page starts just
     under the dock so it shows there.
@@ -268,6 +274,8 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
 - Colors (`tokens.css`): deep blue-grey surfaces, light text, and blue (#4f8ef7) as the accent
   for what is chosen, active or primary (`bg-accent text-on-accent`). Pages stay white paper.
   The theme presets and design packs in Appearance still override this.
+- Outside the editor the background drifts slowly through grey-blue (an animated gradient,
+  `index.css`), and panels, cards, popovers and dialogs are frosted glass, so it shows through.
 
 ## Colors
 

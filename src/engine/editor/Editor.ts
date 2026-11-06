@@ -2066,6 +2066,9 @@ export class Editor {
     } else {
       this.setCamera(this.camera)
     }
+    // Resizing cleared the canvases: draw now, before the screen shows them empty (that was a
+    // dark flash whenever a side panel opened).
+    if (rect.width > 0) this.renderNow()
   }
 
   // ---------- Addons ----------
@@ -2219,22 +2222,28 @@ export class Editor {
     if (this.renderQueued) return
     this.renderQueued = true
     requestAnimationFrame(() => {
-      this.renderQueued = false
-      const stale = renderScene(
-        this.scene,
-        this.doc.pageList,
-        this.doc.notebook.layers,
-        this.camera,
-        this.view,
-        this.layout,
-        this.hidden,
-        this.doc.notebook.background,
-        this.layout.focus,
-        this.pageCache,
-      )
-      this.paintAddonLabels()
-      this.scheduleCacheBuild(stale)
+      if (!this.renderQueued) return
+      this.renderNow()
     })
+  }
+
+  /** Draws the scene right away (e.g. after the canvas was resized, which clears it). */
+  private renderNow(): void {
+    this.renderQueued = false
+    const stale = renderScene(
+      this.scene,
+      this.doc.pageList,
+      this.doc.notebook.layers,
+      this.camera,
+      this.view,
+      this.layout,
+      this.hidden,
+      this.doc.notebook.background,
+      this.layout.focus,
+      this.pageCache,
+    )
+    this.paintAddonLabels()
+    this.scheduleCacheBuild(stale)
   }
 
   /**

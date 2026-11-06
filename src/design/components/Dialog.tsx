@@ -30,7 +30,7 @@ export function DialogContent({
     <RadixDialog.Portal>
       <RadixDialog.Overlay
         data-dialog-overlay=""
-        className="fixed inset-0 z-50 animate-fade-in bg-scrim"
+        className="fixed inset-0 z-50 bg-scrim data-[state=closed]:animate-fade-out data-[state=open]:animate-fade-in"
       />
       <RadixDialog.Content
         // Focus the dialog itself, not its first field: on iPad a focused field opens the
@@ -60,7 +60,7 @@ export function DialogContent({
           'fixed top-[calc((100%-var(--kb-height,0px))/2)] left-1/2 z-50 w-[min(36rem,calc(100%-2rem))]',
           'max-h-[calc(100%-2rem-var(--kb-height,0px))]',
           '-translate-x-1/2 -translate-y-1/2 overflow-y-auto',
-          'animate-pop-in rounded-panel bg-surface-raised p-6 shadow-overlay',
+          'rounded-panel bg-surface-raised p-6 shadow-overlay data-[state=closed]:animate-zoom-out data-[state=open]:animate-zoom-in',
           className,
         )}
       >

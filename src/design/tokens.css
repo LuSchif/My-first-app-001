@@ -71,8 +71,19 @@
 
   --ease-gentle: cubic-bezier(0.22, 1, 0.36, 1);
 
-  --animate-pop-in: pop-in 180ms var(--ease-gentle);
+  --animate-pop-in: pop-in 200ms var(--ease-gentle);
   --animate-fade-in: fade-in 180ms var(--ease-gentle);
+  --animate-fade-out: fade-out 160ms ease-in both;
+  /* Windows, menus and widgets zoom in when they open and out when they close. */
+  --animate-zoom-in: zoom-in 220ms var(--ease-gentle);
+  --animate-zoom-out: zoom-out 160ms ease-in both;
+  /* Side panels slide in from their edge and back out. */
+  --animate-slide-in-left: slide-in-left 260ms var(--ease-gentle);
+  --animate-slide-out-left: slide-out-left 200ms ease-in both;
+  --animate-slide-in-right: slide-in-right 260ms var(--ease-gentle);
+  --animate-slide-out-right: slide-out-right 200ms ease-in both;
+  /* The library's background: a slow drift of grey-blue. */
+  --animate-backdrop-drift: backdrop-drift 28s ease-in-out infinite alternate;
   /* Notebooks sliding out of an opened folder. */
   --animate-slide-out: slide-out 420ms var(--ease-gentle) both;
   /* Pages coming out of an opened notebook, to its right. */
@@ -81,7 +92,52 @@
   @keyframes pop-in {
     from {
       opacity: 0;
-      transform: translateY(4px) scale(0.97);
+      scale: 0.92;
+    }
+  }
+  @keyframes zoom-in {
+    from {
+      opacity: 0;
+      scale: 0.9;
+    }
+  }
+  @keyframes zoom-out {
+    to {
+      opacity: 0;
+      scale: 0.9;
+    }
+  }
+  @keyframes fade-out {
+    to {
+      opacity: 0;
+    }
+  }
+  @keyframes slide-in-left {
+    from {
+      translate: -100% 0;
+    }
+  }
+  @keyframes slide-out-left {
+    to {
+      translate: -100% 0;
+    }
+  }
+  @keyframes slide-in-right {
+    from {
+      translate: 100% 0;
+    }
+  }
+  @keyframes slide-out-right {
+    to {
+      translate: 100% 0;
+    }
+  }
+  @keyframes backdrop-drift {
+    from {
+      background-position: 0% 30%;
+    }
+    to {
+      background-position: 100% 70%;
     }
   }
   @keyframes fade-in {

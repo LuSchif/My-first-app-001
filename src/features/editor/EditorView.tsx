@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { cn } from '../../lib/cn.ts'
+import { usePresence } from '../../lib/usePresence.ts'
 import { AddonsPanel } from './addons/AddonsPanel.tsx'
 import { isOn, useAddonLibrary, useSwitchedOn } from './addons/store.ts'
 import { MAX_STABILIZATION } from '../../engine/input/StrokeSampler.ts'
@@ -149,6 +151,9 @@ function EditorSession({ doc, history, autosave }: Loaded) {
   const [insertOpen, setInsertOpen] = useState(false)
   const [addonsOpen, setAddonsOpen] = useState(false)
   const closeAddons = useCallback(() => setAddonsOpen(false), [])
+  // Side panels slide in and out (the page makes room once they are gone).
+  const insertPresence = usePresence(insertOpen, 200)
+  const addonsPresence = usePresence(addonsOpen, 200)
   // The addons that are on in this notebook go to the editor whenever they change.
   const addonLibrary = useAddonLibrary()
   const switchedOn = useSwitchedOn(doc.notebook.id)
@@ -162,13 +167,20 @@ function EditorSession({ doc, history, autosave }: Loaded) {
 
   return (
     <div data-editor="" className="fixed inset-0 flex overflow-hidden bg-desk">
-      {insertOpen && editor && editorState ? (
-        <InsertPanel
-          editor={editor}
-          state={editorState}
-          doc={doc}
-          onClose={() => setInsertOpen(false)}
-        />
+      {insertPresence.shown && editor && editorState ? (
+        <div
+          className={cn(
+            'flex h-full shrink-0',
+            insertPresence.closing ? 'animate-slide-out-left' : 'animate-slide-in-left',
+          )}
+        >
+          <InsertPanel
+            editor={editor}
+            state={editorState}
+            doc={doc}
+            onClose={() => setInsertOpen(false)}
+          />
+        </div>
       ) : null}
       {/* The page makes room for the panel instead of going under it. */}
       <div className="relative min-w-0 flex-1">
@@ -222,8 +234,15 @@ function EditorSession({ doc, history, autosave }: Loaded) {
           />
         ) : null}
       </div>
-      {addonsOpen && editor ? (
-        <AddonsPanel editor={editor} notebookId={doc.notebook.id} onClose={closeAddons} />
+      {addonsPresence.shown && editor ? (
+        <div
+          className={cn(
+            'flex h-full shrink-0',
+            addonsPresence.closing ? 'animate-slide-out-right' : 'animate-slide-in-right',
+          )}
+        >
+          <AddonsPanel editor={editor} notebookId={doc.notebook.id} onClose={closeAddons} />
+        </div>
       ) : null}
       {studying !== null && editor ? (
         <Study

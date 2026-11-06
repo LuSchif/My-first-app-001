@@ -6,6 +6,7 @@ import {
   Popover,
   PopoverContent,
   PopoverTrigger,
+  Slider,
 } from '../../design/index.ts'
 import type { GlyphName } from '../../design/icons/glyphs.tsx'
 import type { Editor, EditorState, ToolId } from '../../engine/editor/Editor.ts'
@@ -19,6 +20,7 @@ import {
   LassoSettings,
   MagicPenSettings,
   PenSettings,
+  StrokeSettings,
   TapeSettings,
   TextSettings,
 } from './Toolbar.tsx'
@@ -84,6 +86,8 @@ function DockBody({ editor, state }: { editor: Editor; state: EditorState }) {
   useEffect(() => {
     last.current[kind] = state.tool
   }, [kind, state.tool])
+  // Folded away to the four kinds until one is tapped.
+  const [open, setOpen] = useState(false)
   const { features } = state
 
   const writeTools: {
@@ -96,7 +100,15 @@ function DockBody({ editor, state }: { editor: Editor; state: EditorState }) {
     {
       id: 'ballpoint',
       label: 'Ballpoint',
-      icon: <BroomitIcon name="pen" size={26} tip={state.pen.color} />,
+      icon: (
+        <BroomitIcon
+          name="pen"
+          size={26}
+          tip={state.pen.color}
+          colored={state.tool === 'pen' && state.pen.nib === 'ballpoint'}
+          fill={state.pen.color}
+        />
+      ),
       on: state.tool === 'pen' && state.pen.nib === 'ballpoint',
       pick: () => {
         editor.setPen({ nib: 'ballpoint' })
@@ -106,7 +118,15 @@ function DockBody({ editor, state }: { editor: Editor; state: EditorState }) {
     {
       id: 'fountain',
       label: 'Fountain pen',
-      icon: <BroomitIcon name="fountain" size={26} tip={state.pen.color} />,
+      icon: (
+        <BroomitIcon
+          name="fountain"
+          size={26}
+          tip={state.pen.color}
+          colored={state.tool === 'pen' && state.pen.nib === 'fountain'}
+          fill={state.pen.color}
+        />
+      ),
       on: state.tool === 'pen' && state.pen.nib === 'fountain',
       pick: () => {
         editor.setPen({ nib: 'fountain' })
@@ -116,7 +136,15 @@ function DockBody({ editor, state }: { editor: Editor; state: EditorState }) {
     {
       id: 'highlighter',
       label: 'Highlighter',
-      icon: <BroomitIcon name="highlighter" size={26} tip={state.highlighter.color} />,
+      icon: (
+        <BroomitIcon
+          name="highlighter"
+          size={26}
+          tip={state.highlighter.color}
+          colored={state.tool === 'highlighter'}
+          fill={state.highlighter.color}
+        />
+      ),
       on: state.tool === 'highlighter',
       pick: () => editor.setTool('highlighter'),
     },
@@ -125,7 +153,15 @@ function DockBody({ editor, state }: { editor: Editor; state: EditorState }) {
           {
             id: 'magic',
             label: 'Magic pen',
-            icon: <BroomitIcon name="magic" size={26} tip={state.pen.color} />,
+            icon: (
+              <BroomitIcon
+                name="magic"
+                size={26}
+                tip={state.pen.color}
+                colored={state.tool === 'magic'}
+                fill={state.pen.color}
+              />
+            ),
             on: state.tool === 'magic',
             pick: () => editor.setTool('magic'),
           },
@@ -194,112 +230,129 @@ function DockBody({ editor, state }: { editor: Editor; state: EditorState }) {
   const colorTool = state.tool === 'magic' ? 'magic' : state.tool
   const hasColors = Boolean(STARTER_COLORS[colorTool])
 
+  const inkColor = state.tool === 'highlighter' ? state.highlighter.color : state.pen.color
   return (
     <DockRows>
-      <div
-        className={cn(
-          'flex items-center justify-around gap-1',
-          vertical ? 'flex-col py-1' : 'w-full px-2',
-        )}
-      >
-        {KINDS.map((k) => (
-          <button
-            key={k.kind}
-            type="button"
-            aria-label={k.label}
-            aria-pressed={kind === k.kind}
-            onClick={() => editor.setTool(kind === k.kind ? state.tool : last.current[k.kind])}
-            className="bicon-host grid h-12 w-16 place-items-center rounded-control text-ink-muted hover:bg-hover aria-pressed:text-ink"
+      <div className={cn('flex items-center gap-1', vertical ? 'flex-col py-1' : 'px-1')}>
+        {KINDS.map((k) => {
+          const on = kind === k.kind
+          return (
+            <button
+              key={k.kind}
+              type="button"
+              aria-label={k.label}
+              aria-pressed={on}
+              aria-expanded={on && open}
+              onClick={() => {
+                // Like GoodNotes: a kind opens its menu; tapping it again folds the menu away.
+                if (on && open) {
+                  setOpen(false)
+                  return
+                }
+                setOpen(true)
+                if (!on) editor.setTool(last.current[k.kind])
+              }}
+              className="bicon-host grid size-12 place-items-center rounded-control text-ink hover:bg-hover"
+            >
+              <BroomitIcon
+                name={k.icon}
+                size={28}
+                colored={on}
+                tip={k.kind === 'write' ? inkColor : undefined}
+                fill={on && k.kind === 'write' ? inkColor : undefined}
+              />
+            </button>
+          )
+        })}
+      </div>
+      {open ? (
+        <>
+          <div
+            className={cn(
+              'shrink-0 bg-line',
+              vertical ? 'w-px self-stretch' : 'h-px w-[calc(100%-16px)]',
+            )}
+          />
+          <div
+            className={cn(
+              'flex animate-zoom-in items-center justify-center gap-1',
+              // The same size for every kind and tool, so the dock never jumps.
+              vertical ? 'h-[35rem] origin-left flex-col py-1' : 'w-[35rem] origin-top px-1',
+            )}
           >
-            <BroomitIcon name={k.icon} size={30} colored={kind === k.kind} />
-          </button>
-        ))}
-      </div>
-      <div
-        className={cn(
-          'shrink-0 bg-line',
-          vertical ? 'w-px self-stretch' : 'h-px w-[calc(100%-16px)]',
-        )}
-      />
-      <div
-        className={cn('flex items-center gap-1', vertical ? 'flex-col py-1' : 'max-w-full px-1')}
-      >
-        {kind === 'write'
-          ? writeTools.map((t) => (
-              <DockButton
-                key={t.id}
-                label={t.label}
-                on={t.on}
-                onClick={t.pick}
-                settings={t.on ? settings : undefined}
-              >
-                {t.icon}
-              </DockButton>
-            ))
-          : null}
-        {kind === 'erase' ? (
-          <>
-            <DockText
-              label="Precise"
-              on={state.broom.mode === 'precise'}
-              onClick={() => editor.setBroom({ mode: 'precise' })}
-            />
-            <DockText
-              label="Whole strokes"
-              on={state.broom.mode === 'stroke'}
-              onClick={() => editor.setBroom({ mode: 'stroke' })}
-            />
-          </>
-        ) : null}
-        {kind === 'tools'
-          ? toolTools.map((t) => {
-              const on = state.tool === t.tool && (!t.lasso || state.lassoMode === t.lasso)
-              return (
-                <DockButton
-                  key={`${t.tool}-${t.lasso ?? ''}`}
-                  label={t.label}
-                  on={on}
-                  settings={on ? settings : undefined}
-                  onClick={() => {
-                    if (t.lasso) editor.setLassoMode(t.lasso)
-                    editor.setTool(t.tool)
-                  }}
-                >
-                  {t.icon}
-                </DockButton>
-              )
-            })
-          : null}
-        {settings ? (
-          <MoreButton label={`${toolName(state)} settings`}>{settings}</MoreButton>
-        ) : null}
-        {widths ? (
-          <>
-            <Divider />
-            {widths.map((w, i) => (
-              <button
-                key={w}
-                type="button"
-                aria-label={`${['Thin', 'Medium', 'Thick'][i]} (${w} pt)`}
-                aria-pressed={Math.abs(width - w) < 0.01}
-                onClick={() => setWidth(editor, state.tool, w)}
-                className="grid size-10 place-items-center rounded-full hover:bg-hover aria-pressed:ring-2 aria-pressed:ring-selected"
-              >
-                <span
-                  className="block w-5 rounded-full bg-ink"
-                  style={{ height: `${2 + i * 2.5}px` }}
+            {kind === 'write'
+              ? writeTools.map((t) => (
+                  <DockButton
+                    key={t.id}
+                    label={t.label}
+                    on={t.on}
+                    onClick={t.pick}
+                    settings={t.on ? settings : undefined}
+                  >
+                    {t.icon}
+                  </DockButton>
+                ))
+              : null}
+            {kind === 'erase' ? (
+              <>
+                <DockText
+                  label="Precise"
+                  on={state.broom.mode === 'precise'}
+                  onClick={() => editor.setBroom({ mode: 'precise' })}
                 />
-              </button>
-            ))}
-          </>
-        ) : null}
-        {hasColors ? (
-          <>
-            <Divider />
-            <DockColors editor={editor} state={state} tool={colorTool} />
-          </>
-        ) : null}
-      </div>
+                <DockText
+                  label="Whole strokes"
+                  on={state.broom.mode === 'stroke'}
+                  onClick={() => editor.setBroom({ mode: 'stroke' })}
+                />
+              </>
+            ) : null}
+            {kind === 'tools'
+              ? toolTools.map((t) => {
+                  const on = state.tool === t.tool && (!t.lasso || state.lassoMode === t.lasso)
+                  return (
+                    <DockButton
+                      key={`${t.tool}-${t.lasso ?? ''}`}
+                      label={t.label}
+                      on={on}
+                      settings={on ? settings : undefined}
+                      onClick={() => {
+                        if (t.lasso) editor.setLassoMode(t.lasso)
+                        editor.setTool(t.tool)
+                      }}
+                    >
+                      {t.icon}
+                    </DockButton>
+                  )
+                })
+              : null}
+            {settings ? (
+              <MoreButton label={`${toolName(state)} settings`}>{settings}</MoreButton>
+            ) : null}
+            {widths ? (
+              <>
+                <Divider />
+                {widths.map((w, i) => (
+                  <WidthButton
+                    key={w}
+                    index={i}
+                    width={w}
+                    on={Math.abs(width - w) < 0.01}
+                    onClick={() => setWidth(editor, state.tool, w)}
+                    settings={strokeSettingsFor(state.tool, editor, state)}
+                  />
+                ))}
+              </>
+            ) : null}
+            {hasColors ? (
+              <>
+                <Divider />
+                <DockColors editor={editor} state={state} tool={colorTool} />
+              </>
+            ) : null}
+          </div>
+        </>
+      ) : null}
     </DockRows>
   )
 }
@@ -365,6 +418,36 @@ function settingsFor(tool: ToolId, editor: Editor, state: EditorState): ReactNod
   }
 }
 
+/** What the line widths open when tapped again: the stroke's size and style. */
+function strokeSettingsFor(tool: ToolId, editor: Editor, state: EditorState): ReactNode {
+  if (tool === 'pen' || tool === 'magic') return <StrokeSettings editor={editor} state={state} />
+  if (tool === 'highlighter') {
+    return (
+      <Slider
+        label="Size"
+        value={state.highlighter.width}
+        min={4}
+        max={40}
+        onChange={(width) => editor.setHighlighter({ width })}
+        format={(v) => `${v} pt`}
+      />
+    )
+  }
+  if (tool === 'broom') {
+    return (
+      <Slider
+        label="Eraser size"
+        value={state.broom.size}
+        min={4}
+        max={80}
+        onChange={(size) => editor.setBroom({ size })}
+        format={(v) => `${v} pt`}
+      />
+    )
+  }
+  return null
+}
+
 function currentWidth(state: EditorState): number {
   switch (state.tool) {
     case 'highlighter':
@@ -419,7 +502,7 @@ function DockButton({
         setOpen(false)
         onClick()
       }}
-      className="bicon-host grid size-11 shrink-0 place-items-center rounded-control text-ink-muted hover:bg-hover aria-pressed:bg-pressed aria-pressed:text-ink"
+      className="bicon-host grid size-11 shrink-0 place-items-center rounded-control text-ink hover:bg-hover aria-pressed:bg-pressed"
     >
       {children}
     </button>
@@ -435,13 +518,53 @@ function DockButton({
   )
 }
 
+/** A line width: the first tap takes it; tapping the width in use opens the stroke's settings. */
+function WidthButton({
+  index,
+  width,
+  on,
+  onClick,
+  settings,
+}: {
+  index: number
+  width: number
+  on: boolean
+  onClick: () => void
+  settings: ReactNode
+}) {
+  const [open, setOpen] = useState(false)
+  const button = (
+    <button
+      type="button"
+      aria-label={`${['Thin', 'Medium', 'Thick'][index]} (${width} pt)`}
+      aria-pressed={on}
+      onClick={(e) => {
+        if (on && settings) return
+        e.preventDefault()
+        setOpen(false)
+        onClick()
+      }}
+      className="grid size-10 shrink-0 place-items-center rounded-full hover:bg-hover aria-pressed:ring-2 aria-pressed:ring-selected"
+    >
+      <span className="block w-5 rounded-full bg-ink" style={{ height: `${2 + index * 2.5}px` }} />
+    </button>
+  )
+  if (!settings) return button
+  return (
+    <Popover open={on && open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>{button}</PopoverTrigger>
+      <PopoverContent className="grid w-80 gap-5">{settings}</PopoverContent>
+    </Popover>
+  )
+}
+
 function DockText({ label, on, onClick }: { label: string; on: boolean; onClick: () => void }) {
   return (
     <button
       type="button"
       aria-pressed={on}
       onClick={onClick}
-      className="h-10 shrink-0 rounded-control px-3 text-sm font-semibold text-ink-muted hover:bg-hover aria-pressed:bg-pressed aria-pressed:text-ink"
+      className="h-10 shrink-0 rounded-control px-3 text-sm font-semibold text-ink hover:bg-hover aria-pressed:bg-accent aria-pressed:text-on-accent"
     >
       {label}
     </button>

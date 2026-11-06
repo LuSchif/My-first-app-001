@@ -10,6 +10,7 @@ export function BroomitIcon({
   size = 24,
   colored = false,
   tip,
+  fill,
   strokeWidth = 1.6,
   style,
   ...props
@@ -18,6 +19,8 @@ export function BroomitIcon({
   size?: number
   colored?: boolean
   tip?: string
+  /** In color, the body takes this color instead of blue (e.g. the ink a pen writes with). */
+  fill?: string
 }) {
   return (
     <svg
@@ -32,7 +35,11 @@ export function BroomitIcon({
       strokeLinejoin="round"
       aria-hidden="true"
       // A colored icon keeps its dark lines in every theme.
-      style={colored ? ({ ...COLORED_VARS, ...style } as CSSProperties) : style}
+      style={
+        colored
+          ? ({ ...COLORED_VARS, ...(fill ? { '--bi-fill': fill } : {}), ...style } as CSSProperties)
+          : style
+      }
       data-bicon=""
       {...props}
     >

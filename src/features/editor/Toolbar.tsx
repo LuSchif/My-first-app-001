@@ -467,11 +467,6 @@ export function LassoSettings({ editor, state }: { editor: Editor; state: Editor
   )
 }
 
-const NIBS = [
-  ['ballpoint', 'Ballpoint', 'Even line'],
-  ['fountain', 'Fountain pen', 'Thick and thin, by pressure'],
-] as const
-
 const LINE_STYLES = [
   [null, 'Solid'],
   ['dashed', 'Dashed'],
@@ -484,7 +479,37 @@ function dashArray(dash: StrokeDash | null, width: number): string | undefined {
   return pattern.length ? pattern.join(' ') : undefined
 }
 
+/** The pen's own settings (its strokes have theirs, see StrokeSettings). */
 export function PenSettings({ editor, state }: { editor: Editor; state: EditorState }) {
+  const { pen } = state
+  return (
+    <>
+      <Slider
+        label="Stabilization"
+        value={Math.round(state.stabilization * 100)}
+        min={0}
+        max={MAX_STABILIZATION * 100}
+        step={5}
+        onChange={(v) => editor.setStabilization(v / 100)}
+        format={(v) => (v === 0 ? 'Off' : `${v}%`)}
+      />
+      <Slider
+        label="Opacity"
+        value={Math.round(pen.opacity * 100)}
+        min={10}
+        max={100}
+        onChange={(v) => editor.setPen({ opacity: v / 100 })}
+        format={(v) => `${v}%`}
+      />
+    </>
+  )
+}
+
+/**
+ * The stroke of the pen in use, opened from the line widths in the dock: its size, preview and
+ * line style (solid, dashed, dotted), and for the fountain pen how strongly pressure widens it.
+ */
+export function StrokeSettings({ editor, state }: { editor: Editor; state: EditorState }) {
   const { pen } = state
   return (
     <>
@@ -495,23 +520,26 @@ export function PenSettings({ editor, state }: { editor: Editor; state: EditorSt
         dash={pen.dash}
         fountain={pen.nib === 'fountain'}
       />
-      <div role="group" aria-label="Pen type" className="grid grid-cols-2 gap-1.5">
-        {NIBS.map(([nib, label, hint]) => (
-          <button
-            key={nib}
-            type="button"
-            aria-pressed={pen.nib === nib}
-            onClick={() => {
-              editor.setPen({ nib })
-            }}
-            className="flex min-h-11 flex-col items-start justify-center rounded-control px-3 py-1.5 text-left ring-1 ring-line aria-pressed:bg-accent aria-pressed:text-on-accent aria-pressed:ring-accent"
-          >
-            <span className="text-sm font-semibold">{label}</span>
-            <span className="text-xs opacity-75">{hint}</span>
-          </button>
-        ))}
-      </div>
-      {pen.nib === 'fountain' ? null : (
+      <Slider
+        label="Size"
+        value={pen.width}
+        min={0.5}
+        max={10}
+        step={0.5}
+        onChange={(width) => editor.setPen({ width })}
+        format={(v) => `${v} pt`}
+      />
+      {pen.nib === 'fountain' ? (
+        <Slider
+          label="Pressure sensitivity"
+          value={Math.round(pen.sensitivity * 100)}
+          min={0}
+          max={100}
+          step={5}
+          onChange={(v) => editor.setPen({ sensitivity: v / 100 })}
+          format={(v) => (v === 0 ? 'Off' : `${v}%`)}
+        />
+      ) : (
         <div role="group" aria-label="Line style" className="grid grid-cols-3 gap-1.5">
           {LINE_STYLES.map(([dash, label]) => (
             <button
@@ -540,44 +568,6 @@ export function PenSettings({ editor, state }: { editor: Editor; state: EditorSt
           ))}
         </div>
       )}
-      <Slider
-        label="Size"
-        value={pen.width}
-        min={0.5}
-        max={10}
-        step={0.5}
-        onChange={(width) => editor.setPen({ width })}
-        format={(v) => `${v} pt`}
-      />
-      <Slider
-        label="Stabilization"
-        value={Math.round(state.stabilization * 100)}
-        min={0}
-        max={MAX_STABILIZATION * 100}
-        step={5}
-        onChange={(v) => editor.setStabilization(v / 100)}
-        format={(v) => (v === 0 ? 'Off' : `${v}%`)}
-      />
-      {pen.nib === 'fountain' ? (
-        <Slider
-          label="Pressure sensitivity"
-          value={Math.round(pen.sensitivity * 100)}
-          min={0}
-          max={100}
-          step={5}
-          onChange={(v) => editor.setPen({ sensitivity: v / 100 })}
-          format={(v) => (v === 0 ? 'Off' : `${v}%`)}
-        />
-      ) : null}
-      <Slider
-        label="Opacity"
-        value={Math.round(pen.opacity * 100)}
-        min={10}
-        max={100}
-        onChange={(v) => editor.setPen({ opacity: v / 100 })}
-        format={(v) => `${v}%`}
-      />
-      <ColorPicker value={pen.color} onChange={(color) => editor.setPen({ color })} />
     </>
   )
 }
