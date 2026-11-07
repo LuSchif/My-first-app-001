@@ -260,7 +260,7 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
 - Broome draws its own icons (`design/icons/glyphs.tsx`, shown by `BroomitIcon`): tools,
   interface and library, on a 24 px grid. They are traced 1:1 from the owner's tool and
   interface sheets (line centres and grey/light bodies vectorised from the images), drawn with
-  thin round white lines (0.4 units) over the bodies. For a tool in use the bodies turn
+  thin round white lines (0.412 units) over the bodies. For a tool in use the bodies turn
   blue-tinted, or take the pen's ink (tokens `--color-icon-*`).
 - Every other icon is a line icon in the same style (`icons.tsx`, shapes in `lineGlyphs.ts`,
   adapted from Lucide under its ISC license), imported under the usual names; there is no icon
