@@ -39,36 +39,31 @@ function boxOf(ink: Ink): Box | null {
 
 /**
  * The strokes as lines of writing, top to bottom; within a line the strokes keep their order
- * (the order they were written in). A stroke belongs to a line when most of its height lies
- * within the line's, so i-dots, accents and small letters join their line.
+ * (the order they were written in). The strokes' heights are laid side by side on the page's
+ * height: where they overlap or nearly touch, it is one line, so i-dots, commas, accents and
+ * descenders stay with their words. Only a clear gap between bands of writing starts a new line.
  */
 export function groupLines(strokes: readonly Ink[]): Ink[][] {
   const items = strokes
     .map((ink, order) => ({ ink, order, box: boxOf(ink) }))
     .filter((s): s is { ink: Ink; order: number; box: Box } => s.box !== null)
-  // Tall strokes first, so they set the lines that small marks then join.
-  const byHeight = [...items].sort((a, b) => b.box.maxY - b.box.minY - (a.box.maxY - a.box.minY))
-  const lines: { top: number; bottom: number; members: typeof items }[] = []
-  for (const s of byHeight) {
-    const h = Math.max(1, s.box.maxY - s.box.minY)
-    const line = lines.find((l) => {
-      const overlap = Math.min(l.bottom, s.box.maxY) - Math.max(l.top, s.box.minY)
-      const lineH = l.bottom - l.top
-      // A mark above the line (a dot, an accent) close to it also belongs to it.
-      const near = s.box.maxY <= l.top && l.top - s.box.maxY < lineH * 0.5 && h < lineH * 0.4
-      return overlap >= Math.min(h, lineH) * 0.5 || near
-    })
-    if (line) {
-      line.members.push(s)
-      line.top = Math.min(line.top, s.box.minY)
-      line.bottom = Math.max(line.bottom, s.box.maxY)
+  if (items.length === 0) return []
+  const heights = items.map((s) => s.box.maxY - s.box.minY).sort((a, b) => a - b)
+  // The height of a typical letter stroke (dots and commas do not count).
+  const letter = Math.max(4, heights[Math.floor(heights.length * 0.75)] ?? 4)
+  const gap = letter * 0.25
+  const byTop = [...items].sort((a, b) => a.box.minY - b.box.minY)
+  const bands: { bottom: number; members: typeof items }[] = []
+  for (const s of byTop) {
+    const band = bands[bands.length - 1]
+    if (band && s.box.minY <= band.bottom + gap) {
+      band.members.push(s)
+      band.bottom = Math.max(band.bottom, s.box.maxY)
     } else {
-      lines.push({ top: s.box.minY, bottom: s.box.maxY, members: [s] })
+      bands.push({ bottom: s.box.maxY, members: [s] })
     }
   }
-  return lines
-    .sort((a, b) => a.top - b.top)
-    .map((l) => l.members.sort((a, b) => a.order - b.order).map((m) => m.ink))
+  return bands.map((b) => b.members.sort((x, y) => x.order - y.order).map((m) => m.ink))
 }
 
 /** The request for one line: its strokes relative to the line's box, with times. */

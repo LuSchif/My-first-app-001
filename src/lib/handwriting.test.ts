@@ -6,6 +6,15 @@ const stroke = (x: number, y: number, w: number, h: number) => ({
 })
 
 describe('handwriting', () => {
+  it('keeps dots, commas and descenders in their line', () => {
+    const letters = [stroke(0, 100, 10, 30), stroke(20, 110, 10, 20), stroke(40, 100, 10, 30)]
+    const iDot = stroke(25, 102, 1, 1)
+    const comma = stroke(55, 128, 2, 8)
+    const descender = stroke(60, 110, 8, 32)
+    const line = [letters[0]!, letters[1]!, iDot, letters[2]!, comma, descender]
+    expect(groupLines(line)).toEqual([line])
+  })
+
   it('groups strokes into lines, top to bottom, keeping their order', () => {
     const a = stroke(10, 100, 10, 30)
     const dot = stroke(40, 92, 1, 1)
