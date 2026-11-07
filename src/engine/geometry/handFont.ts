@@ -1,7 +1,7 @@
 /**
  * Writing text as generated handwriting: single-line fonts (each glyph is a few pen lines,
- * see engine/fonts) laid out like text, with the small irregularities of a hand (a wavering
- * baseline, letters slightly turned, sized and spaced unevenly, lines that wobble a little).
+ * see engine/fonts) laid out like text, with the small irregularities of a hand (a gently
+ * wavering baseline, letters slightly turned, sized and spaced unevenly), in smooth lines.
  * The result is lines in page coordinates, to become ordinary pen strokes.
  */
 
@@ -89,18 +89,54 @@ function wrap(font: HandFont, text: string, width: number): string[] {
   return lines
 }
 
-/** Points no farther apart than `step`, so the wobble bends lines smoothly. */
-function densify(points: number[], step: number): number[] {
-  const out = [points[0]!, points[1]!]
+/**
+ * Rounds a glyph's corners (Chaikin's corner cutting, twice; the ends stay): the fonts are
+ * digitized as short straight pieces, which would otherwise show as kinks and a shaky line.
+ * Sharp turns (where the pen goes back, as at the top of an H) stay sharp.
+ */
+function smooth(points: number[]): number[] {
+  // Split at sharp turns, smooth each piece, join again.
+  const pieces: number[][] = []
+  let piece = [points[0]!, points[1]!]
   for (let i = 2; i + 1 < points.length; i += 2) {
-    const x0 = points[i - 2]!
-    const y0 = points[i - 1]!
-    const x1 = points[i]!
-    const y1 = points[i + 1]!
-    const n = Math.max(1, Math.ceil(Math.hypot(x1 - x0, y1 - y0) / step))
-    for (let k = 1; k <= n; k++) out.push(x0 + ((x1 - x0) * k) / n, y0 + ((y1 - y0) * k) / n)
+    piece.push(points[i]!, points[i + 1]!)
+    if (i + 3 < points.length) {
+      const ax = points[i]! - points[i - 2]!
+      const ay = points[i + 1]! - points[i - 1]!
+      const bx = points[i + 2]! - points[i]!
+      const by = points[i + 3]! - points[i + 1]!
+      const cos = (ax * bx + ay * by) / (Math.hypot(ax, ay) * Math.hypot(bx, by) || 1)
+      if (cos < -0.2) {
+        pieces.push(piece)
+        piece = [points[i]!, points[i + 1]!]
+      }
+    }
+  }
+  pieces.push(piece)
+  const out: number[] = []
+  for (const part of pieces) {
+    const p = cut(part)
+    out.push(...(out.length ? p.slice(2) : p))
   }
   return out
+}
+
+function cut(points: number[]): number[] {
+  let p = points
+  for (let pass = 0; pass < 2 && p.length >= 6; pass++) {
+    const out = [p[0]!, p[1]!]
+    for (let i = 0; i + 3 < p.length; i += 2) {
+      const x0 = p[i]!
+      const y0 = p[i + 1]!
+      const x1 = p[i + 2]!
+      const y1 = p[i + 3]!
+      out.push(0.75 * x0 + 0.25 * x1, 0.75 * y0 + 0.25 * y1)
+      out.push(0.25 * x0 + 0.75 * x1, 0.25 * y0 + 0.75 * y1)
+    }
+    out.push(p[p.length - 2]!, p[p.length - 1]!)
+    p = out
+  }
+  return p
 }
 
 /** The text written by hand: its pen lines in page coordinates, each x, y, x, y, … */
@@ -126,21 +162,20 @@ export function writeHandwriting(text: string, font: HandFont, layout: HandLayou
     let x = layout.x + (layout.align === 'center' ? free / 2 : layout.align === 'right' ? free : 0)
     const baseline = layout.y + size * 0.95 + row * lineHeight
     // The line rises or falls a little, and waves gently.
-    const slope = jitter(0.012)
-    const wave = size * 0.035
+    const slope = jitter(0.008)
+    const wave = size * 0.02
     const phase = rnd() * Math.PI * 2
     const startX = x
     for (const ch of line) {
       for (const [advance, polylines] of glyphOf(font, ch)) {
-        const s = scale * (1 + jitter(0.045))
-        const turn = jitter(0.045)
-        const lift = jitter(size * 0.025)
+        const s = scale * (1 + jitter(0.025))
+        const turn = jitter(0.025)
+        const lift = jitter(size * 0.012)
         const c = Math.cos(turn)
         const t = Math.sin(turn)
         for (const poly of polylines) {
-          const dense = densify(poly, font.cap * 0.06)
+          const dense = smooth(poly)
           const points: number[] = []
-          const wobble = rnd() * Math.PI * 2
           for (let i = 0; i + 1 < dense.length; i += 2) {
             const gx = dense[i]! * s
             const gy = dense[i + 1]! * s
@@ -153,16 +188,14 @@ export function writeHandwriting(text: string, font: HandFont, layout: HandLayou
               lift +
               along * slope +
               Math.sin(along / (size * 6) + phase) * wave
-            // A slightly unsteady pen.
-            const shake = Math.sin(i * 0.35 + wobble) * size * 0.008
-            const [qx, qy] = place(px + shake, py + shake * 0.6)
+            const [qx, qy] = place(px, py)
             points.push(Math.round(qx * 100) / 100, Math.round(qy * 100) / 100)
           }
           // A dot (an i-dot, a full stop) is a tiny line, so it is drawn.
           if (points.length === 2) points.push(points[0]! + 0.3, points[1]! + 0.3)
           if (points.length >= 4) out.push(points)
         }
-        x += advance * s * (1 + jitter(0.03))
+        x += advance * s * (1 + jitter(0.02))
       }
     }
   })
