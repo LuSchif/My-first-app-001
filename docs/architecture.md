@@ -507,6 +507,18 @@ The ink pipeline, from pen to storage, each part in its own module:
   after, "Other readings" offers Google's next-best readings, one line changed at a time. A
   selected picture has "Copy text".
 
+## Generated handwriting
+
+- "To handwriting" in the selection menu writes the selected text boxes (and selected
+  handwriting, after reading it as for "To text") as ordinary pen strokes in their place, size,
+  color and alignment, undoable as one step. Four hands: Cursive, Lettering, Print, Casual.
+- `engine/geometry/handFont.ts` lays text out in single-line fonts (each glyph a few pen lines)
+  with a hand's irregularities: a wavering, slightly sloped baseline, letters a little turned,
+  sized and spaced unevenly, and a slightly unsteady line; a seed keeps a hand stable.
+- The fonts (`engine/fonts/*.json`, loaded on first use) are EMS Allure, Felix, Readability and
+  Elfin from the `hersheytext` package, SIL Open Font License (`engine/fonts/OFL.md`), reduced
+  to the glyphs used, curves flattened; missing characters are written as near ones.
+
 ## Calendar
 
 - The home screen shows today's calendar in a time grid that scrolls through the day

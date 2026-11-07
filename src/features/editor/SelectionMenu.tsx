@@ -15,9 +15,12 @@ import {
   SquareRoundCorner,
   TextCursorInput,
   Trash2,
+  PenLine,
   Type,
 } from '../../design/icons/icons.tsx'
-import { inkOf, readHandwritingChoices, readPicture } from '../search/readText.ts'
+import { HAND_STYLES, loadHandFont, type HandStyle } from '../../engine/fonts/handFonts.ts'
+import { writeHandwriting, type HandFont } from '../../engine/geometry/handFont.ts'
+import { inkOf, readHandwriting, readHandwritingChoices, readPicture } from '../search/readText.ts'
 import { showNotice } from '../../lib/notices.ts'
 import type { Editor, EditorState } from '../../engine/editor/Editor.ts'
 import {
@@ -71,7 +74,17 @@ const pill =
   'flex h-11 items-center gap-1.5 rounded-control px-3 text-sm font-semibold whitespace-nowrap hover:bg-white/10 active:bg-white/15'
 
 /** In the bar, in this order; everything else is behind the three dots. */
-const PRIMARY = ['delete', 'duplicate', 'copy', 'to-text', 'copy-text', 'readings', 'scale', 'edit']
+const PRIMARY = [
+  'delete',
+  'duplicate',
+  'copy',
+  'to-text',
+  'to-handwriting',
+  'copy-text',
+  'readings',
+  'scale',
+  'edit',
+]
 /** The order of the menu behind the three dots. */
 const SECONDARY = [
   'cut',
@@ -247,6 +260,12 @@ function menuItems(
       </MenuButton>
     ),
   })
+  if (sel.hasInk || sel.hasText) {
+    items.push({
+      key: 'to-handwriting',
+      node: <HandwritingButton editor={editor} hasInk={sel.hasInk} />,
+    })
+  }
   if (sel.hasInk) {
     items.push({ key: 'to-text', node: <ReadTextButton editor={editor} mode="convert" /> })
   } else if (picture?.type === 'image') {
@@ -699,6 +718,84 @@ function SelectionColor({
         />
       )}
     </div>
+  )
+}
+
+/**
+ * Writes the selection by hand: text boxes as they are, handwriting after reading it. The
+ * menu shows each hand writing its own name.
+ */
+function HandwritingButton({ editor, hasInk }: { editor: Editor; hasInk: boolean }) {
+  const [fonts, setFonts] = useState<Partial<Record<HandStyle, HandFont>>>({})
+  const [busy, setBusy] = useState(false)
+  const loadAll = () => {
+    for (const { id } of HAND_STYLES) {
+      void loadHandFont(id).then((font) => setFonts((f) => ({ ...f, [id]: font })))
+    }
+  }
+  const write = async (style: HandStyle) => {
+    if (busy) return
+    setBusy(true)
+    try {
+      const font = await loadHandFont(style)
+      const inkText = hasInk
+        ? await readHandwriting(inkOf(editor.selectedObjects()), () => editor.selectionPicture())
+        : null
+      if (hasInk && !inkText && !editor.selectedObjects().some((o) => o.type === 'text')) {
+        showNotice('No text found in the handwriting.')
+        return
+      }
+      editor.convertSelectionToHandwriting(font, inkText)
+    } catch {
+      showNotice('The handwriting could not be read right now.')
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <Popover onOpenChange={(open) => open && loadAll()}>
+      <PopoverTrigger asChild>
+        <button type="button" className={pill}>
+          <PenLine size={18} />
+          {busy ? 'Writing…' : 'To handwriting'}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="grid w-72 gap-1 p-2">
+        {HAND_STYLES.map(({ id, label }) => (
+          <PopoverClose asChild key={id}>
+            <button
+              type="button"
+              aria-label={label}
+              onClick={() => void write(id)}
+              className="flex h-12 items-center rounded-control px-3 hover:bg-hover"
+            >
+              <HandPreview font={fonts[id]} text={label} />
+            </button>
+          </PopoverClose>
+        ))}
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+/** A word written in a hand, for choosing it. */
+function HandPreview({ font, text }: { font: HandFont | undefined; text: string }) {
+  if (!font) return <span className="text-sm">{text}</span>
+  const lines = writeHandwriting(text, font, { x: 2, y: 2, width: 1000, size: 20, seed: 7 })
+  return (
+    <svg width="200" height="34" viewBox="0 0 200 34" aria-hidden="true">
+      {lines.map((p, i) => (
+        <polyline
+          key={i}
+          points={p.join(' ')}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.4"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      ))}
+    </svg>
   )
 }
 

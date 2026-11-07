@@ -103,6 +103,7 @@ import {
 } from './layers.ts'
 import { SelectionController, type LassoMode, type SelectionInfo } from './SelectionController.ts'
 import { DEFAULT_TEXT_STYLE, TextController } from './TextController.ts'
+import type { HandFont } from '../geometry/handFont.ts'
 import { BroomDust } from './BroomDust.ts'
 import { FxLayer } from './FxLayer.ts'
 import { LaserPointer } from './LaserPointer.ts'
@@ -906,6 +907,14 @@ export class Editor {
   /** Replaces the selected handwriting with a text box holding `text` (read from it). */
   convertSelectionToText(text: string): void {
     this.selection.replaceInkWithText(text)
+  }
+
+  /**
+   * Writes the selected text boxes (and, with `inkText`, the selected handwriting) by hand in
+   * `font`, as pen strokes in their place.
+   */
+  convertSelectionToHandwriting(font: HandFont, inkText: string | null): void {
+    this.selection.replaceWithHandwriting(font, inkText)
   }
 
   copySelection(): void {

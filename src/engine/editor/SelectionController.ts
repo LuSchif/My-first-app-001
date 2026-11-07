@@ -7,6 +7,7 @@ import type { Fill } from '../model/fill.ts'
 import type {
   BoxObject,
   CanvasObject,
+  StrokeObject,
   TextObject,
   GradientPaint,
   Id,
@@ -19,6 +20,7 @@ import { pageSizeOf } from '../render/layout.ts'
 import { renderPage } from '../render/pageImage.ts'
 import { DEFAULT_TEXT_STYLE } from './TextController.ts'
 import { layoutText } from '../render/text.ts'
+import { writeHandwriting, type HandFont } from '../geometry/handFont.ts'
 import { applyCamera } from '../render/SceneRenderer.ts'
 import type { EditorContext } from './context.ts'
 import {
@@ -75,6 +77,8 @@ export interface SelectionInfo {
   animationPlace: { index: number; count: number } | null
   /** Whether handwriting (strokes) is selected, which can be turned into text. */
   hasInk: boolean
+  /** Whether a text box is selected, which can be written by hand. */
+  hasText: boolean
 }
 
 type Handle = 'nw' | 'ne' | 'se' | 'sw' | 'rotate'
@@ -189,6 +193,7 @@ export class SelectionController {
       animation: objects[0]?.animation ?? null,
       animationPlace: this.animationPlace(objects[0]),
       hasInk: objects.some((o) => o.type === 'stroke'),
+      hasText: objects.some((o) => o.type === 'text'),
     }
   }
 
@@ -561,6 +566,96 @@ export class SelectionController {
     const after = [...page.objects.filter((o) => !gone.has(o.id)), box]
     this.ctx.history.execute(setPageObjects('Convert to text', page.id, page.objects, after))
     this.select(page.id, [box.id])
+  }
+
+  /**
+   * Writes the selected text boxes by hand in `font`, as pen strokes in their place, size and
+   * color. With `inkText` (read from the selected handwriting), the handwriting is rewritten
+   * too, line for line where it was. Undoable as one step.
+   */
+  replaceWithHandwriting(font: HandFont, inkText: string | null): void {
+    this.commitEdit('Edit')
+    const sel = this.selection
+    const page = sel && this.ctx.doc.page(sel.pageId)
+    const layer = this.ctx.activeLayer()
+    if (!sel || !page || !layer || layer.locked) return
+    const objects = this.selectedObjects()
+    const made: StrokeObject[] = []
+    const gone = new Set<Id>()
+    const pen = (lines: number[][], color: string, width: number, opacity: number) => {
+      for (const points of lines) {
+        made.push({
+          id: newId(),
+          type: 'stroke',
+          layerId: layer.id,
+          tool: 'pen',
+          color,
+          width,
+          opacity,
+          points,
+        })
+      }
+    }
+    let seed = Math.floor(Math.random() * 1e9)
+    for (const o of objects) {
+      if (o.type !== 'text' || !o.text.trim()) continue
+      const height = layoutText(o).height
+      const lines = writeHandwriting(o.text, font, {
+        x: o.x,
+        y: o.y,
+        width: Math.max(o.width, 40),
+        size: o.style.size,
+        lineHeight: Math.max(1.3, o.style.lineHeight),
+        align: o.style.align,
+        seed: seed++,
+      })
+      // Turned like the box, around its center.
+      const cx = o.x + o.width / 2
+      const cy = o.y + height / 2
+      const c = Math.cos(o.rotation)
+      const s = Math.sin(o.rotation)
+      const turned = o.rotation
+        ? lines.map((p) =>
+            p.map((v, i) =>
+              i % 2 === 0
+                ? cx + (v - cx) * c - (p[i + 1]! - cy) * s
+                : cy + (p[i - 1]! - cx) * s + (v - cy) * c,
+            ),
+          )
+        : lines
+      pen(turned, o.style.color, Math.max(0.8, o.style.size * 0.07), o.style.opacity)
+      gone.add(o.id)
+    }
+    const ink = objects.filter((o) => o.type === 'stroke')
+    const b = boundsOf(ink)
+    if (inkText?.trim() && b) {
+      const rows = inkText.split('\n').length
+      const size = Math.min(64, Math.max(10, ((b.maxY - b.minY) / rows) * 0.62))
+      const first = ink[0]
+      const lines = writeHandwriting(inkText, font, {
+        x: b.minX,
+        y: b.minY,
+        // Written lines stay lines.
+        width: 1e6,
+        size,
+        lineHeight: (b.maxY - b.minY) / rows / size,
+        seed: seed++,
+      })
+      pen(
+        lines,
+        first?.type === 'stroke' ? first.color : DEFAULT_TEXT_STYLE.color,
+        first?.type === 'stroke' ? first.width : Math.max(0.8, size * 0.07),
+        first?.type === 'stroke' ? first.opacity : 1,
+      )
+      for (const o of ink) gone.add(o.id)
+    }
+    if (!made.length) return
+    const after = [...page.objects.filter((o) => !gone.has(o.id)), ...made]
+    this.ctx.history.execute(setPageObjects('Convert to handwriting', page.id, page.objects, after))
+    this.select(
+      page.id,
+      made.map((m) => m.id),
+    )
   }
 
   copy(): void {
