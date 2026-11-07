@@ -18,6 +18,7 @@ import { paintObject } from '../render/objects.ts'
 import { pageSizeOf } from '../render/layout.ts'
 import { renderPage } from '../render/pageImage.ts'
 import { DEFAULT_TEXT_STYLE } from './TextController.ts'
+import { layoutText } from '../render/text.ts'
 import { applyCamera } from '../render/SceneRenderer.ts'
 import type { EditorContext } from './context.ts'
 import {
@@ -521,7 +522,8 @@ export class SelectionController {
 
   /**
    * Replaces the selected handwriting with a text box holding `text`, where it was: as wide as
-   * the writing, in its ink color, with letters about as tall as the written lines. Typed text
+   * the writing, in its ink color, with letters about as tall as the written lines (smaller
+   * when a line would not fit). Typed text
    * and other objects in the selection stay.
    */
   replaceInkWithText(text: string): void {
@@ -550,6 +552,10 @@ export class SelectionController {
         size,
         color: first?.type === 'stroke' ? first.color : DEFAULT_TEXT_STYLE.color,
       },
+    }
+    // Each written line stays one line: smaller letters while a line would wrap.
+    while (box.style.size > 10 && layoutText(box).lines.length > lines) {
+      box.style = { ...box.style, size: box.style.size - 1 }
     }
     const gone = new Set(ink.map((o) => o.id))
     const after = [...page.objects.filter((o) => !gone.has(o.id)), box]

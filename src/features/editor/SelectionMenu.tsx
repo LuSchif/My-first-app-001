@@ -17,7 +17,7 @@ import {
   Trash2,
   Type,
 } from '../../design/icons/icons.tsx'
-import { inkOf, readHandwriting, readPicture } from '../search/readText.ts'
+import { inkOf, readHandwritingChoices, readPicture } from '../search/readText.ts'
 import { showNotice } from '../../lib/notices.ts'
 import type { Editor, EditorState } from '../../engine/editor/Editor.ts'
 import {
@@ -71,7 +71,7 @@ const pill =
   'flex h-11 items-center gap-1.5 rounded-control px-3 text-sm font-semibold whitespace-nowrap hover:bg-white/10 active:bg-white/15'
 
 /** In the bar, in this order; everything else is behind the three dots. */
-const PRIMARY = ['delete', 'duplicate', 'copy', 'to-text', 'copy-text', 'scale', 'edit']
+const PRIMARY = ['delete', 'duplicate', 'copy', 'to-text', 'copy-text', 'readings', 'scale', 'edit']
 /** The order of the menu behind the three dots. */
 const SECONDARY = [
   'cut',
@@ -211,6 +211,12 @@ function menuItems(
   const graph = sel.boxKind === 'graph' ? editor.selectedObject() : null
   const picture = sel.boxKind === 'image' ? editor.selectedObject() : null
 
+  if (sel.textId && readings?.id === sel.textId) {
+    items.push({
+      key: 'readings',
+      node: <ReadingsButton editor={editor} alternatives={readings.alternatives} />,
+    })
+  }
   if (sel.textId) {
     items.push({
       key: 'edit',
@@ -696,6 +702,40 @@ function SelectionColor({
   )
 }
 
+/** The other readings of the text box that handwriting was just turned into. */
+let readings: { id: string; alternatives: string[] } | null = null
+
+/** Lists the other readings of a converted text box; choosing one replaces its text. */
+function ReadingsButton({ editor, alternatives }: { editor: Editor; alternatives: string[] }) {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button type="button" className={pill}>
+          <Type size={18} />
+          Other readings
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="grid w-80 gap-1 p-2">
+        {alternatives.map((option) => (
+          <PopoverClose asChild key={option}>
+            <button
+              type="button"
+              onClick={() => {
+                const box = editor.selectedObject()
+                if (box?.type === 'text')
+                  editor.updateSelectedObject({ ...box, text: option }, 'Edit text')
+              }}
+              className="rounded-control px-3 py-2 text-left text-sm whitespace-pre-line hover:bg-hover"
+            >
+              {option}
+            </button>
+          </PopoverClose>
+        ))}
+      </PopoverContent>
+    </Popover>
+  )
+}
+
 /**
  * Reads the text in the selection: handwriting becomes a text box in its place ("convert"); the
  * text in a picture is copied ("copy").
@@ -706,14 +746,18 @@ function ReadTextButton({ editor, mode }: { editor: Editor; mode: 'convert' | 'c
     if (busy) return
     setBusy(true)
     try {
-      const text =
+      const { text, alternatives } =
         mode === 'convert'
-          ? await readHandwriting(inkOf(editor.selectedObjects()), () => editor.selectionPicture())
-          : await readPicture(editor.selectionPicture())
+          ? await readHandwritingChoices(inkOf(editor.selectedObjects()), () =>
+              editor.selectionPicture(),
+            )
+          : { text: await readPicture(editor.selectionPicture()), alternatives: [] }
       if (!text) {
         showNotice('No text found.')
       } else if (mode === 'convert') {
         editor.convertSelectionToText(text)
+        const made = editor.selectedObject()
+        readings = made && alternatives.length > 1 ? { id: made.id, alternatives } : null
       } else {
         await navigator.clipboard.writeText(text)
         showNotice('Text copied.')

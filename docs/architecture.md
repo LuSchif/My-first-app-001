@@ -500,8 +500,12 @@ The ink pipeline, from pen to storage, each part in its own module:
   open (starting 2.5 s after it appears, only while visible, one page at a time) and again only
   when a page's `updatedAt` changed. The text is kept in `pageTexts` (Dexie version 7). The
   library's search lists notebooks whose pages hold the query under "Found on pages".
+- Lines are found from the gaps between bands of writing (dots, commas and descenders stay
+  in their line) and read one after another, each with the text before it as `pre_context`.
 - Lasso: selected handwriting has "To text" (a text box in its place and ink color, letters
-  about as tall as the written lines, undoable); a selected picture has "Copy text".
+  about as tall as the written lines but never wrapping a written line, undoable); right
+  after, "Other readings" offers Google's next-best readings, one line changed at a time. A
+  selected picture has "Copy text".
 
 ## Calendar
 

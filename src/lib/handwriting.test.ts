@@ -1,5 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { groupLines, lineRequest, parseResponse, recognizeHandwriting } from './handwriting.ts'
+import {
+  alternativesOf,
+  groupLines,
+  lineRequest,
+  parseResponse,
+  recognizeHandwriting,
+} from './handwriting.ts'
 
 const stroke = (x: number, y: number, w: number, h: number) => ({
   points: [x, y, x + w, y + h],
@@ -38,22 +44,34 @@ describe('handwriting', () => {
   })
 
   it('reads the best candidate and rejects failures', () => {
-    expect(parseResponse(['SUCCESS', [['id', ['Test24', 'Tesl24'], [], {}]]])).toEqual(['Test24'])
+    expect(parseResponse(['SUCCESS', [['id', ['Test24', 'Tesl24'], [], {}]]])).toEqual([
+      ['Test24', 'Tesl24'],
+    ])
     expect(() => parseResponse(['FAILED_TO_PARSE_REQUEST_BODY'])).toThrow()
+  })
+
+  it('offers whole-text alternatives, one line changed at a time', () => {
+    const lines = [['In einer Suppe sich klini', 'In einer Suppe sich kleine'], ['Fleisch']]
+    expect(alternativesOf(lines)).toEqual([
+      'In einer Suppe sich klini\nFleisch',
+      'In einer Suppe sich kleine\nFleisch',
+    ])
   })
 
   afterEach(() => vi.unstubAllGlobals())
 
-  it('reads every line and joins them', async () => {
+  it('reads every line with the text before it, and joins them', async () => {
     const answers = ['Hallo', 'Welt']
+    const bodies: string[] = []
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () => ({
-        ok: true,
+      vi.fn(async (_url: string, init: { body: string }) => ({
+        ok: (bodies.push(init.body), true),
         json: async () => ['SUCCESS', [['id', [answers.shift()]]]],
       })),
     )
     const text = await recognizeHandwriting([stroke(0, 0, 50, 20), stroke(0, 60, 50, 20)])
     expect(text).toBe('Hallo\nWelt')
+    expect(JSON.parse(bodies[1]!).requests[0].pre_context).toBe('Hallo')
   })
 })

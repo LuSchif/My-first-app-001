@@ -1,5 +1,10 @@
 import type { CanvasObject } from '../../engine/model/types.ts'
-import { recognizeHandwriting, type Ink } from '../../lib/handwriting.ts'
+import {
+  alternativesOf,
+  readHandwritingLines,
+  recognizeHandwriting,
+  type Ink,
+} from '../../lib/handwriting.ts'
 import { onlineHandwritingOn } from '../../lib/handwritingSetting.ts'
 import { recognizeText } from '../../lib/ocr.ts'
 
@@ -28,6 +33,26 @@ export async function readHandwriting(
     }
   }
   return readPicture(picture())
+}
+
+/**
+ * Reads handwriting like `readHandwriting`, with whole-text readings to choose from (best
+ * first) when it was read from its strokes.
+ */
+export async function readHandwritingChoices(
+  ink: readonly Ink[],
+  picture: () => HTMLCanvasElement | null,
+): Promise<{ text: string; alternatives: string[] }> {
+  if (ink.length && onlineHandwritingOn() && navigator.onLine !== false) {
+    try {
+      const lines = await readHandwritingLines(ink)
+      const alternatives = alternativesOf(lines)
+      return { text: alternatives[0] ?? '', alternatives }
+    } catch {
+      // Offline or refused: read the picture instead.
+    }
+  }
+  return { text: await readPicture(picture()), alternatives: [] }
 }
 
 /** The text in a picture, read on the device; the picture's memory is freed afterwards. */

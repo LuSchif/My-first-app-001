@@ -66,8 +66,11 @@ export function groupLines(strokes: readonly Ink[]): Ink[][] {
   return bands.map((b) => b.members.sort((x, y) => x.order - y.order).map((m) => m.ink))
 }
 
-/** The request for one line: its strokes relative to the line's box, with times. */
-export function lineRequest(line: readonly Ink[], language: string): object {
+/**
+ * The request for one line: its strokes relative to the line's box, with times, and the text
+ * read just before it (`context`), which helps with whole words.
+ */
+export function lineRequest(line: readonly Ink[], language: string, context = ''): object {
   const boxes = line.map(boxOf).filter((b): b is Box => b !== null)
   const minX = Math.min(...boxes.map((b) => b.minX))
   const minY = Math.min(...boxes.map((b) => b.minY))
@@ -94,31 +97,60 @@ export function lineRequest(line: readonly Ink[], language: string): object {
     },
     ink,
     language,
+    ...(context ? { pre_context: context.slice(-60) } : {}),
   }
 }
 
-/** The best reading of each request in a response; throws on a failed one. */
-export function parseResponse(body: unknown): string[] {
+/** The readings of each request in a response, best first; throws on a failed one. */
+export function parseResponse(body: unknown): string[][] {
   if (!Array.isArray(body) || body[0] !== 'SUCCESS' || !Array.isArray(body[1])) {
     throw new Error('Handwriting recognition failed')
   }
   return (body[1] as unknown[]).map((entry) => {
     const candidates = Array.isArray(entry) ? entry[1] : null
-    return Array.isArray(candidates) && typeof candidates[0] === 'string' ? candidates[0] : ''
+    return Array.isArray(candidates)
+      ? candidates.filter((c): c is string => typeof c === 'string')
+      : []
   })
 }
 
-async function readLine(line: readonly Ink[], language: string): Promise<string> {
+async function readLine(
+  line: readonly Ink[],
+  language: string,
+  context: string,
+): Promise<string[]> {
   const response = await fetch(ENDPOINT, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       options: 'enable_pre_space',
-      requests: [lineRequest(line, language)],
+      requests: [lineRequest(line, language, context)],
     }),
   })
   if (!response.ok) throw new Error(`Handwriting recognition: ${response.status}`)
-  return parseResponse(await response.json())[0] ?? ''
+  return parseResponse(await response.json())[0] ?? []
+}
+
+/**
+ * The readings of each line of writing, best first (up to a handful each). Lines are read one
+ * after another, each with the text before it as context.
+ */
+export async function readHandwritingLines(
+  strokes: readonly Ink[],
+  language = 'de',
+): Promise<string[][]> {
+  const lines = groupLines(strokes).slice(0, MAX_LINES)
+  const read: string[][] = []
+  let context = ''
+  for (const line of lines) {
+    const candidates = (await readLine(line, language, context))
+      .map((c) => c.trim())
+      .filter(Boolean)
+    if (!candidates.length) continue
+    read.push(candidates)
+    context = `${context} ${candidates[0]}`.trim()
+  }
+  return read
 }
 
 /** The handwritten text, one line of writing per line; empty without strokes. */
@@ -126,10 +158,23 @@ export async function recognizeHandwriting(
   strokes: readonly Ink[],
   language = 'de',
 ): Promise<string> {
-  const lines = groupLines(strokes).slice(0, MAX_LINES)
-  const read = await Promise.all(lines.map((line) => readLine(line, language)))
-  return read
-    .map((l) => l.trim())
-    .filter(Boolean)
-    .join('\n')
+  return (await readHandwritingLines(strokes, language)).map((c) => c[0]).join('\n')
+}
+
+/**
+ * Whole-text readings to choose from: the best reading, then those where one line takes its
+ * next-best reading (the others stay best), without repeats.
+ */
+export function alternativesOf(lines: readonly (readonly string[])[], max = 6): string[] {
+  const best = lines.map((c) => c[0] ?? '')
+  const out = [best.join('\n')]
+  for (let rank = 1; rank < 5 && out.length < max; rank++) {
+    lines.forEach((c, i) => {
+      const other = c[rank]
+      if (!other || out.length >= max) return
+      const text = best.map((b, j) => (j === i ? other : b)).join('\n')
+      if (!out.includes(text)) out.push(text)
+    })
+  }
+  return out
 }
