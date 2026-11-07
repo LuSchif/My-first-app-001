@@ -54,15 +54,23 @@ const lean = (children: ReactNode, angle = 45) => (
   </g>
 )
 
-const ballpoint = (p: Paint) =>
-  lean(
-    <>
-      <rect x="8.6" y="1.4" width="6.8" height="14" rx="3.2" fill={p.fill} />
-      <path d="M13.4 2.6v8.2" strokeWidth="1.4" />
-      <path d="M8.6 15.4 10.4 20h3.2l1.8-4.6Z" fill={p.fill} />
-      <path d="M10.4 20 12 22.8l1.6-2.8Z" fill={p.tip} />
-    </>,
-  )
+/**
+ * The ballpoint, traced from Broome's tool sheet: drawn upright with the tip down, then turned
+ * 45° so the tip points down to the left. A rounded button behind the top, the body with its
+ * clip, the cone and the ball (which shows the ink).
+ */
+const ballpoint = (p: Paint) => (
+  <g transform="rotate(45 12 12)" strokeWidth="0.55">
+    <rect x="9.4" y="0.15" width="5.2" height="4" rx="1.3" fill={p.fill} />
+    <path
+      d="M8.5 4.05a1.1 1.1 0 0 1 1.1-1.1h4.8a1.1 1.1 0 0 1 1.1 1.1V16.3Q15.4 17.5 14.73 18.28H9.27Q8.6 17.5 8.5 16.3Z"
+      fill={p.fill}
+    />
+    <rect x="10.88" y="2.28" width="1.88" height="8.26" rx="0.94" fill={p.fill} />
+    <path d="M9.27 18.28 10.8 22.22h2.4l1.53-3.94Z" fill={p.fill} />
+    <path d="M11.22 22.22v.83a.78.78 0 0 0 1.56 0v-.83Z" fill={p.tip} />
+  </g>
+)
 
 const fountain = (p: Paint) =>
   lean(
