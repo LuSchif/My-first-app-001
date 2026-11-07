@@ -9,12 +9,13 @@ import { onlineHandwritingOn } from '../../lib/handwritingSetting.ts'
 import { recognizeText } from '../../lib/ocr.ts'
 
 /**
- * Handwriting among these objects that has to be read: pen strokes, not highlighter, tape,
- * drawn shapes or generated handwriting (whose text is known, see `writtenTextOf`).
+ * Handwriting among these objects that has to be read: every pen stroke (also those made
+ * straight, like the bar of a T), not highlighter or tape, and not generated handwriting
+ * (whose text is known, see `writtenTextOf`).
  */
 export function inkOf(objects: readonly CanvasObject[]): Ink[] {
   return objects.flatMap((o) =>
-    o.type === 'stroke' && o.tool === 'pen' && !o.closed && !o.straight && !o.written
+    o.type === 'stroke' && o.tool === 'pen' && !o.written
       ? [{ points: o.points, t: o.input?.t }]
       : [],
   )
