@@ -136,5 +136,6 @@ class BroomitViewController: CAPBridgeViewController {
     override open func capacitorDidLoad() {
         bridge?.registerPluginInstance(StorePlugin())
         bridge?.registerPluginInstance(PencilPlugin())
+        bridge?.registerPluginInstance(OcrPlugin())
     }
 }

@@ -5,6 +5,15 @@ import type { HomeTab } from '../features/library/homeTabs.ts'
 import type { Purchase } from '../features/shop/catalog.ts'
 import type { Profile } from '../features/profile/profile.ts'
 
+/** The text read from one page (see features/search/pageIndex.ts), for searching. */
+export interface PageText {
+  pageId: string
+  notebookId: string
+  /** The page's `updatedAt` when it was read: a newer page is read again. */
+  updatedAt: number
+  text: string
+}
+
 /**
  * Local storage for everything the user creates. Each page is its own record, so a stroke on one
  * page writes only that page. Schema changes get a new `version()` block with an upgrade function;
@@ -21,6 +30,7 @@ export class BroomitDatabase extends Dexie {
   homeTabs!: Table<HomeTab, string>
   purchases!: Table<Purchase, string>
   profile!: Table<Profile, string>
+  pageTexts!: Table<PageText, string>
 
   constructor(name = 'broomit') {
     super(name)
@@ -43,6 +53,8 @@ export class BroomitDatabase extends Dexie {
     this.version(5).stores({ purchases: 'productId' })
     // The person's name and picture.
     this.version(6).stores({ profile: 'id' })
+    // Text read from the pages (handwriting, typed text, pictures), for search.
+    this.version(7).stores({ pageTexts: 'pageId, notebookId' })
   }
 }
 

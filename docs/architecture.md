@@ -260,7 +260,7 @@ Broomit instead keeps a plain, versioned document model and a renderer that only
 - Broome draws its own icons (`design/icons/glyphs.tsx`, shown by `BroomitIcon`): tools,
   interface and library, on a 24 px grid. They are traced 1:1 from the owner's tool and
   interface sheets (line centres and grey/light bodies vectorised from the images), drawn with
-  thin round white lines (0.476 units) over the bodies. For a tool in use the bodies turn
+  round white lines (0.5 units) over the bodies. For a tool in use the bodies turn
   blue-tinted, or take the pen's ink (tokens `--color-icon-*`).
 - Every other icon is a line icon in the same style (`icons.tsx`, shapes in `lineGlyphs.ts`,
   adapted from Lucide under its ISC license), imported under the usual names; there is no icon
@@ -481,6 +481,24 @@ The ink pipeline, from pen to storage, each part in its own module:
     (`engine/addons/textCommands.ts`, applied in `TextController.onInput`).
 - Page labels are cheap per frame: date and time formats are made once and their text kept for
   the minute, and label widths are measured once (formatting on every frame was slow on iPad).
+
+## Text recognition (OCR)
+
+- `lib/ocr.ts` reads the text in a picture. In the iPad app it uses Apple's Vision recognizer
+  (`ios/App/App/Ocr.swift`, plugin `Ocr`): handwriting and typed text, German and English, on
+  the device. In a browser it uses Tesseract (German and English, LSTM), loaded on first use
+  from the app's own files: `scripts/copy-ocr.mjs` copies its worker, core and language data
+  (listed in `scripts/ocr-files.json`) to `dist/ocr`, and the dev server serves the same files.
+  The service worker does not precache them (about 12 MB); Tesseract keeps its language data.
+  One recognition runs at a time.
+- Search: `features/search/pageIndex.ts` reads every page in the background while the library
+  is open (typed text as it is, plus a picture of the page on white without ruled lines), one
+  page at a time, and again only when the page's `updatedAt` changed. The text is kept in the
+  `pageTexts` table (Dexie version 7). The library's search lists notebooks whose pages hold the
+  query under "Found on pages", with a piece of the text around it.
+- Lasso: selected handwriting has "To text", which replaces the strokes with a text box in their
+  place and ink color, letters about as tall as the written lines (undoable); a selected picture
+  has "Copy text".
 
 ## Calendar
 

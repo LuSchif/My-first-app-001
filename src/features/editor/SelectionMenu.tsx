@@ -15,7 +15,10 @@ import {
   SquareRoundCorner,
   TextCursorInput,
   Trash2,
+  Type,
 } from '../../design/icons/icons.tsx'
+import { recognizeText } from '../../lib/ocr.ts'
+import { showNotice } from '../../lib/notices.ts'
 import type { Editor, EditorState } from '../../engine/editor/Editor.ts'
 import {
   Button,
@@ -68,7 +71,7 @@ const pill =
   'flex h-11 items-center gap-1.5 rounded-control px-3 text-sm font-semibold whitespace-nowrap hover:bg-white/10 active:bg-white/15'
 
 /** In the bar, in this order; everything else is behind the three dots. */
-const PRIMARY = ['delete', 'duplicate', 'copy', 'scale', 'edit']
+const PRIMARY = ['delete', 'duplicate', 'copy', 'to-text', 'copy-text', 'scale', 'edit']
 /** The order of the menu behind the three dots. */
 const SECONDARY = [
   'cut',
@@ -238,6 +241,11 @@ function menuItems(
       </MenuButton>
     ),
   })
+  if (sel.hasInk) {
+    items.push({ key: 'to-text', node: <ReadTextButton editor={editor} mode="convert" /> })
+  } else if (picture?.type === 'image') {
+    items.push({ key: 'copy-text', node: <ReadTextButton editor={editor} mode="copy" /> })
+  }
   if (editor.kind === 'presentation') {
     items.push({
       key: 'animate',
@@ -685,6 +693,41 @@ function SelectionColor({
         />
       )}
     </div>
+  )
+}
+
+/**
+ * Reads the text in the selection: handwriting becomes a text box in its place ("convert"); the
+ * text in a picture is copied ("copy").
+ */
+function ReadTextButton({ editor, mode }: { editor: Editor; mode: 'convert' | 'copy' }) {
+  const [busy, setBusy] = useState(false)
+  const read = async () => {
+    const picture = editor.selectionPicture()
+    if (!picture || busy) return
+    setBusy(true)
+    try {
+      const text = await recognizeText(picture)
+      if (!text) {
+        showNotice('No text found.')
+      } else if (mode === 'convert') {
+        editor.convertSelectionToText(text)
+      } else {
+        await navigator.clipboard.writeText(text)
+        showNotice('Text copied.')
+      }
+    } catch {
+      showNotice('Text recognition is not available right now.')
+    } finally {
+      picture.width = picture.height = 0
+      setBusy(false)
+    }
+  }
+  const label = busy ? 'Reading…' : mode === 'convert' ? 'To text' : 'Copy text'
+  return (
+    <MenuButton label={label} onClick={() => void read()}>
+      <Type size={18} />
+    </MenuButton>
   )
 }
 

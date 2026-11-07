@@ -28,7 +28,9 @@ writeFileSync(
 
 const files = walk(DIST)
   .map((path) => relative(DIST, path).split('\\').join('/'))
-  .filter((path) => !SKIP.has(path) && !path.endsWith('.map'))
+  // Text recognition's files (about 12 MB) load only when first needed; Tesseract keeps its
+  // language data itself.
+  .filter((path) => !SKIP.has(path) && !path.endsWith('.map') && !path.startsWith('ocr/'))
   .sort()
 
 const hash = createHash('sha256')

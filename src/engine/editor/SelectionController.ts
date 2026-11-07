@@ -7,6 +7,7 @@ import type { Fill } from '../model/fill.ts'
 import type {
   BoxObject,
   CanvasObject,
+  TextObject,
   GradientPaint,
   Id,
   ObjectAnimation,
@@ -14,6 +15,9 @@ import type {
 } from '../model/types.ts'
 import { animated, DEFAULT_ANIMATION } from '../model/animation.ts'
 import { paintObject } from '../render/objects.ts'
+import { pageSizeOf } from '../render/layout.ts'
+import { renderPage } from '../render/pageImage.ts'
+import { DEFAULT_TEXT_STYLE } from './TextController.ts'
 import { applyCamera } from '../render/SceneRenderer.ts'
 import type { EditorContext } from './context.ts'
 import {
@@ -68,6 +72,8 @@ export interface SelectionInfo {
   /** Presentations: the first selected object's animation, and its place among the slide's. */
   animation: ObjectAnimation | null
   animationPlace: { index: number; count: number } | null
+  /** Whether handwriting (strokes) is selected, which can be turned into text. */
+  hasInk: boolean
 }
 
 type Handle = 'nw' | 'ne' | 'se' | 'sw' | 'rotate'
@@ -181,6 +187,7 @@ export class SelectionController {
       canGradient: objects.some(takesGradient),
       animation: objects[0]?.animation ?? null,
       animationPlace: this.animationPlace(objects[0]),
+      hasInk: objects.some((o) => o.type === 'stroke'),
     }
   }
 
@@ -470,6 +477,79 @@ export class SelectionController {
     const after = page.objects.map((o) => (ids.has(o.id) ? flipObject(o, axis, cx, cy) : o))
     const label = axis === 'horizontal' ? 'Flip horizontally' : 'Flip vertically'
     this.ctx.history.execute(setPageObjects(label, page.id, page.objects, after))
+  }
+
+  /**
+   * A picture of the selected objects alone, dark on white and without the paper's lines, for
+   * reading the text in them; null without a selection.
+   */
+  picture(scale = 3): HTMLCanvasElement | null {
+    const sel = this.selection
+    const page = sel && this.ctx.doc.page(sel.pageId)
+    if (!sel || !page) return null
+    const notebook = this.ctx.doc.notebook
+    const plain = {
+      ...page,
+      paper: 'blank' as const,
+      background: '#ffffff',
+      objects: this.selectedObjects(),
+    }
+    const whole = renderPage(plain, notebook.layers, scale, '#ffffff', pageSizeOf(notebook))
+    const pad = 8
+    const x = Math.max(0, Math.floor((sel.bounds.minX - pad) * scale))
+    const y = Math.max(0, Math.floor((sel.bounds.minY - pad) * scale))
+    const w = Math.min(
+      whole.width - x,
+      Math.ceil((sel.bounds.maxX - sel.bounds.minX + 2 * pad) * scale),
+    )
+    const h = Math.min(
+      whole.height - y,
+      Math.ceil((sel.bounds.maxY - sel.bounds.minY + 2 * pad) * scale),
+    )
+    const out = document.createElement('canvas')
+    out.width = Math.max(1, w)
+    out.height = Math.max(1, h)
+    out.getContext('2d')!.drawImage(whole, x, y, w, h, 0, 0, w, h)
+    whole.width = whole.height = 0
+    return out
+  }
+
+  /**
+   * Replaces the selected handwriting with a text box holding `text`, where it was: as wide as
+   * the writing, in its ink color, with letters about as tall as the written lines. Typed text
+   * and other objects in the selection stay.
+   */
+  replaceInkWithText(text: string): void {
+    this.commitEdit('Edit')
+    const sel = this.selection
+    const page = sel && this.ctx.doc.page(sel.pageId)
+    const layer = this.ctx.activeLayer()
+    if (!sel || !page || !layer || layer.locked || !text.trim()) return
+    const ink = this.selectedObjects().filter((o) => o.type === 'stroke')
+    const b = boundsOf(ink)
+    if (!b) return
+    const lines = text.split('\n').length
+    const size = Math.round(Math.min(64, Math.max(10, ((b.maxY - b.minY) / lines) * 0.62)))
+    const first = ink[0]
+    const box: TextObject = {
+      id: newId(),
+      type: 'text',
+      layerId: layer.id,
+      x: b.minX,
+      y: b.minY,
+      width: Math.max(60, b.maxX - b.minX),
+      rotation: 0,
+      text,
+      style: {
+        ...DEFAULT_TEXT_STYLE,
+        size,
+        color: first?.type === 'stroke' ? first.color : DEFAULT_TEXT_STYLE.color,
+      },
+    }
+    const gone = new Set(ink.map((o) => o.id))
+    const after = [...page.objects.filter((o) => !gone.has(o.id)), box]
+    this.ctx.history.execute(setPageObjects('Convert to text', page.id, page.objects, after))
+    this.select(page.id, [box.id])
   }
 
   copy(): void {

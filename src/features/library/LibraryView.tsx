@@ -1,6 +1,6 @@
 import { releaseLabel } from '../../release.ts'
 import { ChevronRight, Search, X } from '../../design/icons/icons.tsx'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { navigate } from '../../app/router.ts'
 import { BroomitIcon, Button, Dialog, DialogTrigger } from '../../design/index.ts'
 import { Carousel, type CarouselPage } from './Carousel.tsx'
@@ -37,6 +37,7 @@ import { NewNotebookDialog } from './NewNotebookDialog.tsx'
 import { NewPresentationDialog } from './NewPresentationDialog.tsx'
 import { SortMenu } from './SortMenu.tsx'
 import { useLibrary, type Library } from './useLibrary.ts'
+import { searchPageTexts, setIndexing } from '../search/pageIndex.ts'
 import { useStoredState } from './useStoredState.ts'
 import { LayoutToggle } from './LayoutToggle.tsx'
 import { useLibraryLayout, type LibraryLayout } from './libraryLayout.ts'
@@ -52,6 +53,11 @@ export function LibraryView() {
   const [layout, setLayout] = useLibraryLayout()
   const open = (id: string) => navigate({ name: 'notebook', id })
   const searching = query.trim() !== ''
+  // Pages are read for search in the background while the library is open.
+  useEffect(() => {
+    setIndexing(true)
+    return () => setIndexing(false)
+  }, [])
 
   return (
     <div className="min-h-full px-4 pt-[calc(2rem+env(safe-area-inset-top))] pb-16 sm:px-8">
@@ -657,7 +663,10 @@ function SearchResults({
       list: found.filter((n) => (n.kind ?? 'notebook') === kind),
     }))
     .filter(({ list }) => list.length > 0)
-  if (!folders.length && !found.length) {
+  const inPages = usePageMatches(query).filter(
+    ([id]) => !found.some((n) => n.id === id) && library.notebooks.some((n) => n.id === id),
+  )
+  if (!folders.length && !found.length && !inPages.length) {
     return <p className="py-8 text-center text-ink-muted">Nothing matches “{query}”.</p>
   }
   return (
@@ -684,8 +693,49 @@ function SearchResults({
           />
         </Section>
       ))}
+      {inPages.length ? (
+        <Section title={`Found on pages (${inPages.length})`}>
+          <ul className="grid gap-2">
+            {inPages.map(([id, snippet]) => (
+              <li key={id}>
+                <button
+                  type="button"
+                  onClick={() => navigate({ name: 'notebook', id })}
+                  className="grid w-full gap-0.5 rounded-card bg-surface-raised px-4 py-3 text-left ring-1 ring-line hover:bg-hover"
+                >
+                  <span className="font-semibold">
+                    {library.notebooks.find((n) => n.id === id)?.title}
+                  </span>
+                  <span className="truncate text-sm text-ink-muted">{snippet}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </Section>
+      ) : null}
     </>
   )
+}
+
+/** Notebooks whose pages hold the query (read text), with a piece of the text around it. */
+function usePageMatches(query: string): [string, string][] {
+  const [matches, setMatches] = useState<{ query: string; list: [string, string][] }>({
+    query: '',
+    list: [],
+  })
+  useEffect(() => {
+    let live = true
+    const timer = setTimeout(() => {
+      void searchPageTexts(query).then((found) => {
+        if (live) setMatches({ query, list: [...found] })
+      })
+    }, 150)
+    return () => {
+      live = false
+      clearTimeout(timer)
+    }
+  }, [query])
+  return matches.query === query ? matches.list : []
 }
 
 function SearchField({ value, onChange }: { value: string; onChange: (value: string) => void }) {

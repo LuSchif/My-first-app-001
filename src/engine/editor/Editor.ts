@@ -893,6 +893,16 @@ export class Editor {
     this.selection.deleteSelection()
   }
 
+  /** A picture of the selection on white, for reading the text in it; null without one. */
+  selectionPicture(): HTMLCanvasElement | null {
+    return this.selection.picture()
+  }
+
+  /** Replaces the selected handwriting with a text box holding `text` (read from it). */
+  convertSelectionToText(text: string): void {
+    this.selection.replaceInkWithText(text)
+  }
+
   copySelection(): void {
     this.selection.copy()
     this.showNotice('Copied. Hold your pen or finger on the page to paste.')
