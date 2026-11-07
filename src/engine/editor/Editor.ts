@@ -893,6 +893,11 @@ export class Editor {
     this.selection.deleteSelection()
   }
 
+  /** The selected objects (empty without a selection). */
+  selectedObjects(): CanvasObject[] {
+    return this.selection.objects()
+  }
+
   /** A picture of the selection on white, for reading the text in it; null without one. */
   selectionPicture(): HTMLCanvasElement | null {
     return this.selection.picture()

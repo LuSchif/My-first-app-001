@@ -1,28 +1,38 @@
 import type { Notebook, Page } from '../../engine/model/types.ts'
 import { pageSizeOf } from '../../engine/render/layout.ts'
 import { preloadPictures, renderPage } from '../../engine/render/pageImage.ts'
-import { recognizeText } from '../../lib/ocr.ts'
+import { stopRecognition } from '../../lib/ocr.ts'
+import { inkOf, readHandwriting, readPicture } from './readText.ts'
 import { db, type PageText } from '../../storage/db.ts'
 
 /**
- * The text on every page, for search: typed text as it is, plus what text recognition reads in
- * a picture of the page (handwriting, and text in photos). Pages are read in the background
- * while the library is open, one at a time, and only again after they changed.
+ * The text on every page, for search: typed text as it is, handwriting (read from its strokes
+ * online, or from a picture on the device) and the text in pictures. Pages are read in the
+ * background while the library is open, one at a time, and only again after they changed.
  */
 
 /** Pixels per point of the picture that is read: large enough for small handwriting. */
-const READ_SCALE = 2
+const READ_SCALE = 1.5
 /** Pause between two pages, so the library stays smooth. */
-const PAUSE_MS = 300
+const PAUSE_MS = 400
+/** Reading starts this long after the library opens, not while it appears. */
+const START_MS = 2500
 
 let running = false
 let paused = true
 let again = false
+let startTimer: ReturnType<typeof setTimeout> | null = null
 
-/** Starts (or resumes) reading the pages that changed; stops while `setIndexing(false)`. */
+/**
+ * Starts (or resumes) reading the pages that changed, shortly after; `false` stops at once,
+ * also a page being read, so nothing works in the background while a notebook is open.
+ */
 export function setIndexing(on: boolean): void {
   paused = !on
-  if (on) void indexAll()
+  if (startTimer) clearTimeout(startTimer)
+  startTimer = null
+  if (on) startTimer = setTimeout(() => void indexAll(), START_MS)
+  else stopRecognition()
 }
 
 async function indexAll(): Promise<void> {
@@ -45,7 +55,7 @@ async function indexAll(): Promise<void> {
     } while (again && !paused)
   } catch (error) {
     // Reading is a convenience: a failure (offline in the browser, say) waits for next time.
-    console.warn('Page text recognition stopped:', error)
+    if (!paused) console.warn('Page text recognition stopped:', error)
   } finally {
     running = false
   }
@@ -65,7 +75,9 @@ async function indexNotebook(notebook: Notebook): Promise<void> {
   for (const page of pages) {
     if (paused) return
     if (known.get(page.id)?.updatedAt === page.updatedAt) continue
+    if (document.visibilityState !== 'visible') return
     const text = await readPage(notebook, page)
+    if (paused) return
     await db.pageTexts.put({
       pageId: page.id,
       notebookId: notebook.id,
@@ -76,21 +88,34 @@ async function indexNotebook(notebook: Notebook): Promise<void> {
   }
 }
 
-/** Typed text first, then what is read in the page's picture. */
+/**
+ * Typed text first, then the handwriting (read from its strokes, or from a picture), then the
+ * text in pictures on the page.
+ */
 async function readPage(notebook: Notebook, page: Page): Promise<string> {
   const typed = page.objects.flatMap((o) => (o.type === 'text' ? [o.text] : []))
-  const drawn = page.objects.some((o) => o.type !== 'text')
-  if (!drawn) return typed.join('\n')
-  await preloadPictures([page])
+  const ink = inkOf(page.objects)
+  const pictures = page.objects.filter((o) => o.type === 'image')
+  const parts = [...typed]
   // On white, without ruled lines, which only confuse the reader.
-  const plain: Page = { ...page, paper: 'blank', background: '#ffffff' }
-  const canvas = renderPage(plain, notebook.layers, READ_SCALE, '#ffffff', pageSizeOf(notebook))
-  try {
-    const read = await recognizeText(canvas)
-    return [...typed, read].filter(Boolean).join('\n')
-  } finally {
-    canvas.width = canvas.height = 0
+  const picture = (objects: Page['objects']) => () =>
+    renderPage(
+      { ...page, objects, paper: 'blank', background: '#ffffff' },
+      notebook.layers,
+      READ_SCALE,
+      '#ffffff',
+      pageSizeOf(notebook),
+    )
+  if (ink.length) {
+    const others = page.objects.filter((o) => o.type !== 'text' && o.type !== 'image')
+    parts.push(await readHandwriting(ink, picture(others)))
   }
+  if (paused) throw new Error('Paused')
+  if (pictures.length) {
+    await preloadPictures([page])
+    parts.push(await readPicture(picture(pictures)()))
+  }
+  return parts.filter(Boolean).join('\n')
 }
 
 /** Notebooks whose pages contain `query` (any case), with a short piece of the text around it. */

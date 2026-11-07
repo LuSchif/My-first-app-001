@@ -17,7 +17,7 @@ import {
   Trash2,
   Type,
 } from '../../design/icons/icons.tsx'
-import { recognizeText } from '../../lib/ocr.ts'
+import { inkOf, readHandwriting, readPicture } from '../search/readText.ts'
 import { showNotice } from '../../lib/notices.ts'
 import type { Editor, EditorState } from '../../engine/editor/Editor.ts'
 import {
@@ -703,11 +703,13 @@ function SelectionColor({
 function ReadTextButton({ editor, mode }: { editor: Editor; mode: 'convert' | 'copy' }) {
   const [busy, setBusy] = useState(false)
   const read = async () => {
-    const picture = editor.selectionPicture()
-    if (!picture || busy) return
+    if (busy) return
     setBusy(true)
     try {
-      const text = await recognizeText(picture)
+      const text =
+        mode === 'convert'
+          ? await readHandwriting(inkOf(editor.selectedObjects()), () => editor.selectionPicture())
+          : await readPicture(editor.selectionPicture())
       if (!text) {
         showNotice('No text found.')
       } else if (mode === 'convert') {
@@ -719,7 +721,6 @@ function ReadTextButton({ editor, mode }: { editor: Editor; mode: 'convert' | 'c
     } catch {
       showNotice('Text recognition is not available right now.')
     } finally {
-      picture.width = picture.height = 0
       setBusy(false)
     }
   }

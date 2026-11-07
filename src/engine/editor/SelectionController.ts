@@ -479,6 +479,11 @@ export class SelectionController {
     this.ctx.history.execute(setPageObjects(label, page.id, page.objects, after))
   }
 
+  /** The selected objects (empty without a selection). */
+  objects(): CanvasObject[] {
+    return this.selectedObjects()
+  }
+
   /**
    * A picture of the selected objects alone, dark on white and without the paper's lines, for
    * reading the text in them; null without a selection.

@@ -484,21 +484,24 @@ The ink pipeline, from pen to storage, each part in its own module:
 
 ## Text recognition (OCR)
 
-- `lib/ocr.ts` reads the text in a picture. In the iPad app it uses Apple's Vision recognizer
-  (`ios/App/App/Ocr.swift`, plugin `Ocr`): handwriting and typed text, German and English, on
-  the device. In a browser it uses Tesseract (German and English, LSTM), loaded on first use
-  from the app's own files: `scripts/copy-ocr.mjs` copies its worker, core and language data
-  (listed in `scripts/ocr-files.json`) to `dist/ocr`, and the dev server serves the same files.
-  The service worker does not precache them (about 12 MB); Tesseract keeps its language data.
-  One recognition runs at a time.
-- Search: `features/search/pageIndex.ts` reads every page in the background while the library
-  is open (typed text as it is, plus a picture of the page on white without ruled lines), one
-  page at a time, and again only when the page's `updatedAt` changed. The text is kept in the
-  `pageTexts` table (Dexie version 7). The library's search lists notebooks whose pages hold the
-  query under "Found on pages", with a piece of the text around it.
-- Lasso: selected handwriting has "To text", which replaces the strokes with a text box in their
-  place and ink color, letters about as tall as the written lines (undoable); a selected picture
-  has "Copy text".
+- Handwriting is read from its strokes (online recognition, `lib/handwriting.ts`): the strokes
+  are grouped into lines and each line goes to Google's handwriting recognition (the service
+  behind handwriting input in Google Translate), far more accurate than reading a picture. The
+  owner chose this, on by default, with a switch in Profile › Settings ("Accurate handwriting
+  recognition", `lib/handwritingSetting.ts`); the strokes being read are sent to Google.
+- Off, offline or on failure, a picture is read on the device (`lib/ocr.ts`): Apple's Vision
+  recognizer in the iPad app (`ios/App/App/Ocr.swift`, plugin `Ocr`), Tesseract (German and
+  English, LSTM) in a browser, loaded on first use from the app's own files
+  (`scripts/copy-ocr.mjs` copies those in `scripts/ocr-files.json` to `dist/ocr`; the dev
+  server serves them too; the service worker does not precache them, about 12 MB). Text in
+  pictures is always read this way. One recognition runs at a time; Tesseract is let go after
+  20 s unused and stopped at once when a notebook opens, so writing stays smooth.
+- Search: `features/search/pageIndex.ts` reads the pages in the background while the library is
+  open (starting 2.5 s after it appears, only while visible, one page at a time) and again only
+  when a page's `updatedAt` changed. The text is kept in `pageTexts` (Dexie version 7). The
+  library's search lists notebooks whose pages hold the query under "Found on pages".
+- Lasso: selected handwriting has "To text" (a text box in its place and ink color, letters
+  about as tall as the written lines, undoable); a selected picture has "Copy text".
 
 ## Calendar
 

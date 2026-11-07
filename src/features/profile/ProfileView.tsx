@@ -10,6 +10,7 @@ import { useRef, useState } from 'react'
 import { navigate } from '../../app/router.ts'
 import { Button, Switch, TextField } from '../../design/index.ts'
 import { setFrameRateShown, useFrameRateShown } from '../../lib/frameRateSetting.ts'
+import { setOnlineHandwriting, useOnlineHandwriting } from '../../lib/handwritingSetting.ts'
 import { releaseLabel } from '../../release.ts'
 import { cn } from '../../lib/cn.ts'
 import { showNotice } from '../../lib/notices.ts'
@@ -274,6 +275,9 @@ function Settings() {
           </Button>
         </Row>
         <li className="py-3">
+          <HandwritingSwitch />
+        </li>
+        <li className="py-3">
           <FrameRateSwitch />
         </li>
         <Row label="Version" hint="The version running now">
@@ -301,6 +305,19 @@ function Row({
       </span>
       {children}
     </li>
+  )
+}
+
+/** Online handwriting recognition: much more accurate, but the strokes go to Google. */
+function HandwritingSwitch() {
+  const on = useOnlineHandwriting()
+  return (
+    <Switch
+      label="Accurate handwriting recognition"
+      hint="Reads handwriting from its strokes with Google's handwriting recognition, for search and To text. The strokes being read are sent to Google. Off, or offline, text is read on this device, less accurately."
+      checked={on}
+      onChange={setOnlineHandwriting}
+    />
   )
 }
 
