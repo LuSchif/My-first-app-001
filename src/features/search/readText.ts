@@ -8,13 +8,33 @@ import {
 import { onlineHandwritingOn } from '../../lib/handwritingSetting.ts'
 import { recognizeText } from '../../lib/ocr.ts'
 
-/** Handwriting among these objects: pen strokes, not highlighter, tape or drawn shapes. */
+/**
+ * Handwriting among these objects that has to be read: pen strokes, not highlighter, tape,
+ * drawn shapes or generated handwriting (whose text is known, see `writtenTextOf`).
+ */
 export function inkOf(objects: readonly CanvasObject[]): Ink[] {
   return objects.flatMap((o) =>
-    o.type === 'stroke' && o.tool === 'pen' && !o.closed && !o.straight
+    o.type === 'stroke' && o.tool === 'pen' && !o.closed && !o.straight && !o.written
       ? [{ points: o.points, t: o.input?.t }]
       : [],
   )
+}
+
+/** The exact texts of the generated handwriting among these objects, top to bottom. */
+export function writtenTextOf(objects: readonly CanvasObject[]): string {
+  const groups = new Map<string, { text: string; top: number }>()
+  for (const o of objects) {
+    if (o.type !== 'stroke' || !o.written) continue
+    let top = Infinity
+    for (let i = 1; i < o.points.length; i += 2) top = Math.min(top, o.points[i]!)
+    const group = groups.get(o.written.id)
+    if (group) group.top = Math.min(group.top, top)
+    else groups.set(o.written.id, { text: o.written.text, top })
+  }
+  return [...groups.values()]
+    .sort((a, b) => a.top - b.top)
+    .map((g) => g.text)
+    .join('\n')
 }
 
 /**

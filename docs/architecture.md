@@ -516,6 +516,12 @@ The ink pipeline, from pen to storage, each part in its own module:
   with a hand's small irregularities (a gently wavering, slightly sloped baseline, letters a
   little turned, sized and spaced unevenly) in smooth lines: the glyphs' straight pieces are
   rounded (Chaikin), sharp turns stay sharp; a seed keeps a hand stable.
+- Generated strokes keep their exact text, layout and box (`StrokeObject.written`, shared by
+  the strokes of one conversion). Another hand, "To text" and search use that text and never
+  read the strokes back; another hand writes in the same place and size, following a move or
+  resize of the strokes since.
+- Lines of real handwriting are found from the middles of the letters' top part, so a
+  descender reaching into the next line does not merge the two lines.
 - The fonts (`engine/fonts/*.json`, loaded on first use) are EMS Allure, Felix, Readability and
   Elfin from the `hersheytext` package, SIL Open Font License (`engine/fonts/OFL.md`), reduced
   to the glyphs used, curves flattened; missing characters are written as near ones.

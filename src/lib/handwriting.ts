@@ -39,31 +39,42 @@ function boxOf(ink: Ink): Box | null {
 
 /**
  * The strokes as lines of writing, top to bottom; within a line the strokes keep their order
- * (the order they were written in). The strokes' heights are laid side by side on the page's
- * height: where they overlap or nearly touch, it is one line, so i-dots, commas, accents and
- * descenders stay with their words. Only a clear gap between bands of writing starts a new line.
+ * (the order they were written in). Lines are found from the middles of the letter strokes:
+ * a descender (the tail of a y) reaching into the next line does not join the two, and a new
+ * line starts only where the middles jump down by more than half a letter. Small marks (dots,
+ * commas, accents) then join the nearest line.
  */
 export function groupLines(strokes: readonly Ink[]): Ink[][] {
   const items = strokes
     .map((ink, order) => ({ ink, order, box: boxOf(ink) }))
     .filter((s): s is { ink: Ink; order: number; box: Box } => s.box !== null)
+    .map((s) => ({ ...s, h: s.box.maxY - s.box.minY, cy: 0 }))
   if (items.length === 0) return []
-  const heights = items.map((s) => s.box.maxY - s.box.minY).sort((a, b) => a - b)
+  const heights = items.map((s) => s.h).sort((a, b) => a - b)
   // The height of a typical letter stroke (dots and commas do not count).
   const letter = Math.max(4, heights[Math.floor(heights.length * 0.75)] ?? 4)
-  const gap = letter * 0.25
-  const byTop = [...items].sort((a, b) => a.box.minY - b.box.minY)
-  const bands: { bottom: number; members: typeof items }[] = []
-  for (const s of byTop) {
-    const band = bands[bands.length - 1]
-    if (band && s.box.minY <= band.bottom + gap) {
-      band.members.push(s)
-      band.bottom = Math.max(band.bottom, s.box.maxY)
+  // Where a stroke sits: the middle of its top letter's height, so a long tail (a y, a g)
+  // does not pull it down into the next line.
+  for (const s of items) s.cy = s.box.minY + Math.min(s.h, letter) / 2
+  const main = items.filter((s) => s.h >= letter * 0.35).sort((a, b) => a.cy - b.cy)
+  const small = items.filter((s) => s.h < letter * 0.35)
+  const lines: { top: number; bottom: number; members: typeof items }[] = []
+  for (const s of main) {
+    const line = lines[lines.length - 1]
+    if (line && s.cy - line.bottom <= letter * 0.5) {
+      line.members.push(s)
+      line.bottom = s.cy
     } else {
-      bands.push({ bottom: s.box.maxY, members: [s] })
+      lines.push({ top: s.cy, bottom: s.cy, members: [s] })
     }
   }
-  return bands.map((b) => b.members.sort((x, y) => x.order - y.order).map((m) => m.ink))
+  if (!lines.length) lines.push({ top: small[0]!.cy, bottom: small[0]!.cy, members: [] })
+  for (const s of small) {
+    const distance = (l: (typeof lines)[number]) =>
+      s.cy < l.top ? l.top - s.cy : s.cy > l.bottom ? s.cy - l.bottom : 0
+    lines.reduce((a, b) => (distance(b) < distance(a) ? b : a)).members.push(s)
+  }
+  return lines.map((l) => l.members.sort((x, y) => x.order - y.order).map((m) => m.ink))
 }
 
 /**

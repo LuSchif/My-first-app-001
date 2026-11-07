@@ -8,6 +8,7 @@ import type {
   BoxObject,
   CanvasObject,
   StrokeObject,
+  WrittenText,
   TextObject,
   GradientPaint,
   Id,
@@ -37,6 +38,25 @@ import {
   withOutline,
   type Transform,
 } from './selection.ts'
+
+/** The box around lines of points (x, y, x, y, …); null without points. */
+function boundsOfPoints(lines: readonly number[][]): Rect | null {
+  let r: Rect | null = null
+  for (const p of lines) {
+    for (let i = 0; i + 1 < p.length; i += 2) {
+      const x = p[i]!
+      const y = p[i + 1]!
+      if (!r) r = { minX: x, minY: y, maxX: x, maxY: y }
+      else {
+        r.minX = Math.min(r.minX, x)
+        r.minY = Math.min(r.minY, y)
+        r.maxX = Math.max(r.maxX, x)
+        r.maxY = Math.max(r.maxY, y)
+      }
+    }
+  }
+  return r
+}
 
 /** Screen-pixel sizes, so handles stay easy to hit at any zoom. */
 const HANDLE_RADIUS = 9
@@ -541,9 +561,20 @@ export class SelectionController {
     const b = boundsOf(ink)
     if (!b) return
     const lines = text.split('\n').length
-    const size = Math.round(Math.min(64, Math.max(10, ((b.maxY - b.minY) / lines) * 0.62)))
+    // Generated handwriting knows its size; other handwriting is measured.
+    const known = ink.every((o) => o.type === 'stroke' && o.written)
+      ? ink.find((o) => o.type === 'stroke' && o.written)
+      : undefined
+    const writtenSize =
+      known?.type === 'stroke' && known.written
+        ? known.written.layout.size *
+          ((b.maxY - b.minY) / Math.max(1e-6, known.written.box.maxY - known.written.box.minY))
+        : 0
+    const size = Math.round(
+      writtenSize || Math.min(64, Math.max(10, ((b.maxY - b.minY) / lines) * 0.62)),
+    )
     const first = ink[0]
-    const box: TextObject = {
+    let box: TextObject = {
       id: newId(),
       type: 'text',
       layerId: layer.id,
@@ -558,9 +589,10 @@ export class SelectionController {
         color: first?.type === 'stroke' ? first.color : DEFAULT_TEXT_STYLE.color,
       },
     }
-    // Each written line stays one line: smaller letters while a line would wrap.
+    // Each written line stays one line: smaller letters while a line would wrap. (A new
+    // object each time: layouts are cached per object.)
     while (box.style.size > 10 && layoutText(box).lines.length > lines) {
-      box.style = { ...box.style, size: box.style.size - 1 }
+      box = { ...box, style: { ...box.style, size: box.style.size - 1 } }
     }
     const gone = new Set(ink.map((o) => o.id))
     const after = [...page.objects.filter((o) => !gone.has(o.id)), box]
@@ -582,70 +614,105 @@ export class SelectionController {
     const objects = this.selectedObjects()
     const made: StrokeObject[] = []
     const gone = new Set<Id>()
-    const pen = (lines: number[][], color: string, width: number, opacity: number) => {
+    let seed = Math.floor(Math.random() * 1e9)
+    const write = (
+      text: string,
+      layout: WrittenText['layout'],
+      ink: { color: string; width: number; opacity: number },
+    ) => {
+      const lines = writeHandwriting(text, font, { ...layout, seed: seed++ })
+      const box = boundsOfPoints(lines)
+      if (!box) return
+      const written: WrittenText = { id: newId(), text, layout, box }
       for (const points of lines) {
         made.push({
           id: newId(),
           type: 'stroke',
           layerId: layer.id,
           tool: 'pen',
-          color,
-          width,
-          opacity,
+          ...ink,
           points,
+          written,
         })
       }
     }
-    let seed = Math.floor(Math.random() * 1e9)
+
+    // Text boxes, turned like the box (around its center, which is the same as around its
+    // turned corner).
     for (const o of objects) {
       if (o.type !== 'text' || !o.text.trim()) continue
       const height = layoutText(o).height
-      const lines = writeHandwriting(o.text, font, {
-        x: o.x,
-        y: o.y,
-        width: Math.max(o.width, 40),
-        size: o.style.size,
-        lineHeight: Math.max(1.3, o.style.lineHeight),
-        align: o.style.align,
-        seed: seed++,
-      })
-      // Turned like the box, around its center.
       const cx = o.x + o.width / 2
       const cy = o.y + height / 2
       const c = Math.cos(o.rotation)
-      const s = Math.sin(o.rotation)
-      const turned = o.rotation
-        ? lines.map((p) =>
-            p.map((v, i) =>
-              i % 2 === 0
-                ? cx + (v - cx) * c - (p[i + 1]! - cy) * s
-                : cy + (p[i - 1]! - cx) * s + (v - cy) * c,
-            ),
-          )
-        : lines
-      pen(turned, o.style.color, Math.max(0.8, o.style.size * 0.07), o.style.opacity)
+      const sn = Math.sin(o.rotation)
+      write(
+        o.text,
+        {
+          x: cx + (o.x - cx) * c - (o.y - cy) * sn,
+          y: cy + (o.x - cx) * sn + (o.y - cy) * c,
+          width: Math.max(o.width, 40),
+          size: o.style.size,
+          lineHeight: Math.max(1.3, o.style.lineHeight),
+          align: o.style.align,
+          rotation: o.rotation,
+        },
+        {
+          color: o.style.color,
+          width: Math.max(0.8, o.style.size * 0.07),
+          opacity: o.style.opacity,
+        },
+      )
       gone.add(o.id)
     }
-    const ink = objects.filter((o) => o.type === 'stroke')
+
+    // Generated handwriting: its own text again, where it is now and as large as it is now.
+    const strokes = objects.filter((o): o is StrokeObject => o.type === 'stroke')
+    const groups = new Map<Id, StrokeObject[]>()
+    for (const o of strokes) {
+      if (!o.written) continue
+      const group = groups.get(o.written.id)
+      if (group) group.push(o)
+      else groups.set(o.written.id, [o])
+    }
+    for (const group of groups.values()) {
+      const meta = group[0]!.written!
+      const now = boundsOf(group)
+      if (!now) continue
+      const was = meta.box
+      const k = was.maxY > was.minY ? (now.maxY - now.minY) / (was.maxY - was.minY) : 1
+      const L = meta.layout
+      write(
+        meta.text,
+        {
+          ...L,
+          x: now.minX + (L.x - was.minX) * k,
+          y: now.minY + (L.y - was.minY) * k,
+          width: L.width * k,
+          size: L.size * k,
+        },
+        group[0]!,
+      )
+      for (const o of group) gone.add(o.id)
+    }
+
+    // Other handwriting, read as `inkText`, rewritten line for line where it was.
+    const ink = strokes.filter((o) => !o.written)
     const b = boundsOf(ink)
     if (inkText?.trim() && b) {
       const rows = inkText.split('\n').length
       const size = Math.min(64, Math.max(10, ((b.maxY - b.minY) / rows) * 0.62))
-      const first = ink[0]
-      const lines = writeHandwriting(inkText, font, {
-        x: b.minX,
-        y: b.minY,
-        // Written lines stay lines.
-        width: 1e6,
-        size,
-        lineHeight: (b.maxY - b.minY) / rows / size,
-        seed: seed++,
-      })
-      pen(
-        lines,
-        first?.type === 'stroke' ? first.color : DEFAULT_TEXT_STYLE.color,
-        first?.type === 'stroke' ? first.width : Math.max(0.8, size * 0.07),
-        first?.type === 'stroke' ? first.opacity : 1,
+      write(
+        inkText,
+        {
+          x: b.minX,
+          y: b.minY,
+          // Written lines stay lines.
+          width: 1e6,
+          size,
+          lineHeight: (b.maxY - b.minY) / rows / size,
+        },
+        ink[0] ?? { color: DEFAULT_TEXT_STYLE.color, width: size * 0.07, opacity: 1 },
       )
       for (const o of ink) gone.add(o.id)
     }

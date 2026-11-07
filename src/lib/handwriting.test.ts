@@ -21,6 +21,13 @@ describe('handwriting', () => {
     expect(groupLines(line)).toEqual([line])
   })
 
+  it('keeps lines apart when a descender reaches into the next line', () => {
+    const first = [stroke(0, 100, 10, 30), stroke(20, 110, 10, 20)]
+    const y = stroke(40, 110, 10, 75) // tail far down, into the next line
+    const second = [stroke(0, 160, 10, 30), stroke(20, 170, 10, 20)]
+    expect(groupLines([...first, y, ...second])).toEqual([[...first, y], second])
+  })
+
   it('groups strokes into lines, top to bottom, keeping their order', () => {
     const a = stroke(10, 100, 10, 30)
     const dot = stroke(40, 92, 1, 1)

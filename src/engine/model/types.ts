@@ -285,6 +285,26 @@ export type GradientPaint = LinearGradientFill | RadialGradientFill
 /** Tape is a straight band that covers what is below until it is tapped open. */
 export type InkTool = 'pen' | 'highlighter' | 'tape'
 
+/**
+ * The text of generated handwriting, how it was laid out (see geometry/handFont.ts) and where
+ * its strokes were then, so it can be written again in another hand, in the same place and
+ * size (also after the strokes were moved or scaled).
+ */
+export interface WrittenText {
+  id: Id
+  text: string
+  layout: {
+    x: number
+    y: number
+    width: number
+    size: number
+    lineHeight: number
+    align?: 'left' | 'center' | 'right'
+    rotation?: number
+  }
+  box: { minX: number; minY: number; maxX: number; maxY: number }
+}
+
 export interface StrokeObject extends Animatable {
   id: Id
   type: 'stroke'
@@ -296,6 +316,11 @@ export interface StrokeObject extends Animatable {
   opacity: number
   /** Flat list of page coordinates in points: x0, y0, x1, y1, … */
   points: number[]
+  /**
+   * Generated handwriting ("To handwriting"): the exact text these strokes write, shared by all
+   * strokes of one conversion (same id), so it is never read back from the strokes.
+   */
+  written?: WrittenText
   /**
    * The line width at each point (fountain pen, pressure); when present it replaces `width`
    * for drawing, and `width` stays the pen's base width.

@@ -20,7 +20,13 @@ import {
 } from '../../design/icons/icons.tsx'
 import { HAND_STYLES, loadHandFont, type HandStyle } from '../../engine/fonts/handFonts.ts'
 import { writeHandwriting, type HandFont } from '../../engine/geometry/handFont.ts'
-import { inkOf, readHandwriting, readHandwritingChoices, readPicture } from '../search/readText.ts'
+import {
+  inkOf,
+  readHandwriting,
+  readHandwritingChoices,
+  readPicture,
+  writtenTextOf,
+} from '../search/readText.ts'
 import { showNotice } from '../../lib/notices.ts'
 import type { Editor, EditorState } from '../../engine/editor/Editor.ts'
 import {
@@ -722,6 +728,15 @@ function SelectionColor({
 }
 
 /**
+ * The text of the selected handwriting that has to be read (generated handwriting keeps its
+ * own text, see SelectionController.replaceWithHandwriting).
+ */
+async function selectedInkText(editor: Editor): Promise<string> {
+  const ink = inkOf(editor.selectedObjects())
+  return ink.length ? await readHandwriting(ink, () => editor.selectionPicture()) : ''
+}
+
+/**
  * Writes the selection by hand: text boxes as they are, handwriting after reading it. The
  * menu shows each hand writing its own name.
  */
@@ -738,10 +753,10 @@ function HandwritingButton({ editor, hasInk }: { editor: Editor; hasInk: boolean
     setBusy(true)
     try {
       const font = await loadHandFont(style)
-      const inkText = hasInk
-        ? await readHandwriting(inkOf(editor.selectedObjects()), () => editor.selectionPicture())
-        : null
-      if (hasInk && !inkText && !editor.selectedObjects().some((o) => o.type === 'text')) {
+      const inkText = hasInk ? await selectedInkText(editor) : null
+      const objects = editor.selectedObjects()
+      const known = objects.some((o) => o.type === 'text' || (o.type === 'stroke' && o.written))
+      if (hasInk && !inkText && !known) {
         showNotice('No text found in the handwriting.')
         return
       }
@@ -843,11 +858,13 @@ function ReadTextButton({ editor, mode }: { editor: Editor; mode: 'convert' | 'c
     if (busy) return
     setBusy(true)
     try {
+      const objects = editor.selectedObjects()
+      const known = writtenTextOf(objects)
       const { text, alternatives } =
         mode === 'convert'
-          ? await readHandwritingChoices(inkOf(editor.selectedObjects()), () =>
-              editor.selectionPicture(),
-            )
+          ? inkOf(objects).length
+            ? await readHandwritingChoices(inkOf(objects), () => editor.selectionPicture())
+            : { text: known, alternatives: [] }
           : { text: await readPicture(editor.selectionPicture()), alternatives: [] }
       if (!text) {
         showNotice('No text found.')

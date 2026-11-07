@@ -2,7 +2,7 @@ import type { Notebook, Page } from '../../engine/model/types.ts'
 import { pageSizeOf } from '../../engine/render/layout.ts'
 import { preloadPictures, renderPage } from '../../engine/render/pageImage.ts'
 import { stopRecognition } from '../../lib/ocr.ts'
-import { inkOf, readHandwriting, readPicture } from './readText.ts'
+import { inkOf, readHandwriting, readPicture, writtenTextOf } from './readText.ts'
 import { db, type PageText } from '../../storage/db.ts'
 
 /**
@@ -96,7 +96,7 @@ async function readPage(notebook: Notebook, page: Page): Promise<string> {
   const typed = page.objects.flatMap((o) => (o.type === 'text' ? [o.text] : []))
   const ink = inkOf(page.objects)
   const pictures = page.objects.filter((o) => o.type === 'image')
-  const parts = [...typed]
+  const parts = [...typed, writtenTextOf(page.objects)]
   // On white, without ruled lines, which only confuse the reader.
   const picture = (objects: Page['objects']) => () =>
     renderPage(
@@ -107,7 +107,9 @@ async function readPage(notebook: Notebook, page: Page): Promise<string> {
       pageSizeOf(notebook),
     )
   if (ink.length) {
-    const others = page.objects.filter((o) => o.type !== 'text' && o.type !== 'image')
+    const others = page.objects.filter(
+      (o) => o.type !== 'text' && o.type !== 'image' && !(o.type === 'stroke' && o.written),
+    )
     parts.push(await readHandwriting(ink, picture(others)))
   }
   if (paused) throw new Error('Paused')
