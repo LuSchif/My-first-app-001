@@ -60,7 +60,7 @@ const lean = (children: ReactNode, angle = 45) => (
  * clip, the cone and the ball (which shows the ink).
  */
 const ballpoint = (p: Paint) => (
-  <g transform="rotate(45 12 12)" strokeWidth="0.55">
+  <g transform="rotate(45 12 12)" strokeWidth="0.35">
     <rect x="9.4" y="0.15" width="5.2" height="4" rx="1.3" fill={p.fill} />
     <path
       d="M8.5 4.05a1.1 1.1 0 0 1 1.1-1.1h4.8a1.1 1.1 0 0 1 1.1 1.1V16.3Q15.4 17.5 14.73 18.28H9.27Q8.6 17.5 8.5 16.3Z"
